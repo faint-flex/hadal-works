@@ -80,7 +80,7 @@ namespace Kilnwood.Sim
             int i = y * W + x;
             if (Ground[i] == Terrain.Water) return "Can't dig the river";
             if (Ground[i] == Terrain.Forest) return "Trees in the way";
-            if (_occ[i] >= 0) return "Something is built there";
+            if (_occ[i] >= 0 || _shaftOcc[i] >= 0) return "Something is built there";
             if (MaterialAt(i) == Item.None) return "Already as deep as it goes";
             return null;
         }
@@ -91,7 +91,7 @@ namespace Kilnwood.Sim
             int i = y * W + x;
             if (Ground[i] == Terrain.Water) return "Can't fill the river";
             if (Ground[i] == Terrain.Forest) return "Trees in the way";
-            if (_occ[i] >= 0) return "Something is built there";
+            if (_occ[i] >= 0 || _shaftOcc[i] >= 0) return "Something is built there";
             if (Units[i] >= B.MaxDumpHeight * B.UnitsPerLevel) return "Already as high as it goes";
             return null;
         }

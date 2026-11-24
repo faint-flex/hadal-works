@@ -4,9 +4,9 @@ namespace Kilnwood.Sim
 {
     public enum Terrain { Grass, Forest, IronOre, Stone, Water }
 
-    public enum Item { None, Wood, Ore, Stone, Charcoal, Iron, Brick, Gear, Fish, Dirt }
+    public enum Item { None, Wood, Ore, Stone, Charcoal, Iron, Brick, Gear, Fish, Dirt, Plank, Plate }
 
-    public enum BuildingType { Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Lodge, Fisher, Cabin, Splitter, Garage, Hopper }
+    public enum BuildingType { Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Lodge, Fisher, Cabin, Splitter, Garage, Hopper, Shaft, Waterwheel, Sawmill, TripHammer }
 
     public enum VehicleType { Excavator, Truck }
 
@@ -25,6 +25,7 @@ namespace Kilnwood.Sim
         public Item[] InItems;
         public int[] InCounts;
         public Item Out;
+        public int OutCount = 1;
         public float Seconds;
         public bool BurnsFuel;
 
@@ -47,6 +48,10 @@ namespace Kilnwood.Sim
         public char Key;
         public int Workers;                  // people needed to run it
         public int Homes;                    // people who can live in it
+        public int Tier = 1;                 // unlocks at this tier
+        public int Hp;                       // power it needs (or, for a waterwheel, gives)
+        public bool NeedsPower;              // can't run at all without power (sawmill, trip hammer)
+        public int Page => Tier >= 2 ? 2 : 1; // build bar page
 
         public string CostText()
         {
@@ -71,6 +76,8 @@ namespace Kilnwood.Sim
                 case Item.Gear: return "Gear";
                 case Item.Fish: return "Fish";
                 case Item.Dirt: return "Dirt";
+                case Item.Plank: return "Plank";
+                case Item.Plate: return "Iron plate";
                 default: return "-";
             }
         }
@@ -89,6 +96,8 @@ namespace Kilnwood.Sim
                 case Item.Gear: return "G";
                 case Item.Fish: return "F";
                 case Item.Dirt: return "D";
+                case Item.Plank: return "P";
+                case Item.Plate: return "L";
                 default: return "";
             }
         }
@@ -150,6 +159,11 @@ namespace Kilnwood.Sim
         public (Item item, int count)[] ExcavatorCost = { (Item.Iron, 20), (Item.Wood, 10) };
         public (Item item, int count)[] TruckCost = { (Item.Iron, 12), (Item.Wood, 8) };
 
+        // 0.6 Tier 2 "Water Power".
+        public int WheelHp = 10;
+        public int GoalPlank = 200;
+        public int GoalPlate = 100;
+
         public (Item item, int count)[] VehicleCost(VehicleType t) => t == VehicleType.Excavator ? ExcavatorCost : TruckCost;
 
         public readonly Dictionary<BuildingType, BuildingDef> Defs = new Dictionary<BuildingType, BuildingDef>();
@@ -171,7 +185,7 @@ namespace Kilnwood.Sim
             Add(new BuildingDef
             {
                 Type = BuildingType.Mine, Name = "Mine", Size = 2, Cost = new[] { (Item.Wood, 8), (Item.Stone, 4) }, Key = '3',
-                SitsOn = new[] { Terrain.IronOre, Terrain.Stone }, BurnsFuel = true, Workers = 2,
+                SitsOn = new[] { Terrain.IronOre, Terrain.Stone }, BurnsFuel = true, Workers = 2, Hp = 3,
             });
             Add(new BuildingDef
             {
@@ -192,7 +206,7 @@ namespace Kilnwood.Sim
             });
             Add(new BuildingDef
             {
-                Type = BuildingType.Workshop, Name = "Workshop", Size = 2, Cost = new[] { (Item.Wood, 10), (Item.Iron, 6) }, Key = '6', Workers = 2,
+                Type = BuildingType.Workshop, Name = "Workshop", Size = 2, Cost = new[] { (Item.Wood, 10), (Item.Iron, 6) }, Key = '6', Workers = 2, Hp = 3,
                 Recipes = new[]
                 {
                     new Recipe { Name = "Gear", InItems = new[] { Item.Iron }, InCounts = new[] { 2 }, Out = Item.Gear, Seconds = 4f, BurnsFuel = true },
@@ -200,6 +214,24 @@ namespace Kilnwood.Sim
             });
             Add(new BuildingDef { Type = BuildingType.Lodge, Name = "Lodge", Size = 4, Homes = 6 });
             Add(new BuildingDef { Type = BuildingType.Garage, Name = "Garage", Size = 2, Cost = new[] { (Item.Wood, 12), (Item.Stone, 8), (Item.Iron, 4) }, Key = '7' });
+            Add(new BuildingDef { Type = BuildingType.Shaft, Name = "Line shaft", Size = 1, Cost = new[] { (Item.Wood, 1) }, Key = '1', Tier = 2 });
+            Add(new BuildingDef
+            {
+                Type = BuildingType.Waterwheel, Name = "Waterwheel", Size = 2, Key = '2', Tier = 2, Hp = WheelHp,
+                Cost = new[] { (Item.Wood, 20), (Item.Brick, 10), (Item.Gear, 8) },
+            });
+            Add(new BuildingDef
+            {
+                Type = BuildingType.Sawmill, Name = "Sawmill", Size = 2, Key = '3', Tier = 2, Hp = 3, NeedsPower = true,
+                Cost = new[] { (Item.Wood, 10), (Item.Brick, 4), (Item.Gear, 4) },
+                Recipes = new[] { new Recipe { Name = "Plank", InItems = new[] { Item.Wood }, InCounts = new[] { 1 }, Out = Item.Plank, OutCount = 2, Seconds = 2f } },
+            });
+            Add(new BuildingDef
+            {
+                Type = BuildingType.TripHammer, Name = "Trip hammer", Size = 2, Key = '4', Tier = 2, Hp = 4, NeedsPower = true,
+                Cost = new[] { (Item.Plank, 8), (Item.Brick, 6), (Item.Gear, 4) },
+                Recipes = new[] { new Recipe { Name = "Iron plate", InItems = new[] { Item.Iron }, InCounts = new[] { 2 }, Out = Item.Plate, Seconds = 3f } },
+            });
             Add(new BuildingDef { Type = BuildingType.Hopper, Name = "Hopper", Size = 2, Cost = new[] { (Item.Wood, 10), (Item.Stone, 6) }, Key = '8' });
         }
 

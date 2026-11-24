@@ -32,6 +32,10 @@ namespace Kilnwood.Game
             public Transform Post;      // thin stick from the roof up to the label
             public float BaseTop;       // label height before decluttering
             public float Raise;         // extra height this frame so it clears other labels
+            public BuildingType Type;
+            public Transform Anim, Anim2;  // water power: wheel / blade / helve / cam that move
+            public float AnimAngle;
+            public GameObject[] Arms;   // line shafts: rod toward each side (N, E, S, W), shown where something connects
         }
 
         readonly Dictionary<int, BView> _views = new Dictionary<int, BView>();
@@ -69,6 +73,8 @@ namespace Kilnwood.Game
                 case Item.Brick: return new Color(0.75f, 0.33f, 0.22f);
                 case Item.Gear: return new Color(0.95f, 0.78f, 0.25f);
                 case Item.Fish: return new Color(0.55f, 0.7f, 0.78f);
+                case Item.Plank: return new Color(0.86f, 0.7f, 0.46f);
+                case Item.Plate: return new Color(0.5f, 0.54f, 0.6f);
                 default: return Color.white;
             }
         }
@@ -276,7 +282,7 @@ namespace Kilnwood.Game
         /// Not around woodcutters: you should see the forest they're cutting thin out.</summary>
         bool NeedsClearing(int x, int y)
         {
-            if (_w.At(x, y) != null) return true;
+            if (_w.At(x, y) != null || _w.ShaftAt(x, y) != null) return true;
             if (_w.Units[y * _w.W + x] != 0) return true;
             for (int d = 0; d < 4; d++)
             {
@@ -354,7 +360,7 @@ namespace Kilnwood.Game
 
         BView MakeView(Building b)
         {
-            var v = new BView();
+            var v = new BView { Type = b.Type };
             v.Root = new GameObject(b.Type + " #" + b.Id);
             v.Root.transform.SetParent(transform, false);
             v.Root.transform.localPosition = FootCenter(b.X, b.Y, b.Size);
@@ -496,6 +502,10 @@ namespace Kilnwood.Game
                     break;
                 case BuildingType.Garage: MakeGarage(B, s, v); break;
                 case BuildingType.Hopper: MakeHopper(B, s, v); break;
+                case BuildingType.Shaft: MakeShaft(v); break;
+                case BuildingType.Waterwheel: MakeWaterwheel(b, v, s); break;
+                case BuildingType.Sawmill: MakeSawmill(B, s, v); break;
+                case BuildingType.TripHammer: MakeTripHammer(B, s, v); break;
                 case BuildingType.Lodge:
                 {
                     float fz = (s - 2.2f) / 2f;   // front wall
@@ -540,7 +550,7 @@ namespace Kilnwood.Game
             // Machines only smoke while they burn; the lodge (and cabins) always have a hearth going.
             if (v.Smoke != null && b.Type != BuildingType.Lodge && b.Type != BuildingType.Cabin) SetSmoke(v.Smoke, false);
             // Belts, splitters and cabins have no floating label: their shapes say what they are (click for details).
-            if (b.Type != BuildingType.Belt && b.Type != BuildingType.Splitter && b.Type != BuildingType.Cabin)
+            if (b.Type != BuildingType.Belt && b.Type != BuildingType.Splitter && b.Type != BuildingType.Cabin && b.Type != BuildingType.Shaft)
             {
                 // One upright label per machine: name on top, status (and fuel) underneath.
                 // Neighbouring machines alternate label heights so their names don't stack on each other.
@@ -625,6 +635,9 @@ namespace Kilnwood.Game
                 case BuildingType.Lodge: return "LODGE\n<size=40>deliver here</size>";
                 case BuildingType.Garage: return "GARAGE";
                 case BuildingType.Hopper: return "HOPPER";
+                case BuildingType.Waterwheel: return "WATERWHEEL " + _w.B.Defs[b.Type].Hp + " hp";
+                case BuildingType.Sawmill: return "SAWMILL P";
+                case BuildingType.TripHammer: return "TRIP HAMMER L";
                 default: return "";
             }
         }
@@ -689,6 +702,7 @@ namespace Kilnwood.Game
             _ground.Upload();
             if (_w.Buildings.Count != _decoBuildingCount || gone != null || groundChanged) UpdateDeco();
             UpdateVehicles();
+            UpdatePowerViews(_w.Buildings.Count != _shaftArmsCount || gone != null);
             foreach (var b in _w.Buildings.Values)
                 if (b.Type == BuildingType.Hopper)
                 {
@@ -944,6 +958,16 @@ namespace Kilnwood.Game
                     Art.Gear("Gear", t, new Vector3(0f, 0.07f, 0f), 0.62f, 0.14f, col, 8);
                     top = 0.16f;
                     break;
+                case Item.Plank:
+                    for (int k = 0; k < 3; k++)
+                        Art.Cube("Plank", t, new Vector3(0f, 0.05f + k * 0.09f, 0f), new Vector3(0.42f, 0.08f, 0.85f), col * (k == 1 ? 0.92f : 1f));
+                    top = 0.28f;
+                    break;
+                case Item.Plate:
+                    Art.Cube("Plate", t, new Vector3(0f, 0.04f, 0f), new Vector3(0.66f, 0.06f, 0.66f), col);
+                    Art.Cube("Plate", t, new Vector3(0.03f, 0.1f, -0.02f), new Vector3(0.62f, 0.06f, 0.62f), col * 1.1f);
+                    top = 0.14f;
+                    break;
                 case Item.Fish:
                     Art.Ball("Body", t, new Vector3(0f, 0.13f, 0f), new Vector3(0.28f, 0.24f, 0.62f), col);
                     Art.Part("Tail", t, Art.Cone, new Vector3(0f, 0.13f, -0.28f), new Vector3(0.3f, 0.22f, 0.08f), col * 0.85f, new Vector3(-90f, 0f, 0f));
@@ -987,7 +1011,7 @@ namespace Kilnwood.Game
             _ghostText.text = (reason ?? "OK  ·  click to build") + "\nfacing " + Dir.Names[facing] + "  (R to turn)";
         }
 
-        public void ShowBeltGhosts(List<(int x, int y, int d)> path, int okCount, string reason)
+        public void ShowBeltGhosts(List<(int x, int y, int d)> path, int okCount, string reason, string noun = "belts")
         {
             HideArea();
             _ghost.SetActive(true);
@@ -995,7 +1019,7 @@ namespace Kilnwood.Game
             _ghostArrow.gameObject.SetActive(false);
             var last = path[path.Count - 1];
             _ghost.transform.localPosition = TileCenter(last.x, last.y);
-            _ghostText.text = okCount + " of " + path.Count + " belts" + (reason != null ? "  ·  " + reason : "  ·  release to build");
+            _ghostText.text = okCount + " of " + path.Count + " " + noun + (reason != null ? "  ·  " + reason : "  ·  release to build");
             while (_beltGhosts.Count < path.Count)
             {
                 var g = new GameObject("BeltGhost");

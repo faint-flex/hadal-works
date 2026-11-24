@@ -29,6 +29,8 @@ namespace Kilnwood.Sim
         public float FuelLeft;             // seconds of burn left from the last fuel item
         public int FuelCount => FuelWood + FuelCharcoal;
         public string Status = "";
+        public int NetSupply, NetDemand;   // shafts and waterwheels: their network's hp given / wanted
+        public float Power = -1f;          // 0..1 share of the power it needs on its shaft network; -1 = not on a powered network
 
         public bool Covers(int x, int y) => x >= X && x < X + Size && y >= Y && y < Y + Size;
     }
@@ -42,6 +44,7 @@ namespace Kilnwood.Sim
         public readonly int W, H;
         public readonly Terrain[] Ground;
         readonly int[] _occ;                       // building id per tile, -1 empty
+        readonly int[] _shaftOcc;                  // line shafts run overhead on posts, so they get their own layer
         public readonly Dictionary<int, Building> Buildings = new Dictionary<int, Building>();
         readonly List<Building> _belts = new List<Building>();
         readonly List<Building> _machines = new List<Building>();
@@ -68,6 +71,9 @@ namespace Kilnwood.Sim
         public float Time { get; private set; }
         public bool GoalReached { get; private set; }
         public float GoalReachedAt { get; private set; } = -1f;
+        /// <summary>1 at the start; 2 once the Tier 1 goal is met ("Water Power"); 3 after the Tier 2 goal ("Steam").</summary>
+        public int Tier { get; private set; } = 1;
+        public float Tier2GoalAt { get; private set; } = -1f;
 
         public World(Balance b)
         {
@@ -77,7 +83,8 @@ namespace Kilnwood.Sim
             Logs = new int[W * H];
             _regrow = new float[W * H];
             _occ = new int[W * H];
-            for (int i = 0; i < _occ.Length; i++) _occ[i] = -1;
+            _shaftOcc = new int[W * H];
+            for (int i = 0; i < _occ.Length; i++) { _occ[i] = -1; _shaftOcc[i] = -1; }
             foreach (Item it in Enum.GetValues(typeof(Item))) { Storage[it] = 0; Delivered[it] = 0; }
             Storage[Item.Wood] = b.StartWood;
             Storage[Item.Stone] = b.StartStone;
@@ -136,6 +143,17 @@ namespace Kilnwood.Sim
             return id < 0 ? null : Buildings[id];
         }
 
+        /// <summary>The line shaft over this tile (shafts sit above belts, so a tile can hold both).</summary>
+        public Building ShaftAt(int x, int y)
+        {
+            if (!InBounds(x, y)) return null;
+            int id = _shaftOcc[y * W + x];
+            return id < 0 ? null : Buildings[id];
+        }
+
+        /// <summary>What a click on this tile means: the building there, else the shaft overhead.</summary>
+        public Building AtOrShaft(int x, int y) => At(x, y) ?? ShaftAt(x, y);
+
         // ------------------------------------------------------------------ building
 
         public int Count(BuildingType t)
@@ -154,7 +172,19 @@ namespace Kilnwood.Sim
                 for (int dx = 0; dx < s; dx++)
                 {
                     if (!InBounds(x + dx, y + dy)) return "Off the map";
-                    if (_occ[(y + dy) * W + x + dx] >= 0) return "Something is already there";
+                    int oi = (y + dy) * W + x + dx;
+                    if (type == BuildingType.Shaft)
+                    {
+                        // Overhead: fine above a belt or splitter, not through a machine or another shaft.
+                        if (_shaftOcc[oi] >= 0) return "A line shaft is already there";
+                        if (_occ[oi] >= 0 && Buildings[_occ[oi]].Type != BuildingType.Belt && Buildings[_occ[oi]].Type != BuildingType.Splitter)
+                            return "Something is already there";
+                    }
+                    else
+                    {
+                        if (_occ[oi] >= 0) return "Something is already there";
+                        if (_shaftOcc[oi] >= 0 && type != BuildingType.Belt && type != BuildingType.Splitter) return "A line shaft is in the way";
+                    }
                 }
             for (int dy = 0; dy < s; dy++)
                 for (int dx = 0; dx < s; dx++)
@@ -165,6 +195,8 @@ namespace Kilnwood.Sim
                     if (DigMark[ti] || DumpMark[ti]) return "Marked for digging or dumping";
                     if (VehicleOn(x + dx, y + dy)) return "A vehicle is in the way";
                 }
+            if (!ignoreCost && def.Tier > Tier) return "Unlocks at Tier " + def.Tier;
+            if (type == BuildingType.Waterwheel && !TouchesWater(x, y, s)) return "Waterwheels must touch the river";
             if (def.SitsOn != null && ExtractorResource(type, x, y, out _) == Item.None)
                 return type == BuildingType.Woodcutter ? "Woodcutters must sit on forest" : "Mines must sit on iron ore or stone";
             if (type == BuildingType.Fisher && !TouchesWater(x, y, s)) return "Fishers must touch the river";
@@ -182,13 +214,15 @@ namespace Kilnwood.Sim
             if (!free) foreach (var c in def.Cost) Storage[c.item] -= c.count;
             var b = new Building { Id = _nextId++, Type = type, X = x, Y = y, Size = def.Size, Facing = facing & 3, Recipe = recipe };
             Buildings[b.Id] = b;
+            var layer = type == BuildingType.Shaft ? _shaftOcc : _occ;
             for (int dy = 0; dy < b.Size; dy++)
                 for (int dx = 0; dx < b.Size; dx++)
-                    _occ[(y + dy) * W + x + dx] = b.Id;
+                    layer[(y + dy) * W + x + dx] = b.Id;
             if (type == BuildingType.Belt) _belts.Add(b);
             else if (type == BuildingType.Splitter) _splitters.Add(b);
             else _machines.Add(b);
             if (type == BuildingType.Lodge) Lodge = b;
+            _powerDirty = true;
             return b;
         }
 
@@ -196,14 +230,16 @@ namespace Kilnwood.Sim
         {
             if (!Buildings.TryGetValue(id, out var b) || b.Type == BuildingType.Lodge) return false;
             foreach (var c in B.Defs[b.Type].Cost) Storage[c.item] += c.count;
+            var layer = b.Type == BuildingType.Shaft ? _shaftOcc : _occ;
             for (int dy = 0; dy < b.Size; dy++)
                 for (int dx = 0; dx < b.Size; dx++)
-                    _occ[(b.Y + dy) * W + b.X + dx] = -1;
+                    layer[(b.Y + dy) * W + b.X + dx] = -1;
             Buildings.Remove(id);
             if (b.Type == BuildingType.Garage) RemoveVehiclesOf(b.Id);
             _belts.Remove(b);
             _splitters.Remove(b);
             _machines.Remove(b);
+            _powerDirty = true;
             return true;
         }
 
@@ -299,6 +335,7 @@ namespace Kilnwood.Sim
             Time += dt;
             StepPeople(dt);
             StepForest(dt);
+            if (_powerDirty) RebuildPower();
             foreach (var t in _belts) StepBelt(t, dt);
             foreach (var sp in _splitters) StepSplitter(sp, dt);
             float speed = Hungry ? B.HungrySpeed : 1f;
@@ -308,10 +345,25 @@ namespace Kilnwood.Sim
                 StepMachine(m, dt * speed);
             }
             StepVehicles(dt);
+            UpdateTier();
+        }
+
+        /// <summary>Tests and the dev cheat: jump straight to a tier.</summary>
+        public void UnlockTier(int t) { if (t > Tier) Tier = t; if (t >= 2) { GoalReached = true; if (GoalReachedAt < 0f) GoalReachedAt = Time; } }
+
+        /// <summary>Tier goals, checked every step (and after loading a save, from the delivered counts).</summary>
+        public void UpdateTier()
+        {
             if (!GoalReached && Delivered[Item.Gear] >= B.GoalGear && Delivered[Item.Brick] >= B.GoalBrick)
             {
                 GoalReached = true;
                 GoalReachedAt = Time;
+            }
+            if (GoalReached && Tier < 2) Tier = 2;
+            if (Tier == 2 && Delivered[Item.Plank] >= B.GoalPlank && Delivered[Item.Plate] >= B.GoalPlate)
+            {
+                Tier = 3;
+                Tier2GoalAt = Time;
             }
         }
 
@@ -443,6 +495,8 @@ namespace Kilnwood.Sim
                     return true;
                 case BuildingType.Belt:
                 case BuildingType.Hopper:   // only trucks fill hoppers
+                case BuildingType.Shaft:
+                case BuildingType.Waterwheel:
                     return false;
                 case BuildingType.Garage:
                     if (!Balance.IsFuel(item) || m.FuelCount >= B.GarageFuelCap) return false;
@@ -490,7 +544,11 @@ namespace Kilnwood.Sim
                 case BuildingType.Mine: StepExtractor(m, dt); break;
                 case BuildingType.Kiln:
                 case BuildingType.Smelter:
-                case BuildingType.Workshop: StepCrafter(m, dt); break;
+                case BuildingType.Workshop:
+                case BuildingType.Sawmill:
+                case BuildingType.TripHammer: StepCrafter(m, dt); break;
+                case BuildingType.Waterwheel: m.Status = WheelStatus(m); return;
+                case BuildingType.Shaft: m.Status = m.Power >= 0f ? "Turning" : "Not turning (no waterwheel)"; return;
                 case BuildingType.Fisher: StepFisher(m, dt); break;
                 case BuildingType.Cabin: m.Status = "Home for " + B.Defs[m.Type].Homes; return;
                 case BuildingType.Lodge: m.Status = "Storing"; return;
@@ -531,7 +589,7 @@ namespace Kilnwood.Sim
             if (res == Item.None) { m.Status = "Nothing to extract"; return; }
             if (m.OutCount > 0 && m.OutItem != res) { m.Status = "Full, waiting for space"; return; }
             if (m.OutCount >= B.OutputCap) { m.Status = "Full, waiting for space"; return; }
-            if (B.Defs[m.Type].BurnsFuel && !Burn(m, dt)) { m.Status = "No fuel"; return; }
+            if (!Run(m, ref dt, B.Defs[m.Type].BurnsFuel)) return;
             float perSecond = ExtractRate(m.Type, tiles);
             m.ExtractTimer += dt * perSecond;
             while (m.ExtractTimer >= 1f && m.OutCount < B.OutputCap)
@@ -546,7 +604,7 @@ namespace Kilnwood.Sim
                 m.OutItem = res;
                 m.OutCount++;
             }
-            m.Status = "Working";
+            SetWorking(m);
         }
 
         void StepCrafter(Building m, float dt)
@@ -554,7 +612,7 @@ namespace Kilnwood.Sim
             var r = RecipeOf(m);
             if (!m.Crafting)
             {
-                if (m.OutCount >= B.OutputCap) { m.Status = "Full, waiting for space"; return; }
+                if (m.OutCount + r.OutCount > B.OutputCap) { m.Status = "Full, waiting for space"; return; }
                 for (int i = 0; i < r.InItems.Length; i++)
                 {
                     m.Input.TryGetValue(r.InItems[i], out int have);
@@ -564,16 +622,16 @@ namespace Kilnwood.Sim
                 m.Crafting = true;
                 m.Work = 0f;
             }
-            if (r.BurnsFuel && !Burn(m, dt)) { m.Status = "No fuel"; return; }
+            if (!Run(m, ref dt, r.BurnsFuel)) return;
             m.Work += dt;
-            m.Status = "Working";
+            SetWorking(m);
             if (m.Work >= r.Seconds)
             {
                 if (m.OutCount > 0 && m.OutItem != r.Out) { m.Status = "Full, waiting for space"; m.Work = r.Seconds; return; }
                 m.Crafting = false;
                 m.Work = 0f;
                 m.OutItem = r.Out;
-                m.OutCount++;
+                m.OutCount += r.OutCount;
             }
         }
 

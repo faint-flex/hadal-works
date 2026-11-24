@@ -77,6 +77,7 @@ namespace Kilnwood.Sim
             for (int i = 0; i < items.Length && i < DeliveredCounts.Count; i++) w.Delivered[items[i]] = DeliveredCounts[i];
             if (Logs.Count == w.Logs.Length) w.RestoreLogs(Logs);
             w.RestoreTime(Time);
+            w.UpdateTier();
             return w;
         }
     }

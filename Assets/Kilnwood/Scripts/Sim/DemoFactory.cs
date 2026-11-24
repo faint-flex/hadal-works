@@ -12,6 +12,7 @@ namespace Kilnwood.Sim
         {
             public BuildingType Type;
             public int X, Y, Facing, Recipe;
+            public bool Remove;     // demolish what's there instead of building
         }
 
         readonly List<Step> _steps = new List<Step>();
@@ -24,7 +25,7 @@ namespace Kilnwood.Sim
         readonly bool _pit;
         bool _marked;
 
-        public DemoFactory(bool people = false, bool pit = false)
+        public DemoFactory(bool people = false, bool pit = false, bool tier2 = false)
         {
             _pit = pit;
             const int N = 0, E = 1, S = 2, W = 3;
@@ -81,6 +82,24 @@ namespace Kilnwood.Sim
                 Add(BuildingType.Garage, 54, 36, N);       // open grass beside the ore field
                 Add(BuildingType.Hopper, 34, 31, W);   // tips straight into the lodge beside it
             }
+
+            // Phase 6 (0.6 Tier 2, waits for the unlock): a waterwheel on the west bank drives one long line shaft east
+            // across the valley. A sawmill fed straight by a woodcutter sends planks to the lodge; the workshop makes
+            // way for a trip hammer that turns the smelter's iron into plates. Shafts run overhead, over belts.
+            if (tier2)
+            {
+                Add(BuildingType.Waterwheel, 5, 18, E);
+                for (int x = 7; x <= 15; x++) Add(BuildingType.Shaft, x, 19, N);
+                for (int y = 20; y <= 22; y++) Add(BuildingType.Shaft, 15, y, N);
+                Add(BuildingType.Woodcutter, 16, 24, S);
+                Add(BuildingType.Sawmill, 16, 22, E);
+                for (int x = 18; x <= 30; x++) Add(BuildingType.Belt, x, 22, E);
+                for (int y = 22; y <= 29; y++) Add(BuildingType.Belt, 31, y, N);
+                for (int x = 16; x <= 41; x++) Add(BuildingType.Shaft, x, 19, N);
+                for (int y = 20; y <= 35; y++) Add(BuildingType.Shaft, 41, y, N);
+                _steps.Add(new Step { Type = BuildingType.Workshop, X = 42, Y = 34, Remove = true });
+                Add(BuildingType.TripHammer, 42, 34, W);
+            }
         }
 
         /// <summary>Screenshot run: once the garage stands, buy vehicles as iron allows and mark the pit.</summary>
@@ -104,7 +123,14 @@ namespace Kilnwood.Sim
             while (!Done)
             {
                 var s = _steps[_next];
-                var existing = w.At(s.X, s.Y);
+                var existing = s.Type == BuildingType.Shaft ? w.ShaftAt(s.X, s.Y) : w.At(s.X, s.Y);
+                if (s.Remove)
+                {
+                    if (w.Tier < 2) break;   // only the Tier 2 phase rebuilds anything
+                    if (existing != null && existing.Type == s.Type) w.Demolish(existing.Id);
+                    _next++;
+                    continue;
+                }
                 if (existing != null && existing.Type == s.Type && existing.X == s.X && existing.Y == s.Y) { _next++; continue; }
                 if (w.Place(s.Type, s.X, s.Y, s.Facing, s.Recipe) == null) break;
                 _next++;
