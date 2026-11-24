@@ -513,6 +513,8 @@ namespace Kilnwood.Game
                 case BuildingType.TripHammer: MakeTripHammer(B, s, v); break;
                 case BuildingType.SteamEngine: MakeSteamEngine(B, s, v); break;
                 case BuildingType.Furnace: MakeFurnace(B, s, v); break;
+                case BuildingType.Rail: break;   // track pieces come from RefreshRails
+                case BuildingType.Station: MakeStation(b, B, s, v); break;
                 case BuildingType.Lodge:
                 {
                     float fz = (s - 2.2f) / 2f;   // front wall
@@ -557,7 +559,7 @@ namespace Kilnwood.Game
             // Machines only smoke while they burn; the lodge (and cabins) always have a hearth going.
             if (v.Smoke != null && b.Type != BuildingType.Lodge && b.Type != BuildingType.Cabin) SetSmoke(v.Smoke, false);
             // Belts, splitters and cabins have no floating label: their shapes say what they are (click for details).
-            if (b.Type != BuildingType.Belt && b.Type != BuildingType.Splitter && b.Type != BuildingType.Cabin && b.Type != BuildingType.Shaft)
+            if (b.Type != BuildingType.Belt && b.Type != BuildingType.Splitter && b.Type != BuildingType.Cabin && b.Type != BuildingType.Shaft && b.Type != BuildingType.Rail)
             {
                 // One upright label per machine: name on top, status (and fuel) underneath.
                 // Neighbouring machines alternate label heights so their names don't stack on each other.
@@ -647,6 +649,7 @@ namespace Kilnwood.Game
                 case BuildingType.TripHammer: return "TRIP HAMMER L";
                 case BuildingType.SteamEngine: return "STEAM ENGINE " + _w.B.Defs[b.Type].Hp + " hp";
                 case BuildingType.Furnace: return "STEEL FURNACE T";
+                case BuildingType.Station: return _w.IsYard(b) ? "STATION (lodge yard)" : "STATION";
                 default: return "";
             }
         }
@@ -670,7 +673,7 @@ namespace Kilnwood.Game
                 if (v.Title != null)
                 {
                     // Calm machines show only their name (fire glow shows they're busy); problems get a "!" line.
-                    string status = b.Type == BuildingType.Lodge || b.Type == BuildingType.Cabin || string.IsNullOrEmpty(b.Status) || b.Status == "Working" || b.Status.StartsWith("Full") || b.Status.StartsWith("Empty") || b.Status.StartsWith("Turning") || b.Status == "Running" ? "" : b.Status;
+                    string status = b.Type == BuildingType.Lodge || b.Type == BuildingType.Cabin || string.IsNullOrEmpty(b.Status) || b.Status == "Working" || b.Status.StartsWith("Full") || b.Status.StartsWith("Empty") || b.Status.StartsWith("Turning") || b.Status == "Running" || b.Status.StartsWith("Lodge yard") || b.Status.EndsWith("waiting to load") ? "" : b.Status;
                     string text = TitleFor(b) + (status.Length > 0 ? "\n<size=56><color=#FFB070>! " + status + "</color></size>" : "");
                     if (v.Shown != text) { Look.SetText(v.Title, text); v.Shown = text; v.Recipe = b.Recipe; }
                 }
@@ -715,6 +718,7 @@ namespace Kilnwood.Game
             UpdateVehicles();
             UpdatePowerViews(_w.Buildings.Count != _shaftArmsCount || gone != null);
             UpdateSteamViews();
+            if (_w.Buildings.Count != _railCount || gone != null) { RefreshRails(); _railCount = _w.Buildings.Count; }
             foreach (var b in _w.Buildings.Values)
                 if (b.Type == BuildingType.Hopper)
                 {

@@ -13,7 +13,7 @@ namespace Kilnwood.Game
     public class GameRoot : MonoBehaviour
     {
         enum State { Title, Playing }
-        enum Tool { Select, Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Fisher, Cabin, Splitter, Garage, Hopper, Dig, Dump, Demolish, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace }
+        enum Tool { Select, Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Fisher, Cabin, Splitter, Garage, Hopper, Dig, Dump, Demolish, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
@@ -81,7 +81,7 @@ namespace Kilnwood.Game
                 Directory.CreateDirectory(_shotsDir);
                 SaveSystem.PathOverride = Path.Combine(_shotsDir, "save-shots.json");
                 StartWorld(MapGen.NewTier1(B));
-                _demo = new DemoFactory(B.PeopleEnabled, pit: true, tier2: true, tier3: true);
+                _demo = new DemoFactory(B.PeopleEnabled, pit: true, tier2: true, tier3: true, tier4: true);
                 _speed = 8;
                 File.WriteAllText(Path.Combine(_shotsDir, "shots-result.txt"), "Kilnwood autopilot run\n");
             }
@@ -175,7 +175,9 @@ namespace Kilnwood.Game
         }
 
         /// <summary>Numbered tools on each build page (key 1 = first). Page 1 also has 9 = splitter.</summary>
-        Tool[] PageTools(int page) => page == 3
+        Tool[] PageTools(int page) => page == 4
+            ? new[] { Tool.Rail, Tool.Station }
+            : page == 3
             ? new[] { Tool.SteamEngine, Tool.Furnace }
             : page == 2
             ? new[] { Tool.Shaft, Tool.Waterwheel, Tool.Sawmill, Tool.TripHammer }
@@ -186,7 +188,7 @@ namespace Kilnwood.Game
         void SwitchPage()
         {
             if (W.Tier < 2) { Toast("Page 2 (water power) opens at Tier 2: deliver the waterwheel parts first"); return; }
-            int pages = Mathf.Min(W.Tier, 3);
+            int pages = Mathf.Min(W.Tier, 4);
             _page = _page % pages + 1;
             SetTool(Tool.Select);
         }
@@ -218,6 +220,8 @@ namespace Kilnwood.Game
                 case Tool.TripHammer: return BuildingType.TripHammer;
                 case Tool.SteamEngine: return BuildingType.SteamEngine;
                 case Tool.Furnace: return BuildingType.Furnace;
+                case Tool.Rail: return BuildingType.Rail;
+                case Tool.Station: return BuildingType.Station;
                 default: return BuildingType.Workshop;
             }
         }
@@ -309,9 +313,10 @@ namespace Kilnwood.Game
 
                 case Tool.Belt:
                 case Tool.Shaft:
+                case Tool.Rail:
                 {
-                    var lineType = _tool == Tool.Shaft ? BuildingType.Shaft : BuildingType.Belt;
-                    string noun = _tool == Tool.Shaft ? "shafts" : "belts";
+                    var lineType = _tool == Tool.Shaft ? BuildingType.Shaft : _tool == Tool.Rail ? BuildingType.Rail : BuildingType.Belt;
+                    string noun = _tool == Tool.Shaft ? "shafts" : _tool == Tool.Rail ? "rails" : "belts";
                     if (!_dragging)
                     {
                         var path = new List<(int, int, int)> { (tx, ty, _facing) };
@@ -399,14 +404,15 @@ namespace Kilnwood.Game
         void CheckPath(List<(int x, int y, int d)> path, BuildingType type, out int ok, out string why)
         {
             ok = 0; why = null;
-            int wood = W.Storage[Item.Wood];
+            int wood = W.Storage[Item.Wood], steel = W.Storage[Item.Steel];
             foreach (var (x, y, _) in path)
             {
                 string r = W.CanPlace(type, x, y, true);
                 if (r == null && B.Defs[type].Tier > W.Tier) r = "Unlocks at Tier " + B.Defs[type].Tier;
                 if (r == null && wood < 1) r = "Out of wood";
+                if (r == null && type == BuildingType.Rail && steel < 1) r = "Out of steel (T)";
                 if (r != null) { why = r; break; }
-                wood--;
+                wood--; steel--;
                 ok++;
             }
         }
@@ -420,6 +426,7 @@ namespace Kilnwood.Game
             if (_frames > 30) _worstFrame = Mathf.Max(_worstFrame, Time.unscaledDeltaTime);
             _demo.BuildWhatYouCan(W);
             _demo.PitActions(W);
+            _demo.RailActions(W);
             if (!_ironGift && W.Time >= 200f)
             {
                 // The demo factory sends all its iron to gears, so the screenshot run hands it the iron for the vehicles.
@@ -472,7 +479,27 @@ namespace Kilnwood.Game
                 File.AppendAllText(Path.Combine(_shotsDir, "shots-result.txt"), "tier 1 goal at " + W.GoalReachedAt.ToString("0") + " s game time\n");
             }
             if (W.Tier >= 3 && W.Tier2GoalAt > 0f && !_tier2Shot) { _tier2Shot = true; StartCoroutine(TierShot("19-tier2-goal-t" + Mathf.RoundToInt(W.Time) + "s")); }
-            if ((W.Tier >= 4 || W.Time > 3600f) && !_goalPanel) { _goalPanel = true; StartCoroutine(ShotsFinish()); }
+            if (W.Tier >= 4 && _railAt <= 0f) _railAt = W.Time + 150f;
+            if (_railAt > 0f && _railShot < 3 && W.Time >= _railAt)
+            {
+                // Tier 4 shots: the far station and its mines, a train on the line, the lodge yard.
+                string[] names = { "field-station", "train", "yard" };
+                if (_railShot == 0) Rig.Frame(WorldView.FootCenter(DemoFactory.FieldStationX, DemoFactory.FieldStationY, 2), 200f, 35f, 26f);
+                else if (_railShot == 1) Rig.Frame(TrainFocus(), 140f, 30f, 22f);
+                else Rig.Frame(WorldView.FootCenter(DemoFactory.YardStationX, DemoFactory.YardStationY, 2), 30f, 38f, 30f);
+                StartCoroutine(ShotNextFrame((24 + _railShot) + "-tier4-" + names[_railShot] + "-t" + Mathf.RoundToInt(W.Time) + "s"));
+                _railShot++;
+                _railAt = W.Time + 40f;
+            }
+            if ((W.Tier >= 5 || W.Time > 4800f) && !_goalPanel) { _goalPanel = true; StartCoroutine(ShotsFinish()); }
+        }
+
+        float _railAt; int _railShot;
+
+        Vector3 TrainFocus()
+        {
+            foreach (var v in W.Vehicles) if (v.Type == VehicleType.Train) return new Vector3(v.X * WorldView.T, 0f, v.Y * WorldView.T);
+            return WorldView.FootCenter(45, 14, 1);
         }
 
         System.Collections.IEnumerator ShotNextFrame(string name)
@@ -502,13 +529,14 @@ namespace Kilnwood.Game
             sb.AppendLine("goal reached: " + W.GoalReached + " at " + W.GoalReachedAt.ToString("0") + " s game time");
             sb.AppendLine("tier " + W.Tier + (W.Tier >= 3 ? ", tier 2 goal at " + W.Tier2GoalAt.ToString("0") + " s" : ", tier 2 goal NOT reached") +
                 ", planks " + W.Delivered[Item.Plank] + ", plates " + W.Delivered[Item.Plate]);
+            sb.AppendLine(W.Tier >= 5 ? "tier 4 goal at " + W.Tier4GoalAt.ToString("0") + " s, hauled by rail " + W.RailHauled + ", trains " + W.CountTrains() : "tier 4 goal NOT reached, hauled by rail " + W.RailHauled + ", trains " + W.CountTrains());
             sb.AppendLine(W.Tier >= 4 ? "tier 3 goal at " + W.Tier3GoalAt.ToString("0") + " s" : "tier 3 goal NOT reached" + ", steel " + W.Delivered[Item.Steel] + ", coal " + W.Delivered[Item.Coal]);
             int dugTiles = 0; foreach (var u in W.Units) if (u < 0) dugTiles++;
             sb.AppendLine("vehicles " + W.Vehicles.Count + ", dug tiles " + dugTiles + ", ore delivered " + W.Delivered[Item.Ore]);
             sb.AppendLine("buildings " + W.Buildings.Count + ", gears " + W.Delivered[Item.Gear] + ", bricks " + W.Delivered[Item.Brick] + ", wood in lodge " + W.Storage[Item.Wood]);
             sb.AppendLine("fps average " + (_frames / Mathf.Max(_frameTime, 1e-4f)).ToString("0") + ", worst frame " + (_worstFrame * 1000f).ToString("0.0") + " ms");
             foreach (var b in W.Buildings.Values)
-                if (b.Type != BuildingType.Belt && b.Type != BuildingType.Shaft) sb.AppendLine("  " + b.Type + " at " + b.X + "," + b.Y + ": " + b.Status + " (fuel " + b.FuelCount + ", power " + b.Power.ToString("0.00") + ")");
+                if (b.Type != BuildingType.Belt && b.Type != BuildingType.Shaft && b.Type != BuildingType.Rail) sb.AppendLine("  " + b.Type + " at " + b.X + "," + b.Y + ": " + b.Status + " (fuel " + b.FuelCount + ", power " + b.Power.ToString("0.00") + ")");
             File.AppendAllText(Path.Combine(_shotsDir, "shots-result.txt"), sb.ToString());
             SaveSystem.Save(W);
             var reloaded = SaveSystem.Load(B);
@@ -593,7 +621,7 @@ namespace Kilnwood.Game
             GUILayout.Space(6f);
             if (GUILayout.Button("Quit", _btn, GUILayout.Height(44f))) Application.Quit();
             GUILayout.Space(14f);
-            GUILayout.Label("Test build: Tier 1, the open pit (excavators and trucks), Tier 2 water power and Tier 3 steam.", _small);
+            GUILayout.Label("Test build: Tier 1, the open pit (excavators and trucks), Tier 2 water power, Tier 3 steam and Tier 4 rails.", _small);
             GUILayout.EndArea();
         }
 
@@ -621,7 +649,9 @@ namespace Kilnwood.Game
                 : W.Tier == 3
                 ? "<b>Tier 3 goal: rail parts</b>   T steel " + Mathf.Min(W.Delivered[Item.Steel], B.GoalSteel) + "/" + B.GoalSteel +
                   "   K coal " + Mathf.Min(W.Delivered[Item.Coal], B.GoalCoal) + "/" + B.GoalCoal
-                : "<b>Tier 4 \"Rails\" unlocked</b>   (rails come in the next build)";
+                : W.Tier == 4
+                ? "<b>Tier 4 goal: first railway</b>   hauled to the lodge by train " + Mathf.Min(W.RailHauled, B.GoalRail) + "/" + B.GoalRail
+                : "<b>Tier 5 unlocked</b>   (the next tier comes in a later build)";
             GUI.Label(goal, goalText, _body);
             if (_shotsDir == null)
             {
@@ -640,6 +670,8 @@ namespace Kilnwood.Game
                 : _tool == Tool.Dump ? "DUMP: drag an area where trucks may drop dirt (raises the ground up to 2 levels). Hold Shift to clear marks."
                 : _tool == Tool.Belt ? "BELTS: click and drag to lay a line; items flow toward where you drag. R turns a single belt. Right click to stop."
                 : _tool == Tool.Shaft ? "LINE SHAFTS: drag a line from a waterwheel to machines. They run overhead, so they can cross belts. Machines touching a shaft share its power."
+                : _tool == Tool.Rail ? "RAILS: drag a line of track (1 T steel + 1 W wood each). Trucks can cross it. Trains stop on the rail right beside a station."
+                : _tool == Tool.Station ? "STATION: put it beside the track. Near the lodge it unloads straight into the lodge (the yard). Click it to buy a train."
                 : _tool == Tool.SteamEngine ? "STEAM ENGINE: burns coal or charcoal fed by belt and gives " + B.EngineHp + " hp to its shafts. It only burns fuel while something uses the power."
                 : _tool == Tool.Furnace ? "STEEL FURNACE: needs power from a shaft. Feed it 2 ore and 1 coal for each steel bar."
                 : _tool == Tool.Waterwheel ? "WATERWHEEL: place it on the river bank (it must touch the water). Gives " + B.WheelHp + " hp to everything on its shafts."
@@ -655,7 +687,7 @@ namespace Kilnwood.Game
         {
             var bar = Panel(new Rect(Wd / 2f - 715f, Ht - 100f, 1430f, 90f));
             // Page switch on the left: the second page is the Tier 2 water power buildings.
-            string pageLabel = "Tab  page " + _page + "/" + Mathf.Clamp(W.Tier, 1, 3) + "\n" + (_page == 1 ? "Tier 1" : _page == 2 ? "Water power" : "Steam") + (W.Tier < 2 ? "\n(Tier 2 locked)" : "");
+            string pageLabel = "Tab  page " + _page + "/" + Mathf.Clamp(W.Tier, 1, 4) + "\n" + (_page == 1 ? "Tier 1" : _page == 2 ? "Water power" : _page == 3 ? "Steam" : "Rails") + (W.Tier < 2 ? "\n(Tier 2 locked)" : "");
             if (GUI.Button(new Rect(bar.x + 8f, bar.y + 8f, 110f, 74f), pageLabel, W.Tier >= 2 ? _btnSmallOn : _btnSmall)) SwitchPage();
             var list = new List<Tool>(PageTools(_page));
             if (_page == 1) list.Add(Tool.Splitter);
@@ -733,6 +765,7 @@ namespace Kilnwood.Game
             if (b.Type == BuildingType.Splitter)
                 GUILayout.Label("Hands items out in turn: front, right, left. Feed it from the back or sides.", _small);
             if (b.Type == BuildingType.Garage) DrawGaragePanel(b);
+            if (b.Type == BuildingType.Station) DrawStationPanel(b);
             if (b.Type == BuildingType.Hopper)
             {
                 var sbh = new StringBuilder("Holding " + W.HopperStored(b) + " / " + B.HopperCap + ":  ");
@@ -785,10 +818,30 @@ namespace Kilnwood.Game
             GUILayout.EndArea();
         }
 
+        void DrawStationPanel(Building st)
+        {
+            int waiting = World.StationStored(st.Input), outgoing = World.StationStored(st.Output);
+            GUILayout.Label(W.IsYard(st)
+                ? "Lodge yard: trains unload straight into the lodge here, and take coal or charcoal out for machines at the far station."
+                : "Belts and machines facing it fill its loading bay (" + waiting + "/" + B.StationCap + "). Goods a train drops here go out the front; fuel goes to fuel-burning machines touching it (" + outgoing + " waiting).", _small);
+            var cost = new StringBuilder();
+            foreach (var c in B.TrainCost) cost.Append(cost.Length > 0 ? " + " : "").Append(c.count).Append(' ').Append(Items.Letter(c.item));
+            string why = W.CanBuy(st, VehicleType.Train);
+            if (GUILayout.Button("Buy a train  (" + cost + ")" + (why != null ? "\n" + why : ""), why == null ? _btn : _btnSmall, GUILayout.Height(why == null ? 38f : 46f)))
+            {
+                if (why != null) Toast(why); else W.Buy(st.Id, VehicleType.Train);
+            }
+            foreach (var v in W.Vehicles)
+            {
+                if (v.Type != VehicleType.Train || (v.GarageId != st.Id && v.TargetStation != st.Id)) continue;
+                GUILayout.Label("Train: " + v.Status + "  (" + v.CargoCount + "/" + B.TrainCap + " on board)", _small);
+            }
+        }
+
         void DrawGaragePanel(Building g)
         {
             GUILayout.Label("Vehicle fuel: W wood " + g.FuelWood + "   C charcoal " + g.FuelCharcoal + "  (holds " + B.GarageFuelCap + "). Belt wood or charcoal in.", _small);
-            foreach (VehicleType t in System.Enum.GetValues(typeof(VehicleType)))
+            foreach (VehicleType t in new[] { VehicleType.Excavator, VehicleType.Truck })
             {
                 var cost = new StringBuilder();
                 foreach (var c in B.VehicleCost(t)) cost.Append(cost.Length > 0 ? " + " : "").Append(c.count).Append(' ').Append(Items.Letter(c.item));
@@ -832,11 +885,17 @@ namespace Kilnwood.Game
         {
             var r = Panel(new Rect(Wd / 2f - 330f, Ht / 2f - 170f, 660f, 340f));
             GUILayout.BeginArea(new Rect(r.x + 28f, r.y + 20f, r.width - 56f, r.height - 40f));
-            if (W.Tier >= 4)
+            if (W.Tier >= 5)
+            {
+                GUILayout.Label("TIER 5 UNLOCKED", _h1, GUILayout.Height(80f));
+                GUILayout.Label("The railway is running. The next tier arrives in a later build.", _body);
+                GUILayout.Label("You can keep building here as long as you like.", _small);
+            }
+            else if (W.Tier == 4)
             {
                 GUILayout.Label("TIER 4 UNLOCKED", _h1, GUILayout.Height(80f));
-                GUILayout.Label("Steel and coal for the valley's first rails. Rails, mine carts and ore trains arrive in the next build.", _body);
-                GUILayout.Label("You can keep building here as long as you like.", _small);
+                GUILayout.Label("Rails. Page 4 has track (1 steel + 1 wood a tile) and stations. Lay a line out to the far iron ore field in the north-east, put a station at each end (one near the lodge), and buy a train at a station. Mines touching the far station fill it, and trains take coal out to keep them burning.", _body);
+                GUILayout.Label("Next goal: " + B.GoalRail + " goods hauled to the lodge by train.", _small);
             }
             else if (W.Tier <= 2)
             {

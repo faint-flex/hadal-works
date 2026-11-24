@@ -142,8 +142,9 @@ namespace Kilnwood.Game
 
         void UpdateVehicles()
         {
+            UpdateTrains();
             foreach (var v in _w.Vehicles)
-                if (!_vviews.ContainsKey(v.Id)) _vviews[v.Id] = v.Type == VehicleType.Excavator ? MakeExcavator() : MakeTruck();
+                if (v.Type != VehicleType.Train && !_vviews.ContainsKey(v.Id)) _vviews[v.Id] = v.Type == VehicleType.Excavator ? MakeExcavator() : MakeTruck();
             List<int> gone = null;
             foreach (var kv in _vviews)
                 if (_w.VehicleById(kv.Key) == null) (gone ??= new List<int>()).Add(kv.Key);
@@ -152,6 +153,7 @@ namespace Kilnwood.Game
             float dt = Time.deltaTime;
             foreach (var v in _w.Vehicles)
             {
+                if (v.Type == VehicleType.Train) continue;
                 var vv = _vviews[v.Id];
                 float wx = v.X * T, wz = v.Y * T;
                 float y = GroundHeight(wx, wz);
