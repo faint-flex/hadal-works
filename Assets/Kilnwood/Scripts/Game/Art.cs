@@ -33,7 +33,36 @@ namespace Kilnwood.Game
         public static Mesh Frustum => _frustum ??= Tapered(10, 0.6f, "Frustum");
 
         /// <summary>Chunky 7-sided rock: base radius 0.5, flat top radius 0.27, 1 tall.</summary>
-        public static Mesh Rock => _rock ??= Tapered(7, 0.55f, "Rock", 0.3f);
+        public static Mesh Rock => _rock ??= RockMesh();
+
+        /// <summary>Rounded, lumpy boulder: 1 wide, 1 tall, uneven rings so it reads as rock, not a post.</summary>
+        static Mesh RockMesh()
+        {
+            const int seg = 8;
+            float[] ys = { 0f, 0.4f, 0.78f, 1f };
+            float[] rs = { 0.5f, 0.48f, 0.34f, 0.12f };
+            var ring = new Vector3[ys.Length, seg];
+            for (int r = 0; r < ys.Length; r++)
+                for (int i = 0; i < seg; i++)
+                {
+                    float a = (i + (r % 2) * 0.5f) * Mathf.PI * 2f / seg;
+                    float jit = 0.82f + 0.3f * Hash(i, r, 11);
+                    ring[r, i] = new Vector3(Mathf.Cos(a) * rs[r] * jit, ys[r] * (r == 0 ? 1f : 0.9f + 0.2f * Hash(i, r, 12)), Mathf.Sin(a) * rs[r] * jit);
+                }
+            var v = new List<Vector3>();
+            var tri = new List<int>();
+            for (int r = 0; r < ys.Length - 1; r++)
+                for (int i = 0; i < seg; i++)
+                {
+                    int n = (i + 1) % seg;
+                    Tri(v, tri, ring[r, i], ring[r, n], ring[r + 1, i]);
+                    Tri(v, tri, ring[r, n], ring[r + 1, n], ring[r + 1, i]);
+                }
+            var top = new Vector3(0f, 1.12f, 0f);
+            for (int i = 0; i < seg; i++) Tri(v, tri, ring[ys.Length - 1, i], ring[ys.Length - 1, (i + 1) % seg], top);
+            for (int i = 0; i < seg; i++) Tri(v, tri, ring[0, i], ring[0, (i + 1) % seg], Vector3.zero);
+            return Finish(v, tri, "Rock");
+        }
 
         /// <summary>Square ingot / bar: 1 x 1 base, sloped sides, 1 tall.</summary>
         public static Mesh Ingot => _ingot ??= Tapered(4, 0.72f, "Ingot", Mathf.PI / 4f, 1.4142f);
@@ -467,11 +496,11 @@ namespace Kilnwood.Game
         /// <summary>Cheap distant tree for the hills: one or two shapes, no shadow.</summary>
         public static void FarTree(Transform parent, float r, float r2)
         {
-            float s = 1.0f + r2 * 0.8f;
+            float s = 0.85f + r2 * 0.45f;
             if (r < 0.7f)
             {
                 var g = PineGreens[(int)(r2 * 2.99f)];
-                Part("Pine", parent, Cone, new Vector3(0f, 0.3f * s, 0f), new Vector3(2.6f, 5.5f, 2.6f) * s, g, default, false);
+                Part("Pine", parent, Cone, new Vector3(0f, 0.3f * s, 0f), new Vector3(2.4f, 5.0f, 2.4f) * s, g, default, false);
             }
             else
             {
@@ -507,14 +536,14 @@ namespace Kilnwood.Game
             main.loop = true;
             main.startLifetime = new ParticleSystem.MinMaxCurve(3.5f, 5.5f);
             main.startSpeed = new ParticleSystem.MinMaxCurve(0.6f, 1.1f);
-            main.startSize = new ParticleSystem.MinMaxCurve(0.7f, 1.3f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.9f, 1.5f);
             main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
-            main.startColor = new Color(0.72f, 0.72f, 0.72f, 0.45f);
+            main.startColor = new Color(0.9f, 0.9f, 0.9f, 1f);
             main.simulationSpace = ParticleSystemSimulationSpace.World;
-            main.maxParticles = 60;
+            main.maxParticles = 80;
             main.gravityModifier = -0.02f;
             var em = ps.emission;
-            em.rateOverTime = 3.5f * amount;
+            em.rateOverTime = 5f * amount;
             var sh = ps.shape;
             sh.shapeType = ParticleSystemShapeType.Cone;
             sh.angle = 10f;
@@ -525,8 +554,8 @@ namespace Kilnwood.Game
             var col = ps.colorOverLifetime;
             col.enabled = true;
             var grad = new Gradient();
-            grad.SetKeys(new[] { new GradientColorKey(new Color(0.55f, 0.55f, 0.55f), 0f), new GradientColorKey(new Color(0.85f, 0.85f, 0.85f), 1f) },
-                         new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(0.5f, 0.12f), new GradientAlphaKey(0f, 1f) });
+            grad.SetKeys(new[] { new GradientColorKey(new Color(0.62f, 0.6f, 0.58f), 0f), new GradientColorKey(new Color(0.92f, 0.92f, 0.92f), 1f) },
+                         new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(0.85f, 0.1f), new GradientAlphaKey(0.45f, 0.55f), new GradientAlphaKey(0f, 1f) });
             col.color = grad;
             var vel = ps.velocityOverLifetime;
             vel.enabled = true;
@@ -555,7 +584,8 @@ namespace Kilnwood.Game
                     _smokeMat = new Material(sh);
                 }
                 _smokeMat.mainTexture = SmokeTexture;
-                if (_smokeMat.HasProperty("_TintColor")) _smokeMat.SetColor("_TintColor", new Color(0.5f, 0.5f, 0.5f, 0.5f));
+                // Legacy particle shaders double the tint; in linear colour space 0.5 grey would come out dark, so use ~0.73.
+                if (_smokeMat.HasProperty("_TintColor")) _smokeMat.SetColor("_TintColor", new Color(0.73f, 0.73f, 0.73f, 0.5f));
                 return _smokeMat;
             }
         }

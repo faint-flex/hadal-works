@@ -28,6 +28,9 @@ namespace Kilnwood.Game
             public Transform Spin;      // wheel or gear that turns while working (around its local y)
             public float SpinSpeed, SpinAngle;
             public float Seed;
+            public Transform Post;      // thin stick from the roof up to the label
+            public float BaseTop;       // label height before decluttering
+            public float Raise;         // extra height this frame so it clears other labels
         }
 
         readonly Dictionary<int, BView> _views = new Dictionary<int, BView>();
@@ -118,28 +121,30 @@ namespace Kilnwood.Game
             var v = new List<Vector3>();
             var uv = new List<Vector2>();
             var tri = new List<int>();
-            void Quad(float x0, float z0, float x1, float z1)
+            // Smooth strip: one left/right edge point per row (at the row's middle), joined row to row,
+            // so the banks run diagonally instead of in tile steps.
+            void Strip(float z0, float l0, float r0, float z1, float l1, float r1)
             {
                 int i = v.Count;
-                v.Add(new Vector3(x0, 0.06f, z0)); v.Add(new Vector3(x1, 0.06f, z0)); v.Add(new Vector3(x1, 0.06f, z1)); v.Add(new Vector3(x0, 0.06f, z1));
-                foreach (var p in new[] { v[i], v[i + 1], v[i + 2], v[i + 3] }) uv.Add(new Vector2(p.x / 8f, p.z / 8f));
+                v.Add(new Vector3(l0, 0.06f, z0)); v.Add(new Vector3(r0, 0.06f, z0)); v.Add(new Vector3(r1, 0.06f, z1)); v.Add(new Vector3(l1, 0.06f, z1));
+                for (int q = i; q < i + 4; q++) uv.Add(new Vector2(v[q].x / 8f, v[q].z / 8f));
                 tri.Add(i); tri.Add(i + 2); tri.Add(i + 1); tri.Add(i); tri.Add(i + 3); tri.Add(i + 2);
             }
+            var rows = new List<(float z, float l, float r)>();
             for (int y = 0; y < _w.H; y++)
-                for (int x = 0; x < _w.W; x++)
-                    if (_w.GroundAt(x, y) == Terrain.Water) Quad(x * T, y * T, x * T + T, y * T + T);
-            // Out of the valley: extend the first and last rows of river into the hills' corridor.
-            for (int end = 0; end < 2; end++)
             {
-                int y = end == 0 ? 0 : _w.H - 1;
                 int x0 = -1, x1 = -1;
                 for (int x = 0; x < _w.W; x++)
                     if (_w.GroundAt(x, y) == Terrain.Water) { if (x0 < 0) x0 = x; x1 = x; }
-                if (x0 < 0) continue;
-                float a = x0 * T, b = x1 * T + T;
-                if (end == 0) Quad(a, -size * 1.2f, b, 0f);
-                else Quad(a, size, b, size * 2.2f);
+                if (x0 >= 0) rows.Add((y * T + T / 2f, x0 * T - 0.25f, x1 * T + T + 0.25f));
             }
+            if (rows.Count == 0) return;
+            var first = rows[0];
+            var last = rows[rows.Count - 1];
+            Strip(-size * 1.2f, first.l, first.r, first.z, first.l, first.r);   // out of the valley to the south
+            for (int i = 0; i + 1 < rows.Count; i++)
+                Strip(rows[i].z, rows[i].l, rows[i].r, rows[i + 1].z, rows[i + 1].l, rows[i + 1].r);
+            Strip(last.z, last.l, last.r, size * 2.2f, last.l, last.r);          // and on to the north
             var m = new Mesh { name = "River" };
             m.SetVertices(v); m.SetUVs(0, uv); m.SetTriangles(tri, 0);
             m.RecalculateNormals(); m.RecalculateBounds();
@@ -161,7 +166,7 @@ namespace Kilnwood.Game
             for (float z = -size * 0.75f; z < size * 1.75f; z += step)
                 for (float x = -size * 0.75f; x < size * 1.75f; x += step)
                 {
-                    bool inside = x > -6f && x < size + 6f && z > -6f && z < size + 6f;
+                    bool inside = x > -12f && x < size + 12f && z > -12f && z < size + 12f;
                     if (inside || Mathf.Abs(x - riverX) < 12f) continue;
                     int ix = Mathf.RoundToInt(x), iz = Mathf.RoundToInt(z);
                     float clump = Mathf.PerlinNoise(x * 0.025f + 11f, z * 0.025f + 5f);
@@ -202,13 +207,16 @@ namespace Kilnwood.Game
                     break;
                 }
                 case Terrain.IronOre:
-                    Deco(x, y, Art.RockAt("Ore rock", root, c + new Vector3(-0.45f + j * 0.3f, 0f, 0.35f), new Vector3(0.9f, 0.55f + k * 0.3f, 0.8f), Look.OreRock, j));
-                    Deco(x, y, Art.RockAt("Ore rock", root, c + new Vector3(0.45f, 0f, -0.4f + k * 0.4f), new Vector3(0.6f, 0.4f, 0.6f), Look.OreRock * 0.8f, k));
-                    if (k > 0.5f) Deco(x, y, Art.RockAt("Ore pebble", root, c + new Vector3(0.2f, 0f, 0.6f), new Vector3(0.35f, 0.22f, 0.35f), Look.OreRock * 1.15f, j));
+                    // Dark rock studded with rusty orange nuggets.
+                    Deco(x, y, Art.RockAt("Ore rock", root, c + new Vector3(-0.4f + j * 0.3f, -0.05f, 0.3f), new Vector3(1.2f, 0.5f + k * 0.2f, 1.0f), new Color(0.32f, 0.24f, 0.22f), j));
+                    Deco(x, y, Art.RockAt("Ore nugget", root, c + new Vector3(-0.3f + j * 0.3f, 0.3f, 0.45f), new Vector3(0.35f, 0.25f, 0.3f), new Color(0.72f, 0.36f, 0.18f), k));
+                    Deco(x, y, Art.RockAt("Ore nugget", root, c + new Vector3(0.5f, -0.02f, -0.45f + k * 0.4f), new Vector3(0.5f, 0.28f, 0.45f), new Color(0.66f, 0.32f, 0.17f), j));
+                    if (k > 0.45f) Deco(x, y, Art.RockAt("Ore nugget", root, c + new Vector3(0.15f, -0.02f, 0.7f), new Vector3(0.3f, 0.18f, 0.3f), new Color(0.76f, 0.4f, 0.2f), j));
                     break;
                 case Terrain.Stone:
-                    Deco(x, y, Art.RockAt("Boulder", root, c + new Vector3(0.3f - j * 0.5f, 0f, -0.2f), new Vector3(1.2f, 0.75f + k * 0.4f, 1.0f), Look.Boulder, k));
-                    if (j > 0.4f) Deco(x, y, Art.RockAt("Stone", root, c + new Vector3(0.6f, 0f, 0.55f), new Vector3(0.55f, 0.35f, 0.5f), Look.Boulder * 0.9f, j));
+                    // Pale grey boulders: wide and low, with a smaller one beside.
+                    Deco(x, y, Art.RockAt("Boulder", root, c + new Vector3(0.3f - j * 0.5f, -0.05f, -0.2f), new Vector3(1.5f, 0.7f + k * 0.3f, 1.25f), Look.Boulder, k));
+                    if (j > 0.35f) Deco(x, y, Art.RockAt("Stone", root, c + new Vector3(0.6f, -0.03f, 0.6f), new Vector3(0.7f, 0.35f, 0.6f), Look.Boulder * 0.88f, j));
                     break;
             }
         }
@@ -232,7 +240,7 @@ namespace Kilnwood.Game
             foreach (var key in _trees.Keys) UpdateTree(key);
             foreach (var fl in _fieldLabels)
             {
-                bool show = !BuiltNear(fl.x, fl.y, 4);
+                bool show = !BuiltNear(fl.x, fl.y, 6);
                 if (fl.go.activeSelf != show) fl.go.SetActive(show);
             }
         }
@@ -245,7 +253,7 @@ namespace Kilnwood.Game
             int logs = _w.Logs[key];
             bool showTree = !clear && logs > 0;
             if (tree.gameObject.activeSelf != showTree) tree.gameObject.SetActive(showTree);
-            if (showTree) tree.localScale = Vector3.one * (0.3f + 0.7f * logs / _w.B.LogsPerTile);
+            if (showTree) tree.localScale = Vector3.one * ((0.3f + 0.7f * logs / _w.B.LogsPerTile) * (NextToMachine(x, y) ? 0.6f : 1f));
             bool showStump = !clear && logs == 0;
             if (stump.activeSelf != showStump) stump.SetActive(showStump);
         }
@@ -260,6 +268,18 @@ namespace Kilnwood.Game
                 var n = _w.At(x + Dir.DX[d], y + Dir.DY[d]);
                 if (n != null && (n.Type == BuildingType.Belt || n.Type == BuildingType.Splitter)) return true;
             }
+            return false;
+        }
+
+        /// <summary>Trees right next to a machine grow lower, so the machine isn't hidden in the wood.</summary>
+        bool NextToMachine(int x, int y)
+        {
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    var n = _w.At(x + dx, y + dy);
+                    if (n != null && n.Type != BuildingType.Belt && n.Type != BuildingType.Splitter) return true;
+                }
             return false;
         }
 
@@ -517,8 +537,10 @@ namespace Kilnwood.Game
                 else
                 {
                     v.Title = Look.Billboard("", v.Root.transform, new Vector3(0f, top, 0f), 1.3f, Color.white);
+                    v.BaseTop = top;
                     // Thin post from the roof up to the label, so a raised label still points at its own building.
-                    Look.Box("Label post", v.Root.transform, new Vector3(0f, (top + 2.4f) / 2f, 0f), new Vector3(0.07f, top - 2.4f, 0.07f), Look.MineDark);
+                    v.Post = Art.Part("Label post", v.Root.transform, Art.Prim(PrimitiveType.Cube), Vector3.zero, Vector3.one, new Color(0.3f, 0.28f, 0.25f), default, false).transform;
+                    SetLabelHeight(v, top);
                 }
             }
             return v;
@@ -617,7 +639,93 @@ namespace Kilnwood.Game
             UpdateItems();
 
             var cam = Camera.main;
-            if (cam != null) { Look.TurnFlatLabels(cam.transform.eulerAngles.y); Look.TurnBillboards(cam.transform.rotation, cam.transform.position); }
+            if (cam != null)
+            {
+                Look.TurnFlatLabels(cam.transform.eulerAngles.y);
+                Look.TurnBillboards(cam.transform.rotation, cam.transform.position);
+                DeclutterLabels(cam);
+                ScaleItems(cam);
+            }
+        }
+
+        static void SetLabelHeight(BView v, float y)
+        {
+            var p = v.Title.transform.localPosition;
+            v.Title.transform.localPosition = new Vector3(p.x, y, p.z);
+            if (v.Post != null)
+            {
+                const float from = 2.4f;
+                v.Post.localPosition = new Vector3(0f, (y + from) / 2f, 0f);
+                v.Post.localScale = new Vector3(0.04f, Mathf.Max(0.01f, y - from), 0.04f);
+            }
+        }
+
+        readonly List<(BView v, Rect r, float pxPerUp, int prio)> _lab = new List<(BView, Rect, float, int)>();
+        readonly List<Rect> _placed = new List<Rect>();
+
+        /// <summary>Raises labels that would cover each other on screen, so every machine name stays readable.
+        /// Problems and the lodge keep their place first; nearer labels win over far ones.</summary>
+        void DeclutterLabels(Camera cam)
+        {
+            _lab.Clear();
+            foreach (var v in _views.Values)
+            {
+                if (v.Title == null || v.Post == null) continue;
+                SetLabelHeight(v, v.BaseTop);
+                var rend = v.Title.GetComponent<Renderer>();
+                if (rend == null || string.IsNullOrEmpty(v.Title.text)) continue;
+                var bnd = rend.bounds;
+                var a = cam.WorldToScreenPoint(v.Title.transform.position);
+                if (a.z <= 0f) continue;
+                var up = cam.WorldToScreenPoint(v.Title.transform.position + Vector3.up);
+                float pxPerUp = Mathf.Max(1f, up.y - a.y);
+                float xMin = float.MaxValue, xMax = float.MinValue, yMin = float.MaxValue, yMax = float.MinValue;
+                for (int i = 0; i < 8; i++)
+                {
+                    var c = new Vector3((i & 1) == 0 ? bnd.min.x : bnd.max.x, (i & 2) == 0 ? bnd.min.y : bnd.max.y, (i & 4) == 0 ? bnd.min.z : bnd.max.z);
+                    var sp = cam.WorldToScreenPoint(c);
+                    xMin = Mathf.Min(xMin, sp.x); xMax = Mathf.Max(xMax, sp.x); yMin = Mathf.Min(yMin, sp.y); yMax = Mathf.Max(yMax, sp.y);
+                }
+                // Bounds of a camera-facing label overstate its size a little; trim so labels can sit close.
+                float w = (xMax - xMin) * 0.9f, h = (yMax - yMin) * 0.85f;
+                var r = new Rect((xMin + xMax - w) / 2f, (yMin + yMax - h) / 2f, w, h);
+                int prio = v.Shown != null && v.Shown.Contains("! ") ? 0 : 1;
+                _lab.Add((v, r, pxPerUp, prio));
+            }
+            _lab.Sort((p, q) => p.prio != q.prio ? p.prio.CompareTo(q.prio) : p.r.yMin.CompareTo(q.r.yMin));
+            _placed.Clear();
+            foreach (var (v, r0, pxPerUp, _) in _lab)
+            {
+                var r = r0;
+                float shift = 0f;
+                for (int tries = 0; tries < 12; tries++)
+                {
+                    bool hit = false;
+                    foreach (var p in _placed)
+                        if (p.Overlaps(r))
+                        {
+                            float d = p.yMax - r.yMin + 3f;
+                            r.y += d; shift += d; hit = true;
+                        }
+                    if (!hit) break;
+                }
+                float raise = Mathf.Min(shift / pxPerUp, 14f);
+                if (raise > 0.01f) SetLabelHeight(v, v.BaseTop + raise);
+                _placed.Add(r);
+            }
+        }
+
+        /// <summary>Items on belts grow a little when the camera is far away so their letters stay readable.</summary>
+        void ScaleItems(Camera cam)
+        {
+            var cp = cam.transform.position;
+            foreach (var list in _pools.Values)
+                foreach (var t in list)
+                {
+                    if (!t.gameObject.activeSelf) continue;
+                    float k = Mathf.Clamp(Vector3.Distance(cp, t.position) / 30f, 1f, 2.2f);
+                    t.localScale = new Vector3(k, k, k);
+                }
         }
 
         // Items on belts: one pool per kind, each a little model of the thing (log, ore, bar, gear...)
