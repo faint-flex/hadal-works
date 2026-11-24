@@ -688,7 +688,7 @@ namespace Kilnwood.Game
                 if (v.Title != null)
                 {
                     // Calm machines show only their name (fire glow shows they're busy); problems get a "!" line.
-                    string status = b.Type == BuildingType.Lodge || b.Type == BuildingType.Cabin || string.IsNullOrEmpty(b.Status) || b.Status == "Working" || b.Status.StartsWith("Full") || b.Status.StartsWith("Empty") || b.Status.StartsWith("Turning") || b.Status == "Running" || b.Status.StartsWith("Lodge yard") || b.Status.EndsWith("waiting to load") ? "" : b.Status;
+                    string status = b.Type == BuildingType.Lodge || b.Type == BuildingType.Cabin || string.IsNullOrEmpty(b.Status) || b.Status == "Working" || b.Status.StartsWith("Full") || b.Status.StartsWith("Empty") || b.Status.StartsWith("Turning") || b.Status == "Running" || b.Status.StartsWith("Splitting") || b.Status.StartsWith("Lodge yard") || b.Status.EndsWith("waiting to load") ? "" : b.Status;
                     string text = TitleFor(b) + (status.Length > 0 ? "\n<size=56><color=#FFB070>! " + status + "</color></size>" : "");
                     if (v.Shown != text) { Look.SetText(v.Title, text); v.Shown = text; v.Recipe = b.Recipe; }
                 }
@@ -905,7 +905,7 @@ namespace Kilnwood.Game
                 if (show)
                 {
                     float px = pxPerMAt(a.z) * 1.6f;   // label size in metres, roughly one line height
-                    var r = new Rect(a.x - px * 1.6f, a.y - px * 0.6f, px * 3.2f, px * 1.2f);
+                    var r = new Rect(a.x - px * 1.6f, a.y - px * 0.9f, px * 3.4f, px * 1.8f);
                     foreach (var p in _placed) if (p.Overlaps(r)) { show = false; break; }
                     if (show) _placed.Add(r);
                 }

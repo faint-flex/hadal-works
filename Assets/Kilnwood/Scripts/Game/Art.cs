@@ -435,8 +435,8 @@ namespace Kilnwood.Game
             var m = new Material(src);
             m.SetTexture("_MainTex", WaterTexture);
             m.SetTexture("_Waves", Ripples);
-            if (m.HasProperty("_Deep")) m.SetColor("_Deep", new Color(0.11f, 0.23f, 0.26f));
-            if (m.HasProperty("_SkyGlow")) m.SetFloat("_SkyGlow", 0.14f);
+            if (m.HasProperty("_Deep")) m.SetColor("_Deep", new Color(0.12f, 0.22f, 0.21f));
+            if (m.HasProperty("_SkyGlow")) m.SetFloat("_SkyGlow", 0.11f);
             return m;
         }
 
@@ -678,6 +678,7 @@ namespace Kilnwood.Game
         /// <summary>One tree under `parent` at local origin. `r` in 0..1 picks the kind, size and tint.</summary>
         public static void Tree(Transform parent, float r, float r2)
         {
+            if (Trees.Available) { Trees.Tree(parent, r, r2); return; }
             float s = 0.85f + r2 * 0.45f;
             if (r < 0.62f)
             {
@@ -702,6 +703,7 @@ namespace Kilnwood.Game
         /// <summary>Cheap distant tree for the hills: one or two shapes, no shadow.</summary>
         public static void FarTree(Transform parent, float r, float r2)
         {
+            if (Trees.Available) { Trees.Tree(parent, r, r2, far: true); return; }
             float s = 0.85f + r2 * 0.45f;
             if (r < 0.7f)
             {

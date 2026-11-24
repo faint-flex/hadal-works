@@ -445,7 +445,8 @@ namespace Kilnwood.Sim
 
         void StepSplitter(Building sp, float dt)
         {
-            if (sp.BeltItem == Item.None) return;
+            if (sp.BeltItem == Item.None) { sp.Status = "Empty, waiting for items"; return; }
+            sp.Status = "Splitting " + Items.Name(sp.BeltItem).ToLowerInvariant();
             if (sp.BeltProgress < 1f) sp.BeltProgress = Math.Min(1f, sp.BeltProgress + B.BeltSpeed * 2f * dt);
             if (sp.BeltProgress < 1f) return;
             // Front, then right, then left, starting from whoever is next in turn.
@@ -464,6 +465,7 @@ namespace Kilnwood.Sim
                     return;
                 }
             }
+            sp.Status = "All outputs blocked";
         }
 
         void StepBelt(Building t, float dt)

@@ -58,6 +58,8 @@ namespace Kilnwood.EditorTools
             // Valley floor with close-up grain, and the river with moving ripples (Shaders/KW_Ground, KW_Water).
             MakeMaterial("Assets/Kilnwood/Resources/KW_Ground.mat", "Kilnwood/Ground", m => { });
             MakeMaterial("Assets/Kilnwood/Resources/KW_Water.mat", "Kilnwood/Water", m => { });
+            // Tree crowns: vertex-colour self-shadowing, sway, sun through leaves (Shaders/KW_Foliage).
+            MakeMaterial("Assets/Kilnwood/Resources/KW_Foliage.mat", "Kilnwood/Foliage", m => { m.enableInstancing = true; });
 
             // Linear colour space: softer, more natural lighting falloff.
             PlayerSettings.colorSpace = ColorSpace.Linear;

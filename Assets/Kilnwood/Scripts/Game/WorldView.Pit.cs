@@ -133,6 +133,7 @@ namespace Kilnwood.Game
             public float Phase;
             public float HeapH;
             public float Yaw;
+            public Vector2 Nudge;     // visual-only push away from a neighbouring machine while parked
         }
 
         readonly Dictionary<int, VView> _vviews = new Dictionary<int, VView>();
@@ -155,7 +156,19 @@ namespace Kilnwood.Game
             {
                 if (v.Type == VehicleType.Train) continue;
                 var vv = _vviews[v.Id];
-                float wx = v.X * T, wz = v.Y * T;
+                // Parked trucks ease back a little from an excavator they sit next to, so bodies never overlap.
+                var want = Vector2.zero;
+                if (v.Type == VehicleType.Truck && v.State != VehicleState.Driving)
+                    foreach (var o in _w.Vehicles)
+                    {
+                        if (o.Type != VehicleType.Excavator) continue;
+                        var d = new Vector2(v.X - o.X, v.Y - o.Y);
+                        float m = d.magnitude;
+                        const float clear = 1.55f;   // tiles between centres that keeps the excavator's tail out of the bed
+                        if (m > 1e-3f && m < clear) want += d / m * Mathf.Min(0.55f, clear - m);
+                    }
+                vv.Nudge = Vector2.Lerp(vv.Nudge, Vector2.ClampMagnitude(want, 0.55f), 1f - Mathf.Exp(-4f * dt));
+                float wx = (v.X + vv.Nudge.x) * T, wz = (v.Y + vv.Nudge.y) * T;
                 float y = GroundHeight(wx, wz);
                 // Lean with the slope: compare the ground ahead and behind.
                 var fwd = Quaternion.Euler(0f, v.Heading, 0f) * Vector3.forward;
