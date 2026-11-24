@@ -1,5 +1,6 @@
 using Kilnwood.Sim;
 using UnityEngine;
+using Terrain = Kilnwood.Sim.Terrain;
 
 namespace Kilnwood.Game
 {
