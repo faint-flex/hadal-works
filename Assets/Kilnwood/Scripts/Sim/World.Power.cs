@@ -10,10 +10,17 @@ namespace Kilnwood.Sim
         bool _powerDirty = true;
         readonly Queue<Building> _pq = new Queue<Building>();
         readonly HashSet<Building> _seen = new HashSet<Building>();
-        readonly List<Building> _netConductors = new List<Building>();
-        readonly HashSet<Building> _netConsumers = new HashSet<Building>();
 
-        static bool Conducts(Building b) => b.Type == BuildingType.Shaft || b.Type == BuildingType.Waterwheel;
+        /// <summary>One shaft network: what drives it (wheels, engines), what carries it, and what it runs.</summary>
+        class Net
+        {
+            public readonly List<Building> Parts = new List<Building>();      // shafts, wheels, engines
+            public readonly List<Building> Machines = new List<Building>();   // consumers touching it
+            public int Demand;
+        }
+        readonly List<Net> _nets = new List<Net>();
+
+        static bool Conducts(Building b) => b.Type == BuildingType.Shaft || b.Type == BuildingType.Waterwheel || b.Type == BuildingType.SteamEngine;
 
         /// <summary>Buildings and shafts touching this one on any of its edges (not diagonals).</summary>
         IEnumerable<Building> Neighbours(Building b)
@@ -31,31 +38,53 @@ namespace Kilnwood.Sim
         void RebuildPower()
         {
             _powerDirty = false;
+            _nets.Clear();
             foreach (var b in Buildings.Values) { b.Power = -1f; b.NetSupply = b.NetDemand = 0; }
             _seen.Clear();
+            var claimed = new HashSet<Building>();
             foreach (var start in Buildings.Values)
             {
                 if (!Conducts(start) || _seen.Contains(start)) continue;
-                _netConductors.Clear();
-                _netConsumers.Clear();
+                var net = new Net();
                 _pq.Enqueue(start);
                 _seen.Add(start);
                 while (_pq.Count > 0)
                 {
                     var c = _pq.Dequeue();
-                    _netConductors.Add(c);
+                    net.Parts.Add(c);
                     foreach (var n in Neighbours(c))
                     {
                         if (Conducts(n)) { if (_seen.Add(n)) _pq.Enqueue(n); }
-                        else if (B.Defs[n.Type].Hp > 0 && n.Power < 0f) _netConsumers.Add(n);
+                        else if (B.Defs[n.Type].Hp > 0 && claimed.Add(n)) net.Machines.Add(n);
                     }
                 }
-                int supply = 0, demand = 0;
-                foreach (var c in _netConductors) if (c.Type == BuildingType.Waterwheel) supply += B.Defs[c.Type].Hp;
-                foreach (var m in _netConsumers) demand += B.Defs[m.Type].Hp;
-                float share = supply <= 0 ? -1f : demand <= 0 ? 1f : Math.Min(1f, supply / (float)demand);
-                foreach (var c in _netConductors) { c.NetSupply = supply; c.NetDemand = demand; c.Power = share; }
-                foreach (var m in _netConsumers) m.Power = share;
+                foreach (var m in net.Machines) net.Demand += B.Defs[m.Type].Hp;
+                _nets.Add(net);
+            }
+        }
+
+        /// <summary>Every step: wheels always give their hp; engines give theirs while they have fire, burning fuel
+        /// only while something on the network wants power. Machines get min(1, supply / demand).</summary>
+        void StepPower(float dt)
+        {
+            foreach (var net in _nets)
+            {
+                int supply = 0;
+                bool any = false;
+                foreach (var p in net.Parts)
+                {
+                    if (p.Type == BuildingType.Waterwheel) { supply += B.Defs[p.Type].Hp; any = true; }
+                    else if (p.Type == BuildingType.SteamEngine)
+                    {
+                        any = true;
+                        bool fired = net.Demand <= 0 ? (p.FuelLeft > 0f || p.FuelCount > 0) : Burn(p, dt * B.EngineBurnRate);
+                        if (fired) supply += B.Defs[p.Type].Hp;
+                        p.Status = !fired ? "No fuel (belt in coal, charcoal or wood)" : net.Demand <= 0 ? "Fired, nothing connected" : "Running";
+                    }
+                }
+                float share = !any || supply <= 0 ? (any ? 0f : -1f) : net.Demand <= 0 ? 1f : Math.Min(1f, supply / (float)net.Demand);
+                foreach (var p in net.Parts) { p.NetSupply = supply; p.NetDemand = net.Demand; p.Power = share; }
+                foreach (var m in net.Machines) m.Power = share;
             }
         }
 
@@ -66,7 +95,7 @@ namespace Kilnwood.Sim
             var def = B.Defs[m.Type];
             if (def.NeedsPower)
             {
-                if (m.Power <= 0f) { m.Status = "No power (join it to a waterwheel with line shafts)"; return false; }
+                if (m.Power <= 0f) { m.Status = m.Power == 0f ? "No power (the engine is out of fuel)" : "No power (join it to a waterwheel with line shafts)"; return false; }
                 dt *= m.Power;
                 return true;
             }

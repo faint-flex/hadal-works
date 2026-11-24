@@ -210,7 +210,7 @@ namespace Kilnwood.Game
                         v.Anim.localRotation = Quaternion.Euler(v.AnimAngle, 0f, 0f);
                         break;
                     case BuildingType.Shaft:
-                        if (b.Power < 0f) break;
+                        if (b.Power <= 0f) break;
                         v.AnimAngle += dt * 220f;
                         foreach (var arm in v.Arms)
                             if (arm.activeSelf) arm.transform.GetChild(0).localRotation = Quaternion.Euler(0f, 0f, v.AnimAngle);

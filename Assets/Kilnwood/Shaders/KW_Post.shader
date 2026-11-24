@@ -22,7 +22,7 @@ Shader "Kilnwood/Post"
     sampler2D_float _CameraDepthTexture;
     sampler2D _CameraDepthNormalsTexture;
 
-    float _Threshold, _Knee, _BloomIntensity, _Exposure, _Saturation, _Contrast, _Vignette;
+    float _Threshold, _Knee, _BloomIntensity, _Exposure, _Saturation, _Contrast, _Vignette, _Lift;
     float _AORadius, _AOIntensity, _AOFade;
     float4 _Tint;
     float4 _BlurDir;
@@ -39,7 +39,7 @@ Shader "Kilnwood/Post"
 
     half4 fragPrefilter(v2f i) : SV_Target
     {
-        half3 c = Box4(i.uv, _MainTex_TexelSize.xy);
+        half3 c = min(Box4(i.uv, _MainTex_TexelSize.xy), 6.0);   // clamp: one hot pixel must not bloom into a white star
         half br = max(c.r, max(c.g, c.b));
         half soft = clamp(br - _Threshold + _Knee, 0, 2 * _Knee);
         soft = soft * soft / (4 * _Knee + 1e-4);
@@ -121,10 +121,22 @@ Shader "Kilnwood/Post"
         return sum / max(wsum, 1e-4);
     }
 
-    half3 ACES(half3 x)
+    half ACES1(half x)
     {
         const half a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
         return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
+    }
+
+    // Hue-preserving filmic curve: the curve is applied to the brightest channel and the colour scaled with it,
+    // so mid tones keep their natural saturation (the per-channel curve made grass neon), and only very bright
+    // colours roll gently toward white.
+    half3 Filmic(half3 x)
+    {
+        half m = max(max(x.r, x.g), x.b);
+        half3 hue = x * (ACES1(m) / max(m, 1e-4));
+        half3 white = ACES1(m).xxx;
+        half over = saturate((m - 1.5) / 6.0);
+        return lerp(hue, white, over * 0.6);
     }
 
     half4 fragFinal(v2f i) : SV_Target
@@ -133,10 +145,12 @@ Shader "Kilnwood/Post"
         c *= tex2D(_AOTex, i.uv).r;
         c += tex2D(_BloomTex, i.uv).rgb * _BloomIntensity;
         c *= _Exposure * _Tint.rgb;
-        c = ACES(c);
+        c = Filmic(c);
         half l = dot(c, half3(0.2126, 0.7152, 0.0722));
         c = lerp(l.xxx, c, _Saturation);
         c = saturate((c - 0.5) * _Contrast + 0.5);
+        half3 k = 1 - c;
+        c += _Lift * k * k * k;   // lift the deepest shadows so they keep detail
         float2 v = i.uv - 0.5;
         c *= 1 - _Vignette * dot(v, v) * 1.6;
         return half4(c, 1);

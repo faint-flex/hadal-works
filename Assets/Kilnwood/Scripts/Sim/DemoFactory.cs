@@ -13,6 +13,7 @@ namespace Kilnwood.Sim
             public BuildingType Type;
             public int X, Y, Facing, Recipe;
             public bool Remove;     // demolish what's there instead of building
+            public int MinTier;     // for removals: wait until this tier
         }
 
         readonly List<Step> _steps = new List<Step>();
@@ -23,11 +24,14 @@ namespace Kilnwood.Sim
         public int Placed => _next;
 
         readonly bool _pit;
-        bool _marked;
+        bool _marked, _marked3;
 
-        public DemoFactory(bool people = false, bool pit = false, bool tier2 = false)
+        readonly bool _tier3;
+
+        public DemoFactory(bool people = false, bool pit = false, bool tier2 = false, bool tier3 = false)
         {
             _pit = pit;
+            _tier3 = tier3;
             const int N = 0, E = 1, S = 2, W = 3;
             const int Charcoal = 0, Brick = 1;
             // Phase 1: wood into the lodge (pays for everything else).
@@ -97,8 +101,24 @@ namespace Kilnwood.Sim
                 for (int y = 22; y <= 29; y++) Add(BuildingType.Belt, 31, y, N);
                 for (int x = 16; x <= 41; x++) Add(BuildingType.Shaft, x, 19, N);
                 for (int y = 20; y <= 35; y++) Add(BuildingType.Shaft, 41, y, N);
-                _steps.Add(new Step { Type = BuildingType.Workshop, X = 42, Y = 34, Remove = true });
+                _steps.Add(new Step { Type = BuildingType.Workshop, X = 42, Y = 34, Remove = true, MinTier = 2 });
                 Add(BuildingType.TripHammer, 42, 34, W);
+            }
+
+            // Phase 7 (0.7 Tier 3 "Steam"): a steam engine fired with wood split off the west wood line joins the
+            // shaft network; a hopper of pit ore and coal feeds a steel furnace east of the lodge. The pit phase
+            // digs the coal seam (under dirt and stone) and more ore.
+            if (tier3)
+            {
+                _steps.Add(new Step { Type = BuildingType.Belt, X = 25, Y = 30, Remove = true, MinTier = 3 });
+                Add(BuildingType.Splitter, 25, 30, E);
+                Add(BuildingType.Belt, 25, 29, S);
+                Add(BuildingType.Belt, 25, 28, S);
+                Add(BuildingType.SteamEngine, 25, 26, N);
+                for (int y = 20; y <= 25; y++) Add(BuildingType.Shaft, 25, y, N);
+                Add(BuildingType.Hopper, 39, 27, N);
+                Add(BuildingType.Furnace, 39, 29, W);
+                for (int x = 38; x >= 34; x--) Add(BuildingType.Belt, x, 30, W);
             }
         }
 
@@ -109,8 +129,16 @@ namespace Kilnwood.Sim
             var g = w.At(54, 36);
             if (g == null || g.Type != BuildingType.Garage) return;
             if (!_marked) { w.MarkDig(46, 28, 50, 31); _marked = true; }
-            if (w.CountVehicles(VehicleType.Excavator) < 1) w.Buy(g.Id, VehicleType.Excavator);
-            else if (w.CountVehicles(VehicleType.Truck) < 2) w.Buy(g.Id, VehicleType.Truck);
+            if (_tier3 && w.Tier >= 3 && !_marked3)
+            {
+                _marked3 = true;
+                w.MarkDig(MapGen.CoalX0 + 1, MapGen.CoalY0 + 1, MapGen.CoalX0 + 4, MapGen.CoalY0 + 4);   // 4 x 4 into the coal seam
+                w.MarkDig(47, 33, 50, 36);                                                               // more ore
+                w.MarkDump(57, 20, 61, 24);                                                              // the seam's dirt goes here
+            }
+            int wantEx = _tier3 && w.Tier >= 3 ? 2 : 1, wantTr = _tier3 && w.Tier >= 3 ? 3 : 2;
+            if (w.CountVehicles(VehicleType.Excavator) < wantEx) w.Buy(g.Id, VehicleType.Excavator);
+            else if (w.CountVehicles(VehicleType.Truck) < wantTr) w.Buy(g.Id, VehicleType.Truck);
         }
 
         void Add(BuildingType t, int x, int y, int facing, int recipe = 0) =>
@@ -126,7 +154,7 @@ namespace Kilnwood.Sim
                 var existing = s.Type == BuildingType.Shaft ? w.ShaftAt(s.X, s.Y) : w.At(s.X, s.Y);
                 if (s.Remove)
                 {
-                    if (w.Tier < 2) break;   // only the Tier 2 phase rebuilds anything
+                    if (w.Tier < s.MinTier) break;
                     if (existing != null && existing.Type == s.Type) w.Demolish(existing.Id);
                     _next++;
                     continue;

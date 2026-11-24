@@ -65,6 +65,7 @@ namespace Kilnwood.Sim
             if (u > 0) return Item.Dirt;
             int level = -u / B.UnitsPerLevel;
             if (level >= B.MaxDigDepth) return Item.None;
+            if (CoalSeam[i] && level >= B.CoalFromLevel && (Ground[i] == Terrain.Grass || Ground[i] == Terrain.Stone)) return Item.Coal;
             switch (Ground[i])
             {
                 case Terrain.IronOre: return Item.Ore;
@@ -370,7 +371,8 @@ namespace Kilnwood.Sim
                 if (g == null) { v.State = VehicleState.Idle; return false; }
                 while (v.Tank < B.TankSeconds - B.WoodFuelSeconds + 0.01f)
                 {
-                    if (g.FuelCharcoal > 0) { g.FuelCharcoal--; v.Tank = Math.Min(B.TankSeconds, v.Tank + B.CharcoalFuelSeconds); }
+                    if (g.FuelCoal > 0) { g.FuelCoal--; v.Tank = Math.Min(B.TankSeconds, v.Tank + B.CoalFuelSeconds); }
+                    else if (g.FuelCharcoal > 0) { g.FuelCharcoal--; v.Tank = Math.Min(B.TankSeconds, v.Tank + B.CharcoalFuelSeconds); }
                     else if (g.FuelWood > 0) { g.FuelWood--; v.Tank = Math.Min(B.TankSeconds, v.Tank + B.WoodFuelSeconds); }
                     else break;
                 }
@@ -585,7 +587,7 @@ namespace Kilnwood.Sim
             var drops = new Dictionary<int, int>();   // ring tile -> building id
             foreach (var b in _machines)
             {
-                if (b.Type == BuildingType.Hopper && HopperRoom(b) >= v.LoadCount)
+                if (b.Type == BuildingType.Hopper && HopperRoomFor(b, v.Load) >= v.LoadCount && HopperWants(b, v.Load))
                     foreach (int t in RingTiles(b)) if (!drops.ContainsKey(t)) drops[t] = b.Id;
             }
             if (drops.Count == 0 && Lodge != null)
@@ -649,19 +651,75 @@ namespace Kilnwood.Sim
 
         int HopperRoom(Building h) => Math.Max(0, B.HopperCap - HopperStored(h));
 
+        /// <summary>Room for one kind. A hopper feeding a machine that takes two things keeps half for each,
+        /// so a pile of ore can't shut out the coal it needs.</summary>
+        int HopperRoomFor(Building h, Item it)
+        {
+            int room = HopperRoom(h);
+            foreach (var (x, y) in FrontTiles(h))
+            {
+                var r = At(x, y) is Building t && t != h ? RecipeOf(t) : null;
+                if (r != null && r.InItems.Length > 1)
+                {
+                    h.Input.TryGetValue(it, out int have);
+                    return Math.Min(room, B.HopperCap / 2 - have);
+                }
+            }
+            return room;
+        }
+
+        /// <summary>Does what's in front of this hopper take this item? Belts and the lodge take anything; a machine
+        /// only what its recipe or fire uses. Trucks skip hoppers that couldn't pass their load on.</summary>
+        public bool HopperWants(Building h, Item it)
+        {
+            bool anything = false;
+            foreach (var (x, y) in FrontTiles(h))
+            {
+                var t = At(x, y);
+                if (t == null || t == h) continue;
+                anything = true;
+                if (t.Type == BuildingType.Belt || t.Type == BuildingType.Splitter || t.Type == BuildingType.Lodge) return true;
+                var r = RecipeOf(t);
+                if (r != null && r.Needs(it) > 0) return true;
+                if (Balance.IsFuel(it) && (BurnsFuel(t) || t.Type == BuildingType.SteamEngine || t.Type == BuildingType.Garage)) return true;
+            }
+            return !anything;   // nothing in front yet: it just stores
+        }
+
+        static readonly Item[] HopperOrder = (Item[])Enum.GetValues(typeof(Item));
+
         void StepHopper(Building m, float dt)
         {
             m.Status = HopperStored(m) == 0 ? "Empty, waiting for trucks" : "Working";
-            if (m.OutCount > 0) return;
+            if (m.OutCount > 0)
+            {
+                // Couldn't hand it on for a moment (the machine wants something else): put it back, try the next kind.
+                m.Work += dt;
+                if (m.Work > 0.5f)
+                {
+                    m.Input.TryGetValue(m.OutItem, out int back);
+                    m.Input[m.OutItem] = back + m.OutCount;
+                    m.OutCount = 0;
+                    m.OutItem = Item.None;
+                    m.Work = 0f;
+                    m.SplitNext++;
+                }
+                return;
+            }
+            m.Work = 0f;
             m.ExtractTimer = Math.Min(1f, m.ExtractTimer + dt * B.HopperOutPerSecond);
             if (m.ExtractTimer < 1f) return;
-            foreach (var kv in m.Input)
+            // Take kinds in turn, so a machine that needs two things (ore and coal) gets both.
+            int n = HopperOrder.Length;
+            for (int k = 0; k < n; k++)
             {
-                if (kv.Value <= 0) continue;
-                m.Input[kv.Key] = kv.Value - 1;
-                m.OutItem = kv.Key;
+                var it = HopperOrder[(m.SplitNext + k) % n];
+                if (!m.Input.TryGetValue(it, out int c) || c <= 0) continue;
+                m.Input[it] = c - 1;
+                m.OutItem = it;
                 m.OutCount = 1;
                 m.ExtractTimer = 0f;
+                m.SplitNext = (m.SplitNext + k + 1) % n;
                 break;
             }
         }

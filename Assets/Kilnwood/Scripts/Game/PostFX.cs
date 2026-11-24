@@ -14,15 +14,16 @@ namespace Kilnwood.Game
         public static bool Enabled = true;
         public static bool AO = true;
 
-        public float Exposure = 0.9f;
-        public float BloomThreshold = 1.1f;
-        public float BloomIntensity = 0.35f;
-        public float Saturation = 1.08f;
-        public float Contrast = 1.06f;
-        public float Vignette = 0.28f;
+        public float Exposure = 1.05f;
+        public float BloomThreshold = 1.6f;
+        public float BloomIntensity = 0.25f;
+        public float Saturation = 0.9f;
+        public float Contrast = 1.0f;
+        public float Vignette = 0.2f;
         public float AORadius = 1.1f;
-        public float AOIntensity = 1.6f;
+        public float AOIntensity = 0.9f;
         public float AOFade = 140f;
+        public float Lift = 0.05f;
         public Color Tint = new Color(1.02f, 1f, 0.97f);
 
         Material _mat;
@@ -92,6 +93,7 @@ namespace Kilnwood.Game
             _mat.SetFloat("_Saturation", Saturation);
             _mat.SetFloat("_Contrast", Contrast);
             _mat.SetFloat("_Vignette", Vignette);
+            _mat.SetFloat("_Lift", Lift);
             _mat.SetColor("_Tint", Tint);
             Graphics.Blit(src, dst, _mat, 5);
 

@@ -25,9 +25,10 @@ namespace Kilnwood.Sim
         public float ExtractTimer;
         public bool Staffed = true;        // has the workers it needs
         public int SplitNext;              // splitters: which output gets the next item
-        public int FuelWood, FuelCharcoal; // fuel items waiting to burn
+        public int FuelWood, FuelCharcoal, FuelCoal; // fuel items waiting to burn
         public float FuelLeft;             // seconds of burn left from the last fuel item
-        public int FuelCount => FuelWood + FuelCharcoal;
+        public int FuelCount => FuelWood + FuelCharcoal + FuelCoal;
+        public void AddFuel(Item it) { if (it == Item.Coal) FuelCoal++; else if (it == Item.Charcoal) FuelCharcoal++; else FuelWood++; }
         public string Status = "";
         public int NetSupply, NetDemand;   // shafts and waterwheels: their network's hp given / wanted
         public float Power = -1f;          // 0..1 share of the power it needs on its shaft network; -1 = not on a powered network
@@ -74,6 +75,7 @@ namespace Kilnwood.Sim
         /// <summary>1 at the start; 2 once the Tier 1 goal is met ("Water Power"); 3 after the Tier 2 goal ("Steam").</summary>
         public int Tier { get; private set; } = 1;
         public float Tier2GoalAt { get; private set; } = -1f;
+        public float Tier3GoalAt { get; private set; } = -1f;
 
         public World(Balance b)
         {
@@ -93,7 +95,11 @@ namespace Kilnwood.Sim
             Units = new int[W * H];
             DigMark = new bool[W * H];
             DumpMark = new bool[W * H];
+            CoalSeam = new bool[W * H];
         }
+
+        /// <summary>Tiles with a coal seam under them (from CoalFromLevel down). Set by the map.</summary>
+        public readonly bool[] CoalSeam;
 
         public void RestoreTime(float t) => Time = t;
 
@@ -255,7 +261,7 @@ namespace Kilnwood.Sim
             if (recipe < 0 || recipe >= def.Recipes.Length || recipe == b.Recipe) return;
             b.Recipe = recipe;
             b.Input.Clear();
-            if (!BurnsFuel(b)) { Storage[Item.Wood] += b.FuelWood; Storage[Item.Charcoal] += b.FuelCharcoal; b.FuelWood = b.FuelCharcoal = 0; }
+            if (!BurnsFuel(b)) { Storage[Item.Wood] += b.FuelWood; Storage[Item.Charcoal] += b.FuelCharcoal; Storage[Item.Coal] += b.FuelCoal; b.FuelWood = b.FuelCharcoal = b.FuelCoal = 0; }
             b.Crafting = false;
             b.Work = 0f;
         }
@@ -336,6 +342,7 @@ namespace Kilnwood.Sim
             StepPeople(dt);
             StepForest(dt);
             if (_powerDirty) RebuildPower();
+            StepPower(dt);
             foreach (var t in _belts) StepBelt(t, dt);
             foreach (var sp in _splitters) StepSplitter(sp, dt);
             float speed = Hungry ? B.HungrySpeed : 1f;
@@ -364,6 +371,11 @@ namespace Kilnwood.Sim
             {
                 Tier = 3;
                 Tier2GoalAt = Time;
+            }
+            if (Tier == 3 && Delivered[Item.Steel] >= B.GoalSteel && Delivered[Item.Coal] >= B.GoalCoal)
+            {
+                Tier = 4;
+                Tier3GoalAt = Time;
             }
         }
 
@@ -500,7 +512,11 @@ namespace Kilnwood.Sim
                     return false;
                 case BuildingType.Garage:
                     if (!Balance.IsFuel(item) || m.FuelCount >= B.GarageFuelCap) return false;
-                    if (item == Item.Charcoal) m.FuelCharcoal++; else m.FuelWood++;
+                    m.AddFuel(item);
+                    return true;
+                case BuildingType.SteamEngine:
+                    if (!Balance.IsFuel(item) || m.FuelCount >= B.FuelCap) return false;
+                    m.AddFuel(item);
                     return true;
             }
             // Recipe first (up to 2 crafts' worth), then the fuel slot.
@@ -517,7 +533,7 @@ namespace Kilnwood.Sim
             }
             if (Balance.IsFuel(item) && BurnsFuel(m) && m.FuelCount < B.FuelCap)
             {
-                if (item == Item.Charcoal) m.FuelCharcoal++; else m.FuelWood++;
+                m.AddFuel(item);
                 return true;
             }
             return false;
@@ -528,7 +544,8 @@ namespace Kilnwood.Sim
         {
             if (m.FuelLeft <= 0f)
             {
-                if (m.FuelCharcoal > 0) { m.FuelCharcoal--; m.FuelLeft += B.CharcoalFuelSeconds; }
+                if (m.FuelCoal > 0) { m.FuelCoal--; m.FuelLeft += B.CoalFuelSeconds; }
+                else if (m.FuelCharcoal > 0) { m.FuelCharcoal--; m.FuelLeft += B.CharcoalFuelSeconds; }
                 else if (m.FuelWood > 0) { m.FuelWood--; m.FuelLeft += B.WoodFuelSeconds; }
                 else return false;
             }
@@ -546,9 +563,11 @@ namespace Kilnwood.Sim
                 case BuildingType.Smelter:
                 case BuildingType.Workshop:
                 case BuildingType.Sawmill:
-                case BuildingType.TripHammer: StepCrafter(m, dt); break;
+                case BuildingType.TripHammer:
+                case BuildingType.Furnace: StepCrafter(m, dt); break;
+                case BuildingType.SteamEngine: return;   // fired and its status set in StepPower
                 case BuildingType.Waterwheel: m.Status = WheelStatus(m); return;
-                case BuildingType.Shaft: m.Status = m.Power >= 0f ? "Turning" : "Not turning (no waterwheel)"; return;
+                case BuildingType.Shaft: m.Status = m.Power > 0f ? "Turning" : m.Power == 0f ? "Stopped (engine out of fuel)" : "Not turning (no waterwheel or engine)"; return;
                 case BuildingType.Fisher: StepFisher(m, dt); break;
                 case BuildingType.Cabin: m.Status = "Home for " + B.Defs[m.Type].Homes; return;
                 case BuildingType.Lodge: m.Status = "Storing"; return;

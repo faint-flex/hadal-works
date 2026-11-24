@@ -35,19 +35,21 @@ public static class Program
     {
         var b = new Balance();
         var w = MapGen.NewTier1(b);
-        var demo = new DemoFactory(false, true, tier2: true);
+        var demo = new DemoFactory(false, true, tier2: true, tier3: true);
+        bool gift3 = false;
         bool gift = false;
         float next = 0f;
-        while (w.Time < 2400f && w.Tier < 3)
+        while (w.Time < 3600f && w.Tier < 4)
         {
             demo.BuildWhatYouCan(w);
             demo.PitActions(w);
             if (!gift && w.Time >= 300f) { w.Storage[Item.Iron] += 60; gift = true; }
+            if (!gift3 && w.Tier >= 3) { w.Storage[Item.Iron] += 40; gift3 = true; }
             w.Tick(1f);
             if (w.Time >= next)
             {
                 int dug = 0; foreach (var u in w.Units) if (u < 0) dug++;
-                Console.Write($"{w.Time,5:0}s built {demo.Placed}/{demo.Total} ore@lodge {w.Delivered[Item.Ore],4} dugTiles {dug,3} gear {w.Delivered[Item.Gear],3} brick {w.Delivered[Item.Brick],3} T{w.Tier} plank {w.Delivered[Item.Plank],3} plate {w.Delivered[Item.Plate],3} |");
+                Console.Write($"{w.Time,5:0}s built {demo.Placed}/{demo.Total} ore@lodge {w.Delivered[Item.Ore],4} dugTiles {dug,3} gear {w.Delivered[Item.Gear],3} brick {w.Delivered[Item.Brick],3} T{w.Tier} plank {w.Delivered[Item.Plank],3} plate {w.Delivered[Item.Plate],3} steel {w.Delivered[Item.Steel],3} coal {w.Delivered[Item.Coal],3} |");
                 foreach (var v in w.Vehicles) Console.Write($" {v.Type} {v.State} '{v.Status}' tank {v.Tank:0};");
                 Console.WriteLine();
                 next += 60f;
@@ -55,9 +57,11 @@ public static class Program
         }
         Console.WriteLine(w.GoalReached ? $"Goal at {w.GoalReachedAt:0}s" : "no goal");
         Console.WriteLine(w.Tier >= 3 ? $"Tier 2 goal at {w.Tier2GoalAt:0}s" : "no tier 2 goal");
+        Console.WriteLine(w.Tier >= 4 ? $"Tier 3 goal at {w.Tier3GoalAt:0}s" : "no tier 3 goal");
         foreach (var bd in w.Buildings.Values)
-            if (bd.Type == BuildingType.Waterwheel || bd.Type == BuildingType.Sawmill || bd.Type == BuildingType.TripHammer)
+            if (bd.Type == BuildingType.Waterwheel || bd.Type == BuildingType.Sawmill || bd.Type == BuildingType.TripHammer || bd.Type == BuildingType.SteamEngine || bd.Type == BuildingType.Furnace || bd.Type == BuildingType.Hopper)
                 Console.WriteLine($"  {bd.Type} at {bd.X},{bd.Y}: {bd.Status} power {bd.Power:0.00}");
+        foreach (var gb in w.Buildings.Values) if (gb.Type == BuildingType.Garage) Console.WriteLine("  CanBuy excavator: " + (w.CanBuy(gb, VehicleType.Excavator) ?? "ok") + " iron " + w.Storage[Item.Iron]);
         if (map) PrintMap(w);
         return 0;
     }

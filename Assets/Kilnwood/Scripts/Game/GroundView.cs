@@ -141,6 +141,7 @@ namespace Kilnwood.Game
         static readonly Color Dirt = new Color(0.45f, 0.33f, 0.22f);
         static readonly Color DugStone = new Color(0.56f, 0.55f, 0.51f);
         static readonly Color DugOre = new Color(0.52f, 0.29f, 0.19f);
+        static readonly Color DugCoal = new Color(0.12f, 0.12f, 0.13f);
 
         /// <summary>Colour of a worked tile: what's showing at its surface, darker the deeper it goes.</summary>
         Color WorkedColor(int t)
@@ -152,9 +153,9 @@ namespace Kilnwood.Game
             {
                 // At the bottom: what the last layer was made of.
                 var g = _w.Ground[t];
-                showing = g == Terrain.IronOre ? Item.Ore : Item.Stone;
+                showing = g == Terrain.IronOre ? Item.Ore : _w.CoalSeam[t] ? Item.Coal : Item.Stone;
             }
-            Color c = showing == Item.Ore ? DugOre : showing == Item.Stone ? DugStone : Dirt;
+            Color c = showing == Item.Ore ? DugOre : showing == Item.Coal ? DugCoal : showing == Item.Stone ? DugStone : Dirt;
             float depth = -u / (float)_w.B.UnitsPerLevel;
             return c * (1f - 0.07f * depth);
         }

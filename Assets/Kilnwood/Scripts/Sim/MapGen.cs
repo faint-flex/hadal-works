@@ -7,13 +7,14 @@ namespace Kilnwood.Sim
     {
         public const int LodgeX = 30, LodgeY = 30;
         public const int RiverX0 = 2, RiverX1 = 4;   // water columns along the west edge
+        public const int CoalX0 = 54, CoalY0 = 27;   // 7 x 7 coal seam
 
         /// <summary>Names painted on the ground at each field (tile x, tile y, text).</summary>
         public static readonly (int x, int y, string text)[] Labels =
         {
             (14, 25, "FOREST  (W)"), (48, 29, "IRON ORE  (O)"), (34, 50, "STONE  (S)"),
             (51, 20, "FOREST  (W)"), (51, 44, "FOREST  (W)"), (35, 57, "FOREST  (W)"),
-            (54, 7, "IRON ORE  (O)"), (13, 51, "STONE  (S)"), (12, 10, "FOREST  (W)"),
+            (54, 7, "IRON ORE  (O)"), (57, 30, "COAL  (K)  2 levels down"), (13, 51, "STONE  (S)"), (12, 10, "FOREST  (W)"),
         };
 
         public static World NewTier1(Balance b)
@@ -39,6 +40,11 @@ namespace Kilnwood.Sim
                 int wob = (int)Math.Round(Math.Sin(y * 0.18) * 1.2);
                 for (int x = RiverX0 + wob; x <= RiverX1 + wob; x++) w.SetGround(Math.Max(0, x), y, Terrain.Water);
             }
+
+            // Coal seam (Tier 3): under the open grass east of the ore field, two levels down.
+            for (int y = CoalY0; y < CoalY0 + 7; y++)
+                for (int x = CoalX0; x < CoalX0 + 7; x++)
+                    if (w.InBounds(x, y)) w.CoalSeam[y * w.W + x] = true;
 
             w.Place(BuildingType.Lodge, LodgeX, LodgeY, 0, 0, free: true);
             return w;

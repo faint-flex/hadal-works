@@ -86,7 +86,9 @@ namespace Kilnwood.Game
             var n = new List<Vector3>();
             var t = new List<int>();
             var rng = new System.Random(7);
-            Color[] tips = { new Color(0.52f, 0.62f, 0.3f), new Color(0.45f, 0.58f, 0.26f), new Color(0.6f, 0.64f, 0.34f) };
+            // Vertex colours are not converted to linear space by Unity, so convert here (raw values made the grass pale cream).
+            // Tips sit close to the painted ground colour so tufts add texture, not speckle.
+            Color[] tips = { new Color(0.38f, 0.49f, 0.24f).linear, new Color(0.33f, 0.45f, 0.21f).linear, new Color(0.42f, 0.5f, 0.26f).linear };
             for (int b = 0; b < 7; b++)
             {
                 float a = b * 51.4f + (float)rng.NextDouble() * 20f;
@@ -99,7 +101,7 @@ namespace Kilnwood.Game
                 var mid = root + dir * lean * 0.4f + Vector3.up * h * 0.55f;
                 var tip = root + dir * lean + Vector3.up * h;
                 var tipCol = tips[b % tips.Length];
-                var rootCol = new Color(0.2f, 0.27f, 0.12f, 0f);
+                var rootCol = new Color(0.2f, 0.27f, 0.12f).linear; rootCol.a = 0f;
                 var midCol = Color.Lerp(rootCol, tipCol, 0.6f); midCol.a = 0.55f;
                 tipCol.a = 1f;
                 int i0 = v.Count;

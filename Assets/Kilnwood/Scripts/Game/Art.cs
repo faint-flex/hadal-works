@@ -485,7 +485,11 @@ namespace Kilnwood.Game
         static Color TileCol(World w, int x, int y)
         {
             x = Mathf.Clamp(x, 0, w.W - 1); y = Mathf.Clamp(y, 0, w.H - 1);
-            return GroundColor(w.Ground[y * w.W + x]);
+            int i = y * w.W + x;
+            var c = GroundColor(w.Ground[i]);
+            // The coal seam shows through as darker, sooty ground (the map label names it too).
+            if (w.CoalSeam[i]) c = Color.Lerp(c, new Color(0.2f, 0.2f, 0.19f), 0.45f);
+            return c;
         }
 
         /// <summary>A flat plane the size of the map, with the painted texture on it.</summary>

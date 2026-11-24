@@ -75,6 +75,8 @@ namespace Kilnwood.Game
                 case Item.Fish: return new Color(0.55f, 0.7f, 0.78f);
                 case Item.Plank: return new Color(0.86f, 0.7f, 0.46f);
                 case Item.Plate: return new Color(0.5f, 0.54f, 0.6f);
+                case Item.Coal: return new Color(0.09f, 0.09f, 0.1f);
+                case Item.Steel: return new Color(0.72f, 0.76f, 0.82f);
                 default: return Color.white;
             }
         }
@@ -509,6 +511,8 @@ namespace Kilnwood.Game
                 case BuildingType.Waterwheel: MakeWaterwheel(b, v, s); break;
                 case BuildingType.Sawmill: MakeSawmill(B, s, v); break;
                 case BuildingType.TripHammer: MakeTripHammer(B, s, v); break;
+                case BuildingType.SteamEngine: MakeSteamEngine(B, s, v); break;
+                case BuildingType.Furnace: MakeFurnace(B, s, v); break;
                 case BuildingType.Lodge:
                 {
                     float fz = (s - 2.2f) / 2f;   // front wall
@@ -641,6 +645,8 @@ namespace Kilnwood.Game
                 case BuildingType.Waterwheel: return "WATERWHEEL " + _w.B.Defs[b.Type].Hp + " hp";
                 case BuildingType.Sawmill: return "SAWMILL P";
                 case BuildingType.TripHammer: return "TRIP HAMMER L";
+                case BuildingType.SteamEngine: return "STEAM ENGINE " + _w.B.Defs[b.Type].Hp + " hp";
+                case BuildingType.Furnace: return "STEEL FURNACE T";
                 default: return "";
             }
         }
@@ -664,7 +670,7 @@ namespace Kilnwood.Game
                 if (v.Title != null)
                 {
                     // Calm machines show only their name (fire glow shows they're busy); problems get a "!" line.
-                    string status = b.Type == BuildingType.Lodge || b.Type == BuildingType.Cabin || string.IsNullOrEmpty(b.Status) || b.Status == "Working" || b.Status.StartsWith("Full") || b.Status.StartsWith("Empty") || b.Status.StartsWith("Turning") ? "" : b.Status;
+                    string status = b.Type == BuildingType.Lodge || b.Type == BuildingType.Cabin || string.IsNullOrEmpty(b.Status) || b.Status == "Working" || b.Status.StartsWith("Full") || b.Status.StartsWith("Empty") || b.Status.StartsWith("Turning") || b.Status == "Running" ? "" : b.Status;
                     string text = TitleFor(b) + (status.Length > 0 ? "\n<size=56><color=#FFB070>! " + status + "</color></size>" : "");
                     if (v.Shown != text) { Look.SetText(v.Title, text); v.Shown = text; v.Recipe = b.Recipe; }
                 }
@@ -679,7 +685,8 @@ namespace Kilnwood.Game
                 bool working = b.Status == "Working";
                 if (v.Fire != null)
                 {
-                    bool lit = working && (_w.BurnsFuel(b) || b.Type == BuildingType.Kiln || b.Type == BuildingType.Smelter);
+                    bool lit = (working && (_w.BurnsFuel(b) || b.Type == BuildingType.Kiln || b.Type == BuildingType.Smelter || b.Type == BuildingType.Furnace))
+                        || (b.Type == BuildingType.SteamEngine && b.Status == "Running");
                     if (v.Fire.activeSelf != lit) { v.Fire.SetActive(lit); v.FireLight.enabled = lit; }
                     if (lit) v.FireLight.intensity = 1.2f + 0.8f * Mathf.PerlinNoise(now * 5f, v.Seed);
                     if (v.Smoke != null) SetSmoke(v.Smoke, lit);
@@ -707,6 +714,7 @@ namespace Kilnwood.Game
             _grass.Draw();
             UpdateVehicles();
             UpdatePowerViews(_w.Buildings.Count != _shaftArmsCount || gone != null);
+            UpdateSteamViews();
             foreach (var b in _w.Buildings.Values)
                 if (b.Type == BuildingType.Hopper)
                 {
@@ -750,10 +758,13 @@ namespace Kilnwood.Game
 
         /// <summary>Raises labels that would cover each other on screen, so every machine name stays readable.
         /// Problems and the lodge keep their place first; nearer labels win over far ones.</summary>
+        readonly List<(BView v, Rect r)> _fixedLabels = new List<(BView v, Rect r)>();
+
         void DeclutterLabels(Camera cam)
         {
             _lab.Clear();
             _placed.Clear();
+            _fixedLabels.Clear();
             float hudTop = Screen.height * (1f - 0.075f);   // the resource bar across the top of the screen
             float hudBottom = Screen.height * 0.135f;        // build bar and help line along the bottom
             float pxPerMAt(float z) => Screen.height / (2f * z * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad));
@@ -800,7 +811,7 @@ namespace Kilnwood.Game
                 if (v.Post == null)
                 {
                     if (r.yMin < hudBottom || r.yMax > hudTop || r.xMin < 0f || r.xMax > Screen.width) ShowLabel(v, false);
-                    else _placed.Add(r);
+                    else { _placed.Add(r); _fixedLabels.Add((v, r)); }
                     continue;
                 }
                 int prio = v.Shown.Contains("! ") ? 0 : 1;
@@ -837,6 +848,24 @@ namespace Kilnwood.Game
                 else if (r.xMax > Screen.width - 2f) side = Screen.width - 2f - r.xMax;
                 float down = r.yMax > hudTop ? hudTop - r.yMax : r.yMin < hudBottom ? hudBottom - r.yMin : 0f;
                 r.x += side; r.y += down; shift += down;
+                if (!clear || Mathf.Abs(down) > 0.01f)
+                {
+                    // No room above: try below the building instead.
+                    var rd = r0; rd.x += side; float sd = 0f;
+                    for (int tries = 0; tries < 12; tries++)
+                    {
+                        bool hit = false;
+                        foreach (var p in _placed)
+                            if (p.Overlaps(rd)) { float d = rd.yMax - p.yMin + 3f; rd.y -= d; sd -= d; hit = true; }
+                        if (!hit) break;
+                    }
+                    bool fits = rd.yMin >= hudBottom && rd.yMax <= hudTop;
+                    bool rdClear = true; foreach (var p in _placed) if (p.Overlaps(rd)) { rdClear = false; break; }
+                    if (fits && rdClear) { r = rd; shift = sd; }
+                }
+                // Still on top of a fixed label (the lodge): the warning matters more, so the lodge name steps aside.
+                foreach (var (fv, fr) in _fixedLabels)
+                    if (fr.Overlaps(r)) ShowLabel(fv, false);
                 // Lift along the camera's up so a top-down view separates labels as well as a low one.
                 if (Mathf.Abs(shift) > 0.01f || Mathf.Abs(side) > 0.01f)
                     SetLabelOffset(v, (cam.transform.up * shift + cam.transform.right * side) / pxPerM);
@@ -977,6 +1006,18 @@ namespace Kilnwood.Game
                     for (int k = 0; k < 3; k++)
                         Art.Cube("Plate", t, new Vector3(0.02f * k, 0.05f + k * 0.08f, -0.02f * k), new Vector3(0.85f, 0.07f, 0.85f), col * (1f + 0.15f * k), new Vector3(0f, k * 8f, 0f));
                     top = 0.3f;
+                    break;
+                case Item.Coal:
+                    // Glossy black lumps, bigger and blockier than charcoal.
+                    Art.RockAt("Lump", t, new Vector3(-0.1f, 0f, 0.02f), new Vector3(0.44f, 0.3f, 0.4f), col, 0.3f);
+                    Art.RockAt("Lump", t, new Vector3(0.16f, 0f, -0.1f), new Vector3(0.36f, 0.26f, 0.34f), col * 1.4f, 0.8f);
+                    top = 0.32f;
+                    break;
+                case Item.Steel:
+                    // Two bright bars crossed: reads differently from the single iron bar.
+                    Art.Part("Bar", t, Art.Ingot, new Vector3(0f, 0f, 0f), new Vector3(0.3f, 0.16f, 0.8f), col);
+                    Art.Part("Bar", t, Art.Ingot, new Vector3(0f, 0.16f, 0f), new Vector3(0.3f, 0.16f, 0.8f), col * 1.1f, new Vector3(0f, 90f, 0f));
+                    top = 0.34f;
                     break;
                 case Item.Fish:
                     Art.Ball("Body", t, new Vector3(0f, 0.13f, 0f), new Vector3(0.28f, 0.24f, 0.62f), col);
