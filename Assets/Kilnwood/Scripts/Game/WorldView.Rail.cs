@@ -23,31 +23,71 @@ namespace Kilnwood.Game
             foreach (var b in _w.Buildings.Values)
             {
                 if (b.Type != BuildingType.Rail || !_views.TryGetValue(b.Id, out var v)) continue;
+                int mask = 0;
+                for (int d = 0; d < 4; d++)
+                {
+                    var n = _w.At(b.X + Dir.DX[d], b.Y + Dir.DY[d]);
+                    if (n != null && n.Type == BuildingType.Rail) mask |= 1 << d;
+                }
+                if (mask == v.RailMask) continue;   // only pieces whose neighbours changed are rebuilt
+                v.RailMask = mask;
                 var root = v.Root.transform;
                 var old = root.Find("Track");
                 if (old != null) Destroy(old.gameObject);
                 var track = new GameObject("Track").transform;
                 track.SetParent(root, false);
                 int links = 0;
-                for (int d = 0; d < 4; d++)
+                for (int d = 0; d < 4; d++) if ((mask & (1 << d)) != 0) links++;
+                if (links == 2 && mask != 0b0101 && mask != 0b1010)
                 {
-                    var n = _w.At(b.X + Dir.DX[d], b.Y + Dir.DY[d]);
-                    if (n == null || (n.Type != BuildingType.Rail && n.Type != BuildingType.Station)) continue;
-                    if (n.Type == BuildingType.Station) continue;   // trains stop beside a station, they don't run into it
-                    HalfTrack(track, d);
-                    links++;
+                    // A corner: one smooth quarter curve instead of two straights meeting in an L.
+                    int d1 = -1, d2 = -1;
+                    for (int d = 0; d < 4; d++) if ((mask & (1 << d)) != 0) { if (d1 < 0) d1 = d; else d2 = d; }
+                    CurveTrack(track, d1, d2);
                 }
-                if (links == 0) { HalfTrack(track, 0); HalfTrack(track, 2); }
+                else if (links == 0) { HalfTrack(track, 0); HalfTrack(track, 2); }
                 else if (links == 1)
                 {
-                    // Dead end: carry the line straight through, finished with a buffer stop.
+                    // Line end: carry it straight through and finish with a buffer stop.
                     for (int d = 0; d < 4; d++)
-                    {
-                        var n = _w.At(b.X + Dir.DX[d], b.Y + Dir.DY[d]);
-                        if (n != null && n.Type == BuildingType.Rail) { HalfTrack(track, Dir.Opposite(d)); BufferStop(track, Dir.Opposite(d)); break; }
-                    }
+                        if ((mask & (1 << d)) != 0) { HalfTrack(track, d); HalfTrack(track, Dir.Opposite(d)); BufferStop(track, Dir.Opposite(d)); break; }
                 }
+                else for (int d = 0; d < 4; d++) if ((mask & (1 << d)) != 0) HalfTrack(track, d);
             }
+        }
+
+        /// <summary>Quarter circle of radius T/2 around the tile corner between directions d1 and d2,
+        /// joining the middles of those two tile edges. Ballast, sleepers and both rails follow it.</summary>
+        void CurveTrack(Transform parent, int d1, int d2)
+        {
+            var c = new Vector3((Dir.DX[d1] + Dir.DX[d2]) * T / 2f, 0f, (Dir.DY[d1] + Dir.DY[d2]) * T / 2f);
+            var a = new Vector3(Dir.DX[d1] * T / 2f, 0f, Dir.DY[d1] * T / 2f) - c;   // from the corner to edge 1
+            var b = new Vector3(Dir.DX[d2] * T / 2f, 0f, Dir.DY[d2] * T / 2f) - c;
+            const int N = 6;
+            Vector3 P(float t, float off)
+            {
+                // Point on the arc at t (0 = edge 1, 1 = edge 2), pushed `off` metres away from the corner.
+                var dir = Vector3.Slerp(a.normalized, b.normalized, t);
+                return c + dir * (T / 2f + off);
+            }
+            for (int i = 0; i < N; i++)
+            {
+                float t0 = i / (float)N, t1 = (i + 1) / (float)N, tm = (t0 + t1) / 2f;
+                Seg(parent, "Ballast", P(t0, 0f), P(t1, 0f), 1.7f, 0.12f, 0.06f, Ballast, 0.08f);
+                var sm = P(tm, 0f); var tan = (P(t1, 0f) - P(t0, 0f)).normalized;
+                Art.Cube("Sleeper", parent, sm + Vector3.up * 0.15f, new Vector3(1.45f, 0.07f, 0.22f), Sleeper * (i % 2 == 0 ? 1f : 0.92f), Quaternion.LookRotation(tan).eulerAngles);
+                Seg(parent, "Rail", P(t0, -0.5f), P(t1, -0.5f), 0.08f, 0.12f, 0.24f, RailSteel, 0.03f);
+                Seg(parent, "Rail", P(t0, 0.5f), P(t1, 0.5f), 0.08f, 0.12f, 0.24f, RailSteel, 0.03f);
+            }
+        }
+
+        /// <summary>A box from a to b (on the ground plane) at height y, a little longer so pieces overlap without gaps.</summary>
+        static void Seg(Transform parent, string name, Vector3 a, Vector3 b, float width, float height, float y, Color col, float extra)
+        {
+            var d = b - a;
+            float len = d.magnitude + extra;
+            var mid = (a + b) / 2f + Vector3.up * y;
+            Art.Cube(name, parent, mid, new Vector3(width, height, len), col, Quaternion.LookRotation(d.normalized).eulerAngles);
         }
 
         void HalfTrack(Transform parent, int d)
@@ -108,6 +148,7 @@ namespace Kilnwood.Game
             public ParticleSystem Smoke;
             public readonly List<Vector3> Trail = new List<Vector3>();
             public float Yaw;
+            public bool LocoLeads = true;
         }
 
         readonly Dictionary<int, TView> _tviews = new Dictionary<int, TView>();
@@ -127,17 +168,34 @@ namespace Kilnwood.Game
                 if (v.Type != VehicleType.Train) continue;
                 var tv = _tviews[v.Id];
                 var pos = new Vector3(v.X * T, GroundHeight(v.X * T, v.Y * T) + 0.28f, v.Y * T);   // up on the rails
-                // Breadcrumb trail of where the loco has been; wagons sit on it at fixed distances behind.
-                if (tv.Trail.Count == 0 || (tv.Trail[tv.Trail.Count - 1] - pos).sqrMagnitude > 0.04f) tv.Trail.Add(pos);
-                if (tv.Trail.Count > 200) tv.Trail.RemoveRange(0, tv.Trail.Count - 200);
-                tv.Yaw = Mathf.LerpAngle(tv.Yaw, v.Heading, 1f - Mathf.Exp(-12f * dt));
-                tv.Loco.localPosition = pos;
-                tv.Loco.localRotation = Quaternion.Euler(0f, tv.Yaw, 0f);
-                for (int k = 0; k < tv.Wagons.Length; k++)
+                if (tv.LocoLeads != v.LocoLeads)
                 {
-                    var (p, fwd) = AlongTrail(tv.Trail, pos, CarGap * (k + 1), tv.Loco.forward);
-                    tv.Wagons[k].localPosition = p;
-                    if (fwd.sqrMagnitude > 1e-4f) tv.Wagons[k].localRotation = Quaternion.Slerp(tv.Wagons[k].localRotation, Quaternion.LookRotation(fwd), 1f - Mathf.Exp(-12f * dt));
+                    // The train reversed out of a stop: its old last wagon is the new front. The track it now has
+                    // behind it is the part of the trail between that point and where the old front stood.
+                    tv.LocoLeads = v.LocoLeads;
+                    int near = 0; float best = float.MaxValue;
+                    for (int i = 0; i < tv.Trail.Count; i++) { float d2 = (tv.Trail[i] - pos).sqrMagnitude; if (d2 < best) { best = d2; near = i; } }
+                    var flipped = new List<Vector3>();
+                    for (int i = tv.Trail.Count - 1; i >= near; i--) flipped.Add(tv.Trail[i]);
+                    tv.Trail.Clear(); tv.Trail.AddRange(flipped);
+                    tv.Yaw = v.Heading;
+                }
+                // Breadcrumb trail of where the front has been; the other cars sit on it at fixed distances behind.
+                if (tv.Trail.Count == 0 || (tv.Trail[tv.Trail.Count - 1] - pos).sqrMagnitude > 0.04f) tv.Trail.Add(pos);
+                if (tv.Trail.Count > 400) tv.Trail.RemoveRange(0, tv.Trail.Count - 400);
+                tv.Yaw = Mathf.LerpAngle(tv.Yaw, v.Heading, 1f - Mathf.Exp(-12f * dt));
+                var frontFwd = Quaternion.Euler(0f, tv.Yaw, 0f) * Vector3.forward;
+                // Cars from the front: loco then wagons, or (reversing) wagons first with the loco pushing at the back.
+                var cars = v.LocoLeads ? new[] { tv.Loco, tv.Wagons[0], tv.Wagons[1] } : new[] { tv.Wagons[1], tv.Wagons[0], tv.Loco };
+                for (int k = 0; k < cars.Length; k++)
+                {
+                    var (p, fwd) = k == 0 ? (pos, frontFwd) : AlongTrail(tv.Trail, pos, CarGap * k, frontFwd);
+                    p.y = GroundHeight(p.x, p.z) + 0.28f;
+                    cars[k].localPosition = p;
+                    if (fwd.sqrMagnitude > 1e-4f)
+                    {
+                        cars[k].localRotation = Quaternion.Slerp(cars[k].localRotation, Quaternion.LookRotation(fwd), 1f - Mathf.Exp(-14f * dt));
+                    }
                 }
                 bool moving = v.State == VehicleState.Driving;
                 SetSmoke(tv.Smoke, moving || v.State == VehicleState.Loading || v.State == VehicleState.Tipping);
@@ -208,7 +266,7 @@ namespace Kilnwood.Game
             Art.Cube("Cab window", r, new Vector3(0f, 1.75f, -0.57f), new Vector3(0.9f, 0.4f, 0.03f), Glass);
             Art.Cube("Buffer beam", r, new Vector3(0f, 0.6f, 1.55f), new Vector3(1.35f, 0.3f, 0.12f), LocoRed);
             Art.Cube("Lamp", r, new Vector3(0f, 0.95f, 1.6f), new Vector3(0.22f, 0.22f, 0.12f), new Color(1f, 0.9f, 0.6f));
-            tv.Smoke = Art.Smoke(r, new Vector3(0f, 2.5f, 1.15f), 0.6f);
+            tv.Smoke = Art.Smoke(r, new Vector3(0f, 2.5f, 1.15f), 1.1f);
             foreach (float z in new[] { 0.9f, 0f, -0.9f }) AddWheelPair(r, z, 0.8f, wheels);
             // Two open wagons with a heap of cargo and a letter badge.
             tv.Wagons = new Transform[2];

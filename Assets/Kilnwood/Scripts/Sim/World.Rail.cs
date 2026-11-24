@@ -123,8 +123,7 @@ namespace Kilnwood.Sim
             }
             else PushOutput(m);
             int waiting = StationStored(m.Input);
-            bool hasTrain = false;
-            foreach (var v in Vehicles) if (v.Type == VehicleType.Train && (v.GarageId == m.Id || v.TargetStation == m.Id)) { hasTrain = true; break; }
+            bool hasTrain = CountTrains() > 0;
             m.Status = StopTiles(m).Count == 0 ? "No rail beside it"
                 : !hasTrain ? "No train yet (buy one here)"
                 : IsYard(m) ? "Lodge yard: " + waiting + " waiting"
@@ -192,6 +191,16 @@ namespace Kilnwood.Sim
                     int next = OtherStation(v, at != null ? at.Id : 0);
                     if (next == 0) { v.Status = "No other station on this line"; return; }
                     var stops = new HashSet<int>(StopTiles(Buildings[next]));
+                    // Reverse out: the train is 3 tiles long, so its new front is the tile its last wagon stands on.
+                    // That tile is where it came from, so the whole train stays on the line.
+                    if (v.Path.Count > 0)
+                    {
+                        int back = Math.Max(0, v.Path.Count - 1 - TrainTiles);
+                        int rear = v.Path[back];
+                        v.X = rear % W + 0.5f; v.Y = rear / W + 0.5f;
+                        v.LocoLeads = !v.LocoLeads;
+                        v.Heading += 180f;
+                    }
                     if (!FindRailPath(TileOf(v), stops.Contains, v.Path)) { v.Status = "Can't reach the other station"; return; }
                     v.PathStep = 0;
                     v.TargetStation = next;
@@ -200,6 +209,9 @@ namespace Kilnwood.Sim
                 }
             }
         }
+
+        /// <summary>Length of a train in tiles behind its front: loco + two wagons, 3.2 m each.</summary>
+        public const int TrainTiles = 3;
 
         bool DriveTrain(Vehicle v, float dt)
         {

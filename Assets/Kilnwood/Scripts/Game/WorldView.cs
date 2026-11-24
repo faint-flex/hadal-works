@@ -31,6 +31,7 @@ namespace Kilnwood.Game
             public GameObject Extra;    // hopper: the heap inside
             public Transform Post;      // thin stick from the roof up to the label
             public float BaseTop;       // label height before decluttering
+            public int RailMask = -1;   // rails: which neighbours the track piece was built for
             public float Raise;         // extra height this frame so it clears other labels
             public BuildingType Type;
             public Transform Anim, Anim2;  // water power: wheel / blade / helve / cam that move

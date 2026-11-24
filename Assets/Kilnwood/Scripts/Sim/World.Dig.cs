@@ -38,7 +38,8 @@ namespace Kilnwood.Sim
 
         // Train (GarageId = the station it was bought at).
         public int TargetStation;
-        public int FromYard;                // fuel on board that came from the lodge           // station it is running to (0 = none yet)
+        public int FromYard;                // fuel on board that came from the lodge
+        public bool LocoLeads = true;       // trains: which end is in front (the loco runs round at each stop)           // station it is running to (0 = none yet)
         public readonly Dictionary<Item, int> Cargo = new Dictionary<Item, int>();
         public int CargoCount { get { int n = 0; foreach (var kv in Cargo) n += kv.Value; return n; } }
 
