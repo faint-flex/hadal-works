@@ -17,13 +17,13 @@ namespace Kilnwood.Game
         public float Exposure = 1.05f;
         public float BloomThreshold = 1.6f;
         public float BloomIntensity = 0.25f;
-        public float Saturation = 0.9f;
-        public float Contrast = 1.0f;
+        public float Saturation = 1.12f;
+        public float Contrast = 1.1f;
         public float Vignette = 0.2f;
         public float AORadius = 1.1f;
         public float AOIntensity = 0.9f;
         public float AOFade = 140f;
-        public float Lift = 0.05f;
+        public float Lift = 0.004f;
         public Color Tint = new Color(1.02f, 1f, 0.97f);
 
         Material _mat;

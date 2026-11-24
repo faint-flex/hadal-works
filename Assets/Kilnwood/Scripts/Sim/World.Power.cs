@@ -79,7 +79,7 @@ namespace Kilnwood.Sim
                         any = true;
                         bool fired = net.Demand <= 0 ? (p.FuelLeft > 0f || p.FuelCount > 0) : Burn(p, dt * B.EngineBurnRate);
                         if (fired) supply += B.Defs[p.Type].Hp;
-                        p.Status = !fired ? "No fuel (belt in coal, charcoal or wood)" : net.Demand <= 0 ? "Fired, nothing connected" : "Running";
+                        p.Status = !fired ? "No fuel" : net.Demand <= 0 ? "Fired, nothing connected" : "Running";
                     }
                 }
                 float share = !any || supply <= 0 ? (any ? 0f : -1f) : net.Demand <= 0 ? 1f : Math.Min(1f, supply / (float)net.Demand);
@@ -95,7 +95,7 @@ namespace Kilnwood.Sim
             var def = B.Defs[m.Type];
             if (def.NeedsPower)
             {
-                if (m.Power <= 0f) { m.Status = m.Power == 0f ? "No power (the engine is out of fuel)" : "No power (join it to a waterwheel with line shafts)"; return false; }
+                if (m.Power <= 0f) { m.Status = m.Power == 0f ? "No power: engine out of fuel" : "No power: needs a shaft"; return false; }
                 dt *= m.Power;
                 return true;
             }

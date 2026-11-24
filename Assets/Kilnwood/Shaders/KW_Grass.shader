@@ -6,8 +6,8 @@ Shader "Kilnwood/Grass"
     {
         _Color ("Tint", Color) = (1,1,1,1)
         _Wind ("Wind strength", Float) = 0.09
-        _FadeStart ("Shrink from distance", Float) = 45
-        _FadeEnd ("Gone at distance", Float) = 90
+        _FadeStart ("Shrink from distance", Float) = 32
+        _FadeEnd ("Gone at distance", Float) = 65
     }
     SubShader
     {

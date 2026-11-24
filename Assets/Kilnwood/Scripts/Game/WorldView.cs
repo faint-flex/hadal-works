@@ -562,7 +562,7 @@ namespace Kilnwood.Game
                 // One upright label per machine: name on top, status (and fuel) underneath.
                 // Neighbouring machines alternate label heights so their names don't stack on each other.
                 // Three label heights in a pattern, so any two neighbouring 2x2 machines get different heights.
-                float top = (b.Type == BuildingType.Mine || b.Type == BuildingType.Smelter ? 6.0f : 4.4f) + ((b.X / 2 + 2 * (b.Y / 2)) % 3) * 1.8f;
+                float top = (b.Type == BuildingType.SteamEngine || b.Type == BuildingType.Furnace ? 7.4f : b.Type == BuildingType.Mine || b.Type == BuildingType.Smelter ? 6.0f : 4.4f) + ((b.X / 2 + 2 * (b.Y / 2)) % 3) * 1.8f;
                 if (b.Type == BuildingType.Lodge)
                 {
                     // Lodge name sits in front (south side), clear of the machines behind it.
@@ -870,6 +870,26 @@ namespace Kilnwood.Game
                 if (Mathf.Abs(shift) > 0.01f || Mathf.Abs(side) > 0.01f)
                     SetLabelOffset(v, (cam.transform.up * shift + cam.transform.right * side) / pxPerM);
                 _placed.Add(r);
+            }
+            DeclutterMarkLabels(cam, pxPerMAt);
+        }
+
+        /// <summary>DIG / DUMP area labels step aside for machine labels: hidden where they would overlap one.</summary>
+        void DeclutterMarkLabels(Camera cam, System.Func<float, float> pxPerMAt)
+        {
+            foreach (var g in _markLabels)
+            {
+                if (g == null) continue;
+                var a = cam.WorldToScreenPoint(g.transform.position);
+                bool show = a.z > 0f;
+                if (show)
+                {
+                    float px = pxPerMAt(a.z) * 1.6f;   // label size in metres, roughly one line height
+                    var r = new Rect(a.x - px * 1.6f, a.y - px * 0.6f, px * 3.2f, px * 1.2f);
+                    foreach (var p in _placed) if (p.Overlaps(r)) { show = false; break; }
+                    if (show) _placed.Add(r);
+                }
+                if (g.activeSelf != show) g.SetActive(show);
             }
         }
 

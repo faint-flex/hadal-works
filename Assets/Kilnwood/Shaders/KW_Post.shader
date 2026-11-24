@@ -148,7 +148,9 @@ Shader "Kilnwood/Post"
         c = Filmic(c);
         half l = dot(c, half3(0.2126, 0.7152, 0.0722));
         c = lerp(l.xxx, c, _Saturation);
-        c = saturate((c - 0.5) * _Contrast + 0.5);
+        // Contrast around mid grey in linear light (0.18), so it deepens darks without dimming the mid tones.
+        c = 0.18 * pow(max(c, 0) / 0.18, _Contrast);
+        c = saturate(c);
         half3 k = 1 - c;
         c += _Lift * k * k * k;   // lift the deepest shadows so they keep detail
         float2 v = i.uv - 0.5;

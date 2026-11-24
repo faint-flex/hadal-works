@@ -101,7 +101,7 @@ namespace Kilnwood.Game
                 var mid = root + dir * lean * 0.4f + Vector3.up * h * 0.55f;
                 var tip = root + dir * lean + Vector3.up * h;
                 var tipCol = tips[b % tips.Length];
-                var rootCol = new Color(0.2f, 0.27f, 0.12f).linear; rootCol.a = 0f;
+                var rootCol = new Color(0.27f, 0.34f, 0.17f).linear; rootCol.a = 0f;
                 var midCol = Color.Lerp(rootCol, tipCol, 0.6f); midCol.a = 0.55f;
                 tipCol.a = 1f;
                 int i0 = v.Count;

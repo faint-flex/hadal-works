@@ -434,7 +434,7 @@ namespace Kilnwood.Game
                 File.AppendAllText(Path.Combine(_shotsDir, "shots-result.txt"), "autopilot: +40 iron at Tier 3 (" + W.Time.ToString("0") + " s) for the extra pit vehicles\n");
             }
             W.Tick(Mathf.Min(Time.unscaledDeltaTime, 0.1f) * _speed);
-            if (W.Tier >= 3 && _t3At <= 0f) _t3At = W.Time + 400f;   // give the coal pit time to open
+            if (W.Tier >= 3 && _t3At <= 0f) _t3At = W.Time + 330f;   // give the coal pit time to open
             if (W.Tier >= 3 && !_tier3Shots && _t3Shot < 4 && _t3At > 0f && W.Time >= _t3At)
             {
                 // Tier 3 shots: coal pit, steam engine, furnace, then the whole valley.
@@ -442,9 +442,10 @@ namespace Kilnwood.Game
                 else if (_t3Shot == 1) Rig.Frame(WorldView.FootCenter(25, 26, 2), 210f, 32f, 20f);
                 else if (_t3Shot == 2) Rig.Frame(WorldView.FootCenter(39, 29, 2), 150f, 34f, 22f);
                 else Rig.Frame(WorldView.FootCenter(40, 28, 2), 20f, 45f, 75f);
-                StartCoroutine(ShotNextFrame((20 + _t3Shot) + "-tier3-t" + Mathf.RoundToInt(W.Time) + "s"));
+                string[] t3Names = { "coal-pit", "steam-engine", "steel-furnace", "valley" };
+                StartCoroutine(ShotNextFrame((20 + _t3Shot) + "-tier3-" + t3Names[_t3Shot] + "-t" + Mathf.RoundToInt(W.Time) + "s"));
                 _t3Shot++;
-                _t3At = W.Time + 200f;
+                _t3At = W.Time + 130f;
                 if (_t3Shot >= 4) _tier3Shots = true;
             }
 

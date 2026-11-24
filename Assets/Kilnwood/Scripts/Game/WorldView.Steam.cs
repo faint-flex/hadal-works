@@ -15,20 +15,22 @@ namespace Kilnwood.Game
             Art.Cube("Plinth", B, new Vector3(0f, 0.15f, 0f), new Vector3(s - 0.3f, 0.3f, s - 0.3f), stone * 0.85f);
             // Boiler: a long riveted drum lying front to back on a brick setting, firebox door at the front.
             Art.Cube("Setting", B, new Vector3(-0.5f, 0.75f, 0f), new Vector3(1.9f, 0.9f, s - 0.8f), brick);
-            Art.Cyl("Boiler", B, new Vector3(-0.5f, 1.85f, 0f), 1.6f, s - 0.9f, iron * 1.25f, new Vector3(90f, 0f, 0f));
+            // Cyl grows along its axis from pos, so start the drum at the back end: it must stay inside the footprint
+            // (it used to hang out over the input belt).
+            Art.Cyl("Boiler", B, new Vector3(-0.5f, 1.85f, -(s - 1.2f) / 2f), 1.6f, s - 1.2f, iron * 1.25f, new Vector3(90f, 0f, 0f));
             for (int k = -1; k <= 1; k++)
-                Art.Cyl("Boiler band", B, new Vector3(-0.5f, 1.85f, k * 1.0f), 1.66f, 0.1f, dark, new Vector3(90f, 0f, 0f));
+                Art.Cyl("Boiler band", B, new Vector3(-0.5f, 1.85f, k * 1.0f - 0.05f), 1.66f, 0.1f, dark, new Vector3(90f, 0f, 0f));
             Art.Cyl("Steam dome", B, new Vector3(-0.5f, 2.6f, -0.4f), 0.55f, 0.5f, iron * 1.4f);
             Art.Ball("Dome cap", B, new Vector3(-0.5f, 2.85f, -0.4f), new Vector3(0.55f, 0.3f, 0.55f), iron * 1.4f);
             Art.Cube("Firebox door", B, new Vector3(-0.5f, 0.75f, h - 0.38f), new Vector3(0.8f, 0.6f, 0.06f), dark);
-            v.Fire = Art.Cube("Fire", B, new Vector3(-0.5f, 0.75f, h - 0.34f), new Vector3(0.55f, 0.38f, 0.04f), Look.Fire);
+            v.Fire = Art.Cube("Fire", B, new Vector3(-0.5f, 0.75f, h - 0.34f), new Vector3(0.62f, 0.44f, 0.04f), Look.Fire);
             // Chimney at the back: tall brick stack with an iron cap.
             Art.Cube("Chimney", B, new Vector3(-0.5f, 3.0f, -h + 0.6f), new Vector3(0.75f, 5.4f, 0.75f), brick * 0.92f);
             Art.Cube("Chimney cap", B, new Vector3(-0.5f, 5.75f, -h + 0.6f), new Vector3(0.95f, 0.2f, 0.95f), dark);
             v.Smoke = Art.Smoke(B, new Vector3(-0.5f, 6.0f, -h + 0.6f), 1.4f);
             // Engine: cylinder on a stone bed beside the boiler, rod to a big flywheel.
             Art.Cube("Engine bed", B, new Vector3(1.15f, 0.5f, 0f), new Vector3(1.1f, 0.4f, s - 0.8f), stone * 0.75f);
-            Art.Cyl("Cylinder", B, new Vector3(1.15f, 1.05f, 0.7f), 0.6f, 1.2f, iron, new Vector3(90f, 0f, 0f));
+            Art.Cyl("Cylinder", B, new Vector3(1.15f, 1.05f, 0.1f), 0.6f, 1.2f, iron, new Vector3(90f, 0f, 0f));
             Art.Cyl("Steam pipe", B, new Vector3(0.3f, 2.4f, -0.4f), 0.14f, 1.6f, dark, new Vector3(0f, 0f, 90f));
             Art.Cyl("Steam pipe down", B, new Vector3(1.1f, 1.75f, -0.4f), 0.14f, 1.3f, dark);
             var fly = new GameObject("Flywheel").transform;
