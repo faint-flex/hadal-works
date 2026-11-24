@@ -176,6 +176,9 @@ namespace Kilnwood.Sim
             return best;
         }
 
+        public float ExtractRate(BuildingType type, int tiles) =>
+            Math.Min(B.ExtractMaxPerSecond, tiles / (type == BuildingType.Woodcutter ? B.WoodSecondsPerTile : B.ExtractSecondsPerTile));
+
         public Item ExtractorResource(Building b, out int tiles) => ExtractorResource(b.Type, b.X, b.Y, out tiles);
 
         /// <summary>Does this machine burn fuel right now (by type, or by its current recipe)?</summary>
@@ -312,7 +315,7 @@ namespace Kilnwood.Sim
             if (m.OutCount > 0 && m.OutItem != res) { m.Status = "Full, waiting for space"; return; }
             if (m.OutCount >= B.OutputCap) { m.Status = "Full, waiting for space"; return; }
             if (B.Defs[m.Type].BurnsFuel && !Burn(m, dt)) { m.Status = "No fuel"; return; }
-            float perSecond = Math.Min(B.ExtractMaxPerSecond, tiles / B.ExtractSecondsPerTile);
+            float perSecond = ExtractRate(m.Type, tiles);
             m.ExtractTimer += dt * perSecond;
             while (m.ExtractTimer >= 1f && m.OutCount < B.OutputCap)
             {

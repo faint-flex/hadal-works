@@ -29,6 +29,8 @@ namespace Kilnwood.Game
         // Trees and rocks per tile, hidden when something is built on that tile.
         readonly Dictionary<int, List<GameObject>> _deco = new Dictionary<int, List<GameObject>>();
         int _decoBuildingCount = -1;
+        // Big field names on the ground; hidden once you build near them so they don't fight machine labels.
+        readonly List<(int x, int y, GameObject go)> _fieldLabels = new List<(int x, int y, GameObject go)>();
         readonly List<Transform> _itemPool = new List<Transform>();
         readonly List<TextMesh> _itemLabels = new List<TextMesh>();
         readonly List<Item> _itemKinds = new List<Item>();
@@ -79,7 +81,7 @@ namespace Kilnwood.Game
                     BuildGroundTile(root, x, y, t);
                 }
             foreach (var l in MapGen.Labels)
-                Look.Label(l.text, root, TileCenter(l.x, l.y) + new Vector3(0f, 0.1f, 0f), 3.2f, new Color(1f, 0.97f, 0.85f));
+                _fieldLabels.Add((l.x, l.y, Look.Label(l.text, root, TileCenter(l.x, l.y) + new Vector3(0f, 0.1f, 0f), 3.2f, new Color(1f, 0.97f, 0.85f)).gameObject));
 
             BuildLights(root);
 
@@ -138,11 +140,25 @@ namespace Kilnwood.Game
         void UpdateDeco()
         {
             _decoBuildingCount = _w.Buildings.Count;
+            // Trees and rocks clear on built tiles and one tile around them, so belts stay visible in forests.
             foreach (var kv in _deco)
             {
-                bool show = _w.At(kv.Key % _w.W, kv.Key / _w.W) == null;
+                bool show = !BuiltNear(kv.Key % _w.W, kv.Key / _w.W, 1);
                 foreach (var go in kv.Value) if (go.activeSelf != show) go.SetActive(show);
             }
+            foreach (var fl in _fieldLabels)
+            {
+                bool show = !BuiltNear(fl.x, fl.y, 4);
+                if (fl.go.activeSelf != show) fl.go.SetActive(show);
+            }
+        }
+
+        bool BuiltNear(int x, int y, int r)
+        {
+            for (int dy = -r; dy <= r; dy++)
+                for (int dx = -r; dx <= r; dx++)
+                    if (_w.At(x + dx, y + dy) != null) return true;
+            return false;
         }
 
         void BuildLights(Transform root)
@@ -212,8 +228,11 @@ namespace Kilnwood.Game
                     Look.Box("Front", v.Body, new Vector3(0f, 0.5f, s / 2f - 0.15f), new Vector3(1.6f, 0.6f, 0.3f), Look.Accent);
                     break;
                 case BuildingType.Kiln:
-                    Look.Box("Dome", v.Body, new Vector3(0f, 1.2f, 0f), new Vector3(s - 0.6f, 2.4f, s - 0.6f), Look.Brickwork);
-                    Look.Box("Cap", v.Body, new Vector3(0f, 2.6f, 0f), new Vector3(s - 1.6f, 0.6f, s - 1.6f), Look.Brickwork);
+                    // Beehive kiln: stepped rings that narrow toward the top.
+                    Look.Box("Ring 1", v.Body, new Vector3(0f, 0.6f, 0f), new Vector3(s - 0.5f, 1.2f, s - 0.5f), Look.Brickwork);
+                    Look.Box("Ring 2", v.Body, new Vector3(0f, 1.55f, 0f), new Vector3(s - 1.0f, 0.7f, s - 1.0f), Look.Brickwork);
+                    Look.Box("Ring 3", v.Body, new Vector3(0f, 2.15f, 0f), new Vector3(s - 1.6f, 0.5f, s - 1.6f), Look.Brickwork);
+                    Look.Box("Ring 4", v.Body, new Vector3(0f, 2.55f, 0f), new Vector3(s - 2.4f, 0.3f, s - 2.4f), Look.Brickwork);
                     Look.Box("Chimney", v.Body, new Vector3(0.9f, 3.2f, -0.9f), new Vector3(0.6f, 1.8f, 0.6f), Look.MineDark);
                     v.Fire = Look.Box("Fire mouth", v.Body, new Vector3(0f, 0.6f, s / 2f - 0.28f), new Vector3(1.1f, 0.8f, 0.1f), Look.Fire);
                     Look.Box("Front", v.Body, new Vector3(0f, 0.2f, s / 2f - 0.15f), new Vector3(1.6f, 0.3f, 0.3f), Look.Accent);
@@ -258,14 +277,15 @@ namespace Kilnwood.Game
             if (b.Type != BuildingType.Belt)
             {
                 // One upright label per machine: name on top, status (and fuel) underneath.
-                float top = b.Type == BuildingType.Mine ? 4.6f : b.Type == BuildingType.Smelter ? 5f : 3.9f;
+                // Neighbouring machines alternate label heights so their names don't stack on each other.
+                float top = (b.Type == BuildingType.Mine || b.Type == BuildingType.Smelter ? 5.2f : 4.2f) + ((b.X / 2 + b.Y / 2) % 2) * 2f;
                 if (b.Type == BuildingType.Lodge)
                 {
                     // Lodge name sits in front (south side), clear of the machines behind it.
                     v.Title = Look.Billboard("", v.Root.transform, new Vector3(0f, 0.5f, -s / 2f - 0.6f), 2.0f, Color.white);
                     v.Title.anchor = TextAnchor.UpperCenter;
                 }
-                else v.Title = Look.Billboard("", v.Root.transform, new Vector3(0f, top, 0f), 1.0f, Color.white);
+                else v.Title = Look.Billboard("", v.Root.transform, new Vector3(0f, top, 0f), 1.3f, Color.white);
             }
             return v;
         }
@@ -303,10 +323,10 @@ namespace Kilnwood.Game
                 if (v.Facing != b.Facing) { v.Body.localRotation = FacingRot(b.Facing); v.Facing = b.Facing; }
                 if (v.Title != null)
                 {
-                    string status = b.Type == BuildingType.Lodge || string.IsNullOrEmpty(b.Status) ? "" : b.Status;
-                    if (b.Type != BuildingType.Lodge && _w.BurnsFuel(b)) status += "  ·  fuel " + b.FuelCount;
-                    string text = TitleFor(b) + (status.Length > 0 ? "\n<size=60><color=#FFE9B0>" + status + "</color></size>" : "");
-                    if (v.Shown != text) { v.Title.text = text; v.Shown = text; v.Recipe = b.Recipe; }
+                    // Calm machines show only their name (fire glow shows they're busy); problems get a "!" line.
+                    string status = b.Type == BuildingType.Lodge || string.IsNullOrEmpty(b.Status) || b.Status == "Working" || b.Status.StartsWith("Full") ? "" : b.Status;
+                    string text = TitleFor(b) + (status.Length > 0 ? "\n<size=56><color=#FFB070>! " + status + "</color></size>" : "");
+                    if (v.Shown != text) { Look.SetText(v.Title, text); v.Shown = text; v.Recipe = b.Recipe; }
                 }
             }
 

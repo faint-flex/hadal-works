@@ -550,7 +550,7 @@ namespace Kilnwood.Game
             if (def.SitsOn != null)
             {
                 var res = W.ExtractorResource(b, out int tiles);
-                GUILayout.Label("Pulling " + Items.Name(res) + " from " + tiles + " tiles (" + Mathf.Min(B.ExtractMaxPerSecond, tiles / B.ExtractSecondsPerTile).ToString("0.0") + " per second)", _small);
+                GUILayout.Label("Pulling " + Items.Name(res) + " from " + tiles + " tiles (" + W.ExtractRate(b.Type, tiles).ToString("0.0") + " per second)", _small);
             }
             if (def.Recipes.Length > 0)
             {

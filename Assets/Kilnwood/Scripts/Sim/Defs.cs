@@ -102,7 +102,8 @@ namespace Kilnwood.Sim
     {
         public int MapSize = 64;
         public float BeltSpeed = 2f;             // tiles per second
-        public float ExtractSecondsPerTile = 2f; // one item per covered resource tile every 2 s
+        public float ExtractSecondsPerTile = 2f; // mines: one item per covered resource tile every 2 s
+        public float WoodSecondsPerTile = 3f;    // woodcutters: one wood per forest tile every 3 s
         public float ExtractMaxPerSecond = 2f;
         public int OutputCap = 4;
         public int FuelCap = 4;                  // fuel items a machine can hold

@@ -70,8 +70,28 @@ namespace Kilnwood.Game
             var tm = Label(text, parent, localPos, size, c, faceUp: false);
             tm.anchor = TextAnchor.LowerCenter;
             tm.richText = true;
+            // Dark drop shadow behind the text so it reads over pale ground (stone, grass, sky).
+            var sh = Label(text, tm.transform, new Vector3(0.06f * size, -0.06f * size, 0.05f), size, new Color(0f, 0f, 0f, 0.85f), faceUp: false);
+            sh.gameObject.name = "Shadow";
+            sh.anchor = TextAnchor.LowerCenter;
+            sh.richText = true;
+            sh.transform.localPosition = new Vector3(0.06f, -0.06f, 0.05f);
+            sh.characterSize = tm.characterSize;
             Billboards.Add(tm.transform);
             return tm;
+        }
+
+        static readonly System.Text.RegularExpressions.Regex ColorTags = new System.Text.RegularExpressions.Regex("</?color[^>]*>");
+
+        /// <summary>Sets a billboard's text and its shadow (shadow drops colour tags so it stays dark).</summary>
+        public static void SetText(TextMesh tm, string text)
+        {
+            tm.text = text;
+            if (tm.transform.childCount > 0)
+            {
+                var sh = tm.transform.GetChild(0).GetComponent<TextMesh>();
+                if (sh != null) { sh.text = ColorTags.Replace(text, ""); sh.anchor = tm.anchor; }
+            }
         }
 
         public static Material Mat(Color c)
