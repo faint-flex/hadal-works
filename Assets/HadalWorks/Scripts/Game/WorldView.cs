@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using HadalWorks.Sim;
 using UnityEngine;
+using Terrain = HadalWorks.Sim.Terrain;
 
 namespace HadalWorks.Game
 {

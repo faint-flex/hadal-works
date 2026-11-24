@@ -6,6 +6,6 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/NightDock/Scenes/Main.unity
-    guid: c71745772a5670246b05b8fe72667dfb
+    path: Assets/HadalWorks/Scenes/Main.unity
+    guid: 5b59cf8227d3e0e4cb6955dc1d83352d
   m_configObjects: {}
