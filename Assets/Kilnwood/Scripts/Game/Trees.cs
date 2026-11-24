@@ -32,7 +32,7 @@ namespace Kilnwood.Game
         }
 
         // Broadleaf greens: deeper and less yellow than the old toy palette, so sunlit crowns stay natural.
-        static readonly Color[] Leaf = { new Color(0.17f, 0.3f, 0.12f), new Color(0.2f, 0.33f, 0.13f), new Color(0.15f, 0.27f, 0.12f), new Color(0.22f, 0.32f, 0.14f) };
+        static readonly Color[] Leaf = { new Color(0.19f, 0.34f, 0.13f), new Color(0.22f, 0.37f, 0.14f), new Color(0.17f, 0.31f, 0.13f), new Color(0.24f, 0.36f, 0.15f) };
 
         static Material Mat(Color c)
         {

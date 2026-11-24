@@ -190,15 +190,15 @@ namespace Kilnwood.Game
         {
             var far = new GameObject("Far forest").transform;
             far.SetParent(root, false);
-            const float step = 5f;
+            const float step = 3.6f;
             for (float z = -size * 0.75f; z < size * 1.75f; z += step)
                 for (float x = -size * 0.75f; x < size * 1.75f; x += step)
                 {
-                    bool inside = x > -12f && x < size + 12f && z > -12f && z < size + 12f;
+                    bool inside = x > -6f && x < size + 6f && z > -6f && z < size + 6f;
                     if (inside || Mathf.Abs(x - riverX) < 12f) continue;
                     int ix = Mathf.RoundToInt(x), iz = Mathf.RoundToInt(z);
                     float clump = Mathf.PerlinNoise(x * 0.025f + 11f, z * 0.025f + 5f);
-                    if (Art.Hash(ix, iz, 1) > clump * 1.25f - 0.2f) continue;
+                    if (Art.Hash(ix, iz, 1) > clump * 1.7f - 0.2f) continue;   // dense woods in the clumps, open glades between
                     float px = x + (Art.Hash(ix, iz, 2) - 0.5f) * step * 0.8f, pz = z + (Art.Hash(ix, iz, 3) - 0.5f) * step * 0.8f;
                     var t = new GameObject("Far tree").transform;
                     t.SetParent(far, false);
@@ -547,8 +547,13 @@ namespace Kilnwood.Game
                     Art.Cube("Porch roof", B, new Vector3(0f, 2.95f, fz + 0.6f), new Vector3(3.4f, 0.12f, 1.3f), Look.Roof, new Vector3(-14f, 0f, 0f));
                     for (int i = 0; i < 2; i++)
                         Art.Cube("Window", B, new Vector3(i == 0 ? -2.0f : 2.0f, 2.1f, fz + 0.03f), new Vector3(0.8f, 0.7f, 0.05f), new Color(0.95f, 0.82f, 0.5f));
-                    Art.Cyl("Flag pole", B, new Vector3(-3.4f, 0.7f, -3.4f), 0.14f, 6.5f, Look.Bark);
-                    Art.Cube("Flag", B, new Vector3(-2.85f, 6.75f, -3.4f), new Vector3(1.0f, 0.65f, 0.04f), Look.Accent);
+                    // Lodge pennant: short pole, kiln-red cloth with a cream band and a slight wave, so it reads as a flag.
+                    Art.Cyl("Flag pole", B, new Vector3(-3.4f, 0.7f, -3.4f), 0.12f, 4.4f, Look.Bark);
+                    Art.Ball("Flag finial", B, new Vector3(-3.4f, 5.15f, -3.4f), Vector3.one * 0.2f, Look.Iron);
+                    var flagRed = new Color(0.55f, 0.15f, 0.11f);
+                    Art.Cube("Flag", B, new Vector3(-3.0f, 4.75f, -3.4f), new Vector3(0.7f, 0.55f, 0.03f), flagRed, new Vector3(0f, 8f, 0f));
+                    Art.Cube("Flag tail", B, new Vector3(-2.42f, 4.75f, -3.47f), new Vector3(0.5f, 0.42f, 0.03f), flagRed, new Vector3(0f, -10f, 0f));
+                    Art.Cube("Flag band", B, new Vector3(-2.98f, 4.75f, -3.42f), new Vector3(0.66f, 0.12f, 0.035f), new Color(0.88f, 0.82f, 0.68f), new Vector3(0f, 8f, 0f));
                     Art.Cyl("Barrel", B, new Vector3(3.2f, 0.7f, 3.2f), 0.6f, 0.8f, timber * 0.8f);
                     Art.Cyl("Barrel", B, new Vector3(2.55f, 0.7f, 3.3f), 0.6f, 0.8f, timber * 0.75f);
                     for (int i = 0; i < 3; i++)

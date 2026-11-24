@@ -554,18 +554,6 @@ namespace Kilnwood.Game
             sb.AppendLine("fps average " + (_frames / Mathf.Max(_frameTime, 1e-4f)).ToString("0") + ", worst frame " + (_worstFrame * 1000f).ToString("0.0") + " ms (frame " + _worstFrameNo + ", game time " + _worstAt.ToString("0") + " s), frames over 50 ms: " + _spikes);
             foreach (var b in W.Buildings.Values)
                 if (b.Type != BuildingType.Belt && b.Type != BuildingType.Shaft && b.Type != BuildingType.Rail) sb.AppendLine("  " + b.Type + " at " + b.X + "," + b.Y + ": " + b.Status + " (fuel " + b.FuelCount + ", power " + b.Power.ToString("0.00") + ")");
-            // What stands tall over tile 25,30 (QA asked about a blank board there): name path, height, colour.
-            var probeAt = WorldView.FootCenter(25, 30, 1);
-            sb.AppendLine("objects above 2 m within 3 m of tile 25,30:");
-            foreach (var mr in View.GetComponentsInChildren<MeshRenderer>())
-            {
-                var bb = mr.bounds;
-                if (bb.max.y < 2f || Mathf.Abs(bb.center.x - probeAt.x) > 3f || Mathf.Abs(bb.center.z - probeAt.z) > 3f) continue;
-                string path = mr.name; var tr = mr.transform.parent;
-                for (int d = 0; d < 3 && tr != null; d++, tr = tr.parent) path = tr.name + "/" + path;
-                var col = mr.sharedMaterial != null && mr.sharedMaterial.HasProperty("_Color") ? mr.sharedMaterial.color : Color.clear;
-                sb.AppendLine("  " + path + "  top " + bb.max.y.ToString("0.0") + " m  size " + bb.size.ToString("0.0") + "  colour " + col.ToString("0.00"));
-            }
             File.AppendAllText(Path.Combine(_shotsDir, "shots-result.txt"), sb.ToString());
             SaveSystem.Save(W);
             var reloaded = SaveSystem.Load(B);
