@@ -789,6 +789,7 @@ namespace Kilnwood.Game
                 if (_itemTextMat != null) return _itemTextMat;
                 _itemTextMat = new Material(Look.Font.material);
                 _itemTextMat.SetInt("unity_GUIZTestMode", (int)UnityEngine.Rendering.CompareFunction.LessEqual);
+                _itemTextMat.renderQueue = 2990;   // before machine labels, so labels always draw on top of item letters
                 return _itemTextMat;
             }
         }
