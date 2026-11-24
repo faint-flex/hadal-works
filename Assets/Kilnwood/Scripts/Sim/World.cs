@@ -23,6 +23,8 @@ namespace Kilnwood.Sim
         public float Work;        // seconds of progress on the current craft
         public bool Crafting;
         public float ExtractTimer;
+        public bool Staffed = true;        // has the workers it needs
+        public int SplitNext;              // splitters: which output gets the next item
         public int FuelWood, FuelCharcoal; // fuel items waiting to burn
         public float FuelLeft;             // seconds of burn left from the last fuel item
         public int FuelCount => FuelWood + FuelCharcoal;
@@ -43,7 +45,22 @@ namespace Kilnwood.Sim
         public readonly Dictionary<int, Building> Buildings = new Dictionary<int, Building>();
         readonly List<Building> _belts = new List<Building>();
         readonly List<Building> _machines = new List<Building>();
+        readonly List<Building> _splitters = new List<Building>();
         int _nextId = 1;
+
+        // Forest: logs left per tile, regrowing over time. View reads ChangedLogs to update trees.
+        public readonly int[] Logs;
+        readonly float[] _regrow;
+        readonly HashSet<int> _growing = new HashSet<int>();
+        readonly List<int> _grownFull = new List<int>();
+        public readonly HashSet<int> ChangedLogs = new HashSet<int>();
+
+        // People.
+        public int Population { get; private set; }
+        public int WorkersNeeded { get; private set; }
+        public int WorkersUsed { get; private set; }
+        public bool Hungry { get; private set; }
+        float _eat;
 
         public readonly Dictionary<Item, int> Storage = new Dictionary<Item, int>();
         public readonly Dictionary<Item, int> Delivered = new Dictionary<Item, int>();
@@ -57,21 +74,57 @@ namespace Kilnwood.Sim
             B = b;
             W = H = b.MapSize;
             Ground = new Terrain[W * H];
+            Logs = new int[W * H];
+            _regrow = new float[W * H];
             _occ = new int[W * H];
             for (int i = 0; i < _occ.Length; i++) _occ[i] = -1;
             foreach (Item it in Enum.GetValues(typeof(Item))) { Storage[it] = 0; Delivered[it] = 0; }
             Storage[Item.Wood] = b.StartWood;
             Storage[Item.Stone] = b.StartStone;
             Storage[Item.Iron] = b.StartIron;
+            Storage[Item.Fish] = b.StartFish;
         }
 
         public void RestoreTime(float t) => Time = t;
+
+        public void RestoreLogs(IList<int> logs)
+        {
+            for (int i = 0; i < Logs.Length && i < logs.Count; i++)
+            {
+                if (Ground[i] != Terrain.Forest) continue;
+                Logs[i] = logs[i];
+                if (Logs[i] < B.LogsPerTile) _growing.Add(i);
+                ChangedLogs.Add(i);
+            }
+        }
 
         // ------------------------------------------------------------------ grid
 
         public bool InBounds(int x, int y) => x >= 0 && y >= 0 && x < W && y < H;
         public Terrain GroundAt(int x, int y) => InBounds(x, y) ? Ground[y * W + x] : Terrain.Water;
-        public void SetGround(int x, int y, Terrain t) { if (InBounds(x, y)) Ground[y * W + x] = t; }
+        public void SetGround(int x, int y, Terrain t)
+        {
+            if (!InBounds(x, y)) return;
+            int i = y * W + x;
+            Ground[i] = t;
+            Logs[i] = t == Terrain.Forest ? B.LogsPerTile : 0;
+            _growing.Remove(i);
+        }
+
+        public int LogsAt(int x, int y) => InBounds(x, y) ? Logs[y * W + x] : 0;
+
+        /// <summary>Fishers must touch the river: any tile right next to the footprint is water.</summary>
+        public bool TouchesWater(int x, int y, int size)
+        {
+            for (int i = -1; i <= size; i++)
+            {
+                if (GroundAt(x + i, y - 1) == Terrain.Water && InBounds(x + i, y - 1)) return true;
+                if (GroundAt(x + i, y + size) == Terrain.Water && InBounds(x + i, y + size)) return true;
+                if (GroundAt(x - 1, y + i) == Terrain.Water && InBounds(x - 1, y + i)) return true;
+                if (GroundAt(x + size, y + i) == Terrain.Water && InBounds(x + size, y + i)) return true;
+            }
+            return false;
+        }
 
         public Building At(int x, int y)
         {
@@ -105,6 +158,7 @@ namespace Kilnwood.Sim
                     if (GroundAt(x + dx, y + dy) == Terrain.Water) return "Can't build on the river";
             if (def.SitsOn != null && ExtractorResource(type, x, y, out _) == Item.None)
                 return type == BuildingType.Woodcutter ? "Woodcutters must sit on forest" : "Mines must sit on iron ore or stone";
+            if (type == BuildingType.Fisher && !TouchesWater(x, y, s)) return "Fishers must touch the river";
             if (!ignoreCost)
                 foreach (var c in def.Cost)
                     if (Storage[c.item] < c.count)
@@ -123,6 +177,7 @@ namespace Kilnwood.Sim
                 for (int dx = 0; dx < b.Size; dx++)
                     _occ[(y + dy) * W + x + dx] = b.Id;
             if (type == BuildingType.Belt) _belts.Add(b);
+            else if (type == BuildingType.Splitter) _splitters.Add(b);
             else _machines.Add(b);
             if (type == BuildingType.Lodge) Lodge = b;
             return b;
@@ -137,6 +192,7 @@ namespace Kilnwood.Sim
                     _occ[(b.Y + dy) * W + b.X + dx] = -1;
             Buildings.Remove(id);
             _belts.Remove(b);
+            _splitters.Remove(b);
             _machines.Remove(b);
             return true;
         }
@@ -176,9 +232,29 @@ namespace Kilnwood.Sim
             return best;
         }
 
-        public float ExtractRate(BuildingType type, int tiles) =>
-            Math.Min(B.ExtractMaxPerSecond, tiles / (type == BuildingType.Woodcutter ? B.WoodSecondsPerTile : B.ExtractSecondsPerTile));
+        public float ExtractRate(BuildingType type, int tiles) => type == BuildingType.Woodcutter
+            ? Math.Min(B.WoodMaxPerSecond, tiles / B.WoodSecondsPerTile)
+            : Math.Min(B.ExtractMaxPerSecond, tiles / B.ExtractSecondsPerTile);
 
+        /// <summary>Forest tiles a woodcutter can reach that still have logs (its footprint plus a ring; not under other buildings).</summary>
+        public int TreesInReach(Building m, out int bestIndex)
+        {
+            int n = 0, best = 0;
+            bestIndex = -1;
+            int r = B.WoodcutterReach;
+            for (int y = m.Y - r; y < m.Y + m.Size + r; y++)
+                for (int x = m.X - r; x < m.X + m.Size + r; x++)
+                {
+                    if (!InBounds(x, y)) continue;
+                    int i = y * W + x;
+                    if (Logs[i] <= 0) continue;
+                    int occ = _occ[i];
+                    if (occ >= 0 && occ != m.Id) continue;
+                    n++;
+                    if (Logs[i] > best) { best = Logs[i]; bestIndex = i; }
+                }
+            return n;
+        }
         public Item ExtractorResource(Building b, out int tiles) => ExtractorResource(b.Type, b.X, b.Y, out tiles);
 
         /// <summary>Does this machine burn fuel right now (by type, or by its current recipe)?</summary>
@@ -211,12 +287,93 @@ namespace Kilnwood.Sim
         void Step(float dt)
         {
             Time += dt;
+            StepPeople(dt);
+            StepForest(dt);
             foreach (var t in _belts) StepBelt(t, dt);
-            foreach (var m in _machines) StepMachine(m, dt);
+            foreach (var sp in _splitters) StepSplitter(sp, dt);
+            float speed = Hungry ? B.HungrySpeed : 1f;
+            foreach (var m in _machines)
+            {
+                if (!m.Staffed) { m.Status = "No workers"; continue; }
+                StepMachine(m, dt * speed);
+            }
             if (!GoalReached && Delivered[Item.Gear] >= B.GoalGear && Delivered[Item.Brick] >= B.GoalBrick)
             {
                 GoalReached = true;
                 GoalReachedAt = Time;
+            }
+        }
+
+        /// <summary>Homes, who works where (in build order), and eating fish from the lodge.</summary>
+        void StepPeople(float dt)
+        {
+            int pop = 0, need = 0, used = 0;
+            foreach (var m in _machines) pop += B.Defs[m.Type].Homes;
+            int free = pop;
+            foreach (var m in _machines)
+            {
+                int w = B.Defs[m.Type].Workers;
+                need += w;
+                if (w == 0) { m.Staffed = true; continue; }
+                m.Staffed = free >= w;
+                if (m.Staffed) { free -= w; used += w; }
+            }
+            Population = pop;
+            WorkersNeeded = need;
+            WorkersUsed = used;
+
+            _eat += dt * pop / B.EatSecondsPerPerson;
+            while (_eat >= 1f)
+            {
+                _eat -= 1f;
+                if (Storage[Item.Fish] > 0) Storage[Item.Fish]--;
+            }
+            Hungry = pop > 0 && Storage[Item.Fish] <= 0;
+        }
+
+        void StepForest(float dt)
+        {
+            if (_growing.Count == 0) return;
+            _grownFull.Clear();
+            foreach (int i in _growing)
+            {
+                _regrow[i] += dt;
+                if (_regrow[i] < B.RegrowSecondsPerLog) continue;
+                _regrow[i] -= B.RegrowSecondsPerLog;
+                Logs[i]++;
+                ChangedLogs.Add(i);
+                if (Logs[i] >= B.LogsPerTile) _grownFull.Add(i);
+            }
+            foreach (int i in _grownFull) { _growing.Remove(i); _regrow[i] = 0f; }
+        }
+
+        void CutLog(int i)
+        {
+            Logs[i]--;
+            ChangedLogs.Add(i);
+            _growing.Add(i);
+        }
+
+        void StepSplitter(Building sp, float dt)
+        {
+            if (sp.BeltItem == Item.None) return;
+            if (sp.BeltProgress < 1f) sp.BeltProgress = Math.Min(1f, sp.BeltProgress + B.BeltSpeed * 2f * dt);
+            if (sp.BeltProgress < 1f) return;
+            // Front, then right, then left, starting from whoever is next in turn.
+            for (int k = 0; k < 3; k++)
+            {
+                int slot = (sp.SplitNext + k) % 3;
+                int d = slot == 0 ? sp.Facing : slot == 1 ? (sp.Facing + 1) & 3 : (sp.Facing + 3) & 3;
+                var t = At(sp.X + Dir.DX[d], sp.Y + Dir.DY[d]);
+                if (t == null) continue;
+                if ((t.Type == BuildingType.Belt || t.Type == BuildingType.Splitter) && t.Facing == Dir.Opposite(d)) continue;
+                if (TryInsert(t, sp.BeltItem, d))
+                {
+                    sp.BeltItem = Item.None;
+                    sp.BeltProgress = 0f;
+                    sp.SplitNext = (slot + 1) % 3;
+                    return;
+                }
             }
         }
 
@@ -242,6 +399,14 @@ namespace Kilnwood.Sim
             {
                 if (target.BeltItem != Item.None) return false;
                 if (target.Facing == Dir.Opposite(moving)) return false; // head-on
+                target.BeltItem = item;
+                target.BeltProgress = 0f;
+                return true;
+            }
+            if (target.Type == BuildingType.Splitter)
+            {
+                if (target.BeltItem != Item.None) return false;
+                if (moving == Dir.Opposite(target.Facing)) return false; // can't feed it from its front
                 target.BeltItem = item;
                 target.BeltProgress = 0f;
                 return true;
@@ -303,14 +468,35 @@ namespace Kilnwood.Sim
                 case BuildingType.Kiln:
                 case BuildingType.Smelter:
                 case BuildingType.Workshop: StepCrafter(m, dt); break;
+                case BuildingType.Fisher: StepFisher(m, dt); break;
+                case BuildingType.Cabin: m.Status = "Home for " + B.Defs[m.Type].Homes; return;
                 case BuildingType.Lodge: m.Status = "Storing"; return;
             }
             PushOutput(m);
         }
 
+        void StepFisher(Building m, float dt)
+        {
+            if (m.OutCount >= B.OutputCap) { m.Status = "Full, waiting for space"; return; }
+            m.ExtractTimer += dt / B.FishSeconds;
+            while (m.ExtractTimer >= 1f && m.OutCount < B.OutputCap)
+            {
+                m.ExtractTimer -= 1f;
+                m.OutItem = Item.Fish;
+                m.OutCount++;
+            }
+            m.Status = "Working";
+        }
+
         void StepExtractor(Building m, float dt)
         {
             var res = ExtractorResource(m, out int tiles);
+            int cutFrom = -1;
+            if (m.Type == BuildingType.Woodcutter)
+            {
+                tiles = TreesInReach(m, out cutFrom);
+                if (tiles == 0) { m.Status = "No trees left, waiting for regrowth"; return; }
+            }
             if (res == Item.None) { m.Status = "Nothing to extract"; return; }
             if (m.OutCount > 0 && m.OutItem != res) { m.Status = "Full, waiting for space"; return; }
             if (m.OutCount >= B.OutputCap) { m.Status = "Full, waiting for space"; return; }
@@ -320,6 +506,12 @@ namespace Kilnwood.Sim
             while (m.ExtractTimer >= 1f && m.OutCount < B.OutputCap)
             {
                 m.ExtractTimer -= 1f;
+                if (m.Type == BuildingType.Woodcutter)
+                {
+                    TreesInReach(m, out cutFrom);
+                    if (cutFrom < 0) break;
+                    CutLog(cutFrom);
+                }
                 m.OutItem = res;
                 m.OutCount++;
             }

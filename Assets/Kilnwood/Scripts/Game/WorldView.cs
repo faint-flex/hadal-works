@@ -29,6 +29,8 @@ namespace Kilnwood.Game
         // Trees and rocks per tile, hidden when something is built on that tile.
         readonly Dictionary<int, List<GameObject>> _deco = new Dictionary<int, List<GameObject>>();
         int _decoBuildingCount = -1;
+        // Trees per forest tile: shrink as they're cut, a stump when bare, grow back from saplings.
+        readonly Dictionary<int, (Transform tree, GameObject stump)> _trees = new Dictionary<int, (Transform, GameObject)>();
         // Big field names on the ground; hidden once you build near them so they don't fight machine labels.
         readonly List<(int x, int y, GameObject go)> _fieldLabels = new List<(int x, int y, GameObject go)>();
         readonly List<Transform> _itemPool = new List<Transform>();
@@ -60,6 +62,7 @@ namespace Kilnwood.Game
                 case Item.Iron: return new Color(0.62f, 0.66f, 0.72f);
                 case Item.Brick: return new Color(0.75f, 0.33f, 0.22f);
                 case Item.Gear: return new Color(0.95f, 0.78f, 0.25f);
+                case Item.Fish: return new Color(0.55f, 0.7f, 0.78f);
                 default: return Color.white;
             }
         }
@@ -111,9 +114,15 @@ namespace Kilnwood.Game
                     // One or two trees per tile: trunk + layered crown.
                     float h = 3.5f + j * 2.5f;
                     var tc = c + new Vector3(-0.35f + j * 0.5f, 0f, 0.3f - j * 0.5f);
-                    Deco(x, y, Look.Box("Trunk", root, tc + new Vector3(0f, h * 0.3f, 0f), new Vector3(0.3f, h * 0.6f, 0.3f), Look.Bark));
-                    Deco(x, y, Look.Box("Crown", root, tc + new Vector3(0f, h * 0.7f, 0f), new Vector3(1.5f, h * 0.45f, 1.5f), j < 0.5f ? Look.Leaves : Look.LeavesDark));
-                    Deco(x, y, Look.Box("Crown top", root, tc + new Vector3(0f, h * 1.0f, 0f), new Vector3(0.9f, h * 0.25f, 0.9f), j < 0.5f ? Look.Leaves : Look.LeavesDark));
+                    var tree = new GameObject("Tree").transform;
+                    tree.SetParent(root, false);
+                    tree.localPosition = tc;
+                    Look.Box("Trunk", tree, new Vector3(0f, h * 0.3f, 0f), new Vector3(0.3f, h * 0.6f, 0.3f), Look.Bark);
+                    Look.Box("Crown", tree, new Vector3(0f, h * 0.7f, 0f), new Vector3(1.5f, h * 0.45f, 1.5f), j < 0.5f ? Look.Leaves : Look.LeavesDark);
+                    Look.Box("Crown top", tree, new Vector3(0f, h * 1.0f, 0f), new Vector3(0.9f, h * 0.25f, 0.9f), j < 0.5f ? Look.Leaves : Look.LeavesDark);
+                    var stump = Look.Box("Stump", root, tc + new Vector3(0f, 0.2f, 0f), new Vector3(0.45f, 0.4f, 0.45f), Look.Bark);
+                    stump.SetActive(false);
+                    _trees[y * _w.W + x] = (tree, stump);
                     break;
                 case Terrain.IronOre:
                     Look.Box("Ore ground", root, c + new Vector3(0f, 0.02f, 0f), new Vector3(T, 0.06f, T), Look.OreGround);
@@ -146,11 +155,25 @@ namespace Kilnwood.Game
                 bool show = !BuiltNear(kv.Key % _w.W, kv.Key / _w.W, 1);
                 foreach (var go in kv.Value) if (go.activeSelf != show) go.SetActive(show);
             }
+            foreach (var key in _trees.Keys) UpdateTree(key);
             foreach (var fl in _fieldLabels)
             {
                 bool show = !BuiltNear(fl.x, fl.y, 4);
                 if (fl.go.activeSelf != show) fl.go.SetActive(show);
             }
+        }
+
+        void UpdateTree(int key)
+        {
+            var (tree, stump) = _trees[key];
+            int x = key % _w.W, y = key / _w.W;
+            bool clear = BuiltNear(x, y, 1);
+            int logs = _w.Logs[key];
+            bool showTree = !clear && logs > 0;
+            if (tree.gameObject.activeSelf != showTree) tree.gameObject.SetActive(showTree);
+            if (showTree) tree.localScale = Vector3.one * (0.3f + 0.7f * logs / _w.B.LogsPerTile);
+            bool showStump = !clear && logs == 0;
+            if (stump.activeSelf != showStump) stump.SetActive(showStump);
         }
 
         bool BuiltNear(int x, int y, int r)
@@ -252,6 +275,28 @@ namespace Kilnwood.Game
                     v.Fire = Look.Box("Forge glow", v.Body, new Vector3(-0.6f, 0.9f, s / 2f - 0.28f), new Vector3(0.8f, 0.5f, 0.1f), Look.Fire);
                     Look.Box("Front", v.Body, new Vector3(0f, 0.2f, s / 2f - 0.15f), new Vector3(1.6f, 0.3f, 0.3f), Look.Accent);
                     break;
+                case BuildingType.Fisher:
+                    Look.Box("Hut", v.Body, new Vector3(0f, 1f, -0.6f), new Vector3(2.4f, 2f, 2f), Look.Timber);
+                    Look.Box("Roof", v.Body, new Vector3(0f, 2.2f, -0.6f), new Vector3(2.8f, 0.4f, 2.4f), Look.Roof);
+                    Look.Box("Drying rack", v.Body, new Vector3(-1.2f, 0.9f, 1f), new Vector3(0.15f, 1.8f, 1.2f), Look.Bark);
+                    Look.Box("Fish basket", v.Body, new Vector3(0.9f, 0.35f, 1f), new Vector3(0.8f, 0.7f, 0.8f), Look.Planks);
+                    Look.Box("Front", v.Body, new Vector3(0f, 0.3f, s / 2f - 0.15f), new Vector3(1.6f, 0.4f, 0.3f), Look.Accent);
+                    break;
+                case BuildingType.Cabin:
+                    Look.Box("Log walls", v.Body, new Vector3(0f, 1.1f, 0f), new Vector3(s - 1f, 2.2f, s - 1.4f), Look.Timber);
+                    Look.Box("Roof", v.Body, new Vector3(0f, 2.45f, 0f), new Vector3(s - 0.4f, 0.5f, s - 0.8f), Look.Roof);
+                    Look.Box("Roof ridge", v.Body, new Vector3(0f, 2.9f, 0f), new Vector3(s - 0.4f, 0.4f, s - 2.4f), Look.Roof);
+                    Look.Box("Chimney", v.Body, new Vector3(1f, 3.1f, -0.6f), new Vector3(0.45f, 1.1f, 0.45f), Look.StoneWall);
+                    Look.Box("Door", v.Body, new Vector3(0f, 0.6f, (s - 1.4f) / 2f + 0.02f), new Vector3(0.7f, 1.2f, 0.06f), Look.Roof);
+                    break;
+                case BuildingType.Splitter:
+                    Look.Box("Frame", v.Body, new Vector3(0f, 0.22f, 0f), new Vector3(1.8f, 0.36f, 1.8f), Look.BeltFrame);
+                    Look.Box("Deck", v.Body, new Vector3(0f, 0.42f, 0f), new Vector3(1.4f, 0.06f, 1.4f), Look.Belt);
+                    Look.Box("Arrow front", v.Body, new Vector3(0f, 0.48f, 0.6f), new Vector3(0.3f, 0.05f, 0.4f), Look.Accent);
+                    Look.Box("Arrow right", v.Body, new Vector3(0.6f, 0.48f, 0f), new Vector3(0.4f, 0.05f, 0.3f), Look.Accent);
+                    Look.Box("Arrow left", v.Body, new Vector3(-0.6f, 0.48f, 0f), new Vector3(0.4f, 0.05f, 0.3f), Look.Accent);
+                    Look.Box("Hub", v.Body, new Vector3(0f, 0.55f, 0f), new Vector3(0.45f, 0.2f, 0.45f), Look.Iron);
+                    break;
                 case BuildingType.Lodge:
                     Look.Box("Stone base", v.Body, new Vector3(0f, 0.4f, 0f), new Vector3(s - 0.4f, 0.8f, s - 0.4f), Look.StoneWall);
                     Look.Box("Log walls", v.Body, new Vector3(0f, 2f, 0f), new Vector3(s - 1.4f, 2.4f, s - 1.4f), Look.Timber);
@@ -274,7 +319,7 @@ namespace Kilnwood.Game
                 glow.range = 5f;
                 v.Fire.SetActive(false);
             }
-            if (b.Type != BuildingType.Belt)
+            if (b.Type != BuildingType.Belt && b.Type != BuildingType.Splitter)
             {
                 // One upright label per machine: name on top, status (and fuel) underneath.
                 // Neighbouring machines alternate label heights so their names don't stack on each other.
@@ -285,7 +330,12 @@ namespace Kilnwood.Game
                     v.Title = Look.Billboard("", v.Root.transform, new Vector3(0f, 0.5f, -s / 2f - 0.6f), 2.0f, Color.white);
                     v.Title.anchor = TextAnchor.UpperCenter;
                 }
-                else v.Title = Look.Billboard("", v.Root.transform, new Vector3(0f, top, 0f), 1.3f, Color.white);
+                else
+                {
+                    v.Title = Look.Billboard("", v.Root.transform, new Vector3(0f, top, 0f), 1.3f, Color.white);
+                    // Thin post from the roof up to the label, so a raised label still points at its own building.
+                    Look.Box("Label post", v.Root.transform, new Vector3(0f, (top + 2.4f) / 2f, 0f), new Vector3(0.07f, top - 2.4f, 0.07f), Look.MineDark);
+                }
             }
             return v;
         }
@@ -300,6 +350,8 @@ namespace Kilnwood.Game
                 case BuildingType.Smelter:
                 case BuildingType.Workshop:
                     return _w.B.Defs[b.Type].Name.ToUpperInvariant() + " " + Items.Letter(_w.RecipeOf(b).Out);
+                case BuildingType.Fisher: return "FISHER F";
+                case BuildingType.Cabin: return "CABIN +" + _w.B.Defs[b.Type].Homes;
                 case BuildingType.Lodge: return "LODGE\n<size=40>deliver here</size>";
                 default: return "";
             }
@@ -324,7 +376,7 @@ namespace Kilnwood.Game
                 if (v.Title != null)
                 {
                     // Calm machines show only their name (fire glow shows they're busy); problems get a "!" line.
-                    string status = b.Type == BuildingType.Lodge || string.IsNullOrEmpty(b.Status) || b.Status == "Working" || b.Status.StartsWith("Full") ? "" : b.Status;
+                    string status = b.Type == BuildingType.Lodge || b.Type == BuildingType.Cabin || string.IsNullOrEmpty(b.Status) || b.Status == "Working" || b.Status.StartsWith("Full") ? "" : b.Status;
                     string text = TitleFor(b) + (status.Length > 0 ? "\n<size=56><color=#FFB070>! " + status + "</color></size>" : "");
                     if (v.Shown != text) { Look.SetText(v.Title, text); v.Shown = text; v.Recipe = b.Recipe; }
                 }
@@ -340,11 +392,16 @@ namespace Kilnwood.Game
             }
 
             if (_w.Buildings.Count != _decoBuildingCount || gone != null) UpdateDeco();
+            if (_w.ChangedLogs.Count > 0)
+            {
+                foreach (int key in _w.ChangedLogs) if (_trees.ContainsKey(key)) UpdateTree(key);
+                _w.ChangedLogs.Clear();
+            }
 
             UpdateItems();
 
             var cam = Camera.main;
-            if (cam != null) { Look.TurnFlatLabels(cam.transform.eulerAngles.y); Look.TurnBillboards(cam.transform.rotation); }
+            if (cam != null) { Look.TurnFlatLabels(cam.transform.eulerAngles.y); Look.TurnBillboards(cam.transform.rotation, cam.transform.position); }
         }
 
         void UpdateItems()
@@ -352,7 +409,7 @@ namespace Kilnwood.Game
             int n = 0;
             foreach (var b in _w.Buildings.Values)
             {
-                if (b.Type != BuildingType.Belt || b.BeltItem == Item.None) continue;
+                if ((b.Type != BuildingType.Belt && b.Type != BuildingType.Splitter) || b.BeltItem == Item.None) continue;
                 var tr = ItemAt(n, b.BeltItem);
                 var c = TileCenter(b.X, b.Y);
                 tr.localPosition = c + DirVec(b.Facing) * ((b.BeltProgress * 2f - 1f) * 0.85f) + new Vector3(0f, 0.95f, 0f);

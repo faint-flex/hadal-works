@@ -240,6 +240,116 @@ namespace Kilnwood.Tests
         }
 
         [Test]
+        public void Woodcutter_cuts_trees_down_and_they_regrow()
+        {
+            var w = Empty();
+            Ground(w, 10, 10, 2, Terrain.Forest);           // only 4 forest tiles in reach
+            var wc = w.Place(BuildingType.Woodcutter, 10, 10, 1, 0, free: true);
+            for (int x = 12; x < 30; x++) w.Place(BuildingType.Belt, x, 10, 1, 0, free: true);
+            for (int x = 12; x < 30; x++) w.Place(BuildingType.Belt, x, 11, 1, 0, free: true);
+            w.Tick(40f);                                     // 4 tiles x 8 logs = 32 wood, ~1.33/s
+            int left = w.LogsAt(10, 10) + w.LogsAt(11, 10) + w.LogsAt(10, 11) + w.LogsAt(11, 11);
+            Assert.Less(left, 4 * B.LogsPerTile - 20);
+            int was = left;
+            w.Demolish(wc.Id);
+            w.Tick(B.RegrowSecondsPerLog * 2 + 0.5f);
+            int now = w.LogsAt(10, 10) + w.LogsAt(11, 10) + w.LogsAt(10, 11) + w.LogsAt(11, 11);
+            Assert.GreaterOrEqual(now, was + 4);
+        }
+
+        [Test]
+        public void Woodcutter_waits_when_reach_is_bare()
+        {
+            var w = Empty();
+            Ground(w, 10, 10, 2, Terrain.Forest);
+            for (int y = 10; y < 12; y++) for (int x = 10; x < 12; x++) w.Logs[y * w.W + x] = 0;
+            var wc = w.Place(BuildingType.Woodcutter, 10, 10, 1, 0, free: true);
+            w.Tick(1f);
+            StringAssert.Contains("regrowth", wc.Status);
+        }
+
+        [Test]
+        public void Machines_need_workers_in_build_order()
+        {
+            var w = Empty();                                  // lodge houses 6
+            var a = w.Place(BuildingType.Smelter, 2, 2, 1, 0, free: true);   // 2
+            var b = w.Place(BuildingType.Smelter, 5, 2, 1, 0, free: true);   // 2
+            var c = w.Place(BuildingType.Workshop, 8, 2, 1, 0, free: true);  // 2
+            var d = w.Place(BuildingType.Kiln, 11, 2, 1, 0, free: true);     // 1: no room
+            w.Tick(0.1f);
+            Assert.IsTrue(a.Staffed && b.Staffed && c.Staffed);
+            Assert.IsFalse(d.Staffed);
+            Assert.AreEqual("No workers", d.Status);
+            w.Place(BuildingType.Cabin, 20, 2, 0, 0, free: true);
+            w.Tick(0.1f);
+            Assert.IsTrue(d.Staffed);
+            Assert.AreEqual(10, w.Population);
+        }
+
+        [Test]
+        public void People_eat_fish_and_hunger_halves_speed()
+        {
+            var w = Empty();
+            w.Storage[Item.Fish] = 1;
+            w.Tick(B.EatSecondsPerPerson / 6f + 0.1f);       // 6 people eat 1 fish
+            Assert.AreEqual(0, w.Storage[Item.Fish]);
+            Assert.IsTrue(w.Hungry);
+            var k = w.Place(BuildingType.Kiln, 10, 10, 1, 0, free: true);
+            w.Accept(k, Item.Wood); w.Accept(k, Item.Wood);
+            w.Tick(3.1f);
+            Assert.AreEqual(0, k.OutCount, "half speed: 3 s of charcoal takes 6 s");
+            w.Tick(3.1f);
+            Assert.AreEqual(1, k.OutCount);
+            w.Storage[Item.Fish] = 5;
+            w.Tick(0.1f);
+            Assert.IsFalse(w.Hungry);
+        }
+
+        [Test]
+        public void Fisher_must_touch_water_and_makes_fish()
+        {
+            var w = Empty();
+            Assert.IsNotNull(w.CanPlace(BuildingType.Fisher, 10, 10));
+            w.SetGround(9, 10, Terrain.Water);
+            Assert.IsNull(w.CanPlace(BuildingType.Fisher, 10, 10));
+            var f = w.Place(BuildingType.Fisher, 10, 10, 1);
+            w.Tick(B.FishSeconds + 0.1f);
+            Assert.AreEqual(Item.Fish, f.OutItem);
+        }
+
+        [Test]
+        public void Splitter_takes_turns_between_outputs()
+        {
+            var w = Empty();
+            var sp = w.Place(BuildingType.Splitter, 10, 10, 1, 0, free: true);  // facing east
+            var front = w.Place(BuildingType.Belt, 11, 10, 1, 0, free: true);
+            var right = w.Place(BuildingType.Belt, 10, 9, 2, 0, free: true);    // south
+            var left = w.Place(BuildingType.Belt, 10, 11, 0, 0, free: true);    // north
+            var feed = w.Place(BuildingType.Belt, 9, 10, 1, 0, free: true);
+            int got = 0;
+            for (int i = 0; i < 3; i++)
+            {
+                feed.BeltItem = Item.Wood; feed.BeltProgress = 1f;
+                w.Tick(0.3f);
+                got += (front.BeltItem != Item.None ? 1 : 0) + (right.BeltItem != Item.None ? 1 : 0) + (left.BeltItem != Item.None ? 1 : 0);
+            }
+            Assert.AreNotEqual(Item.None, front.BeltItem);
+            Assert.AreNotEqual(Item.None, right.BeltItem);
+            Assert.AreNotEqual(Item.None, left.BeltItem);
+        }
+
+        [Test]
+        public void Splitter_refuses_items_from_its_front()
+        {
+            var w = Empty();
+            var sp = w.Place(BuildingType.Splitter, 10, 10, 1, 0, free: true);
+            var back = w.Place(BuildingType.Belt, 11, 10, 3, 0, free: true);   // points west into the splitter's front
+            back.BeltItem = Item.Wood; back.BeltProgress = 1f;
+            w.Tick(0.2f);
+            Assert.AreEqual(Item.None, sp.BeltItem);
+        }
+
+        [Test]
         public void Demo_factory_reaches_tier2_goal()
         {
             var w = MapGen.NewTier1(B);
@@ -260,6 +370,7 @@ namespace Kilnwood.Tests
             Assert.AreEqual(w.Buildings.Count, w2.Buildings.Count);
             Assert.AreEqual(w.Storage[Item.Wood], w2.Storage[Item.Wood]);
             Assert.AreEqual(w.Delivered[Item.Wood], w2.Delivered[Item.Wood]);
+            CollectionAssert.AreEqual(w.Logs, w2.Logs);
         }
     }
 }

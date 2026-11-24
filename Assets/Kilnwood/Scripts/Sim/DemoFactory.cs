@@ -29,6 +29,14 @@ namespace Kilnwood.Sim
             Add(BuildingType.Woodcutter, 14, 30, E);
             for (int x = 16; x <= 29; x++) Add(BuildingType.Belt, x, 30, E);
 
+            // Phase 1b: food and homes. A fisher on the river, its fish side-loaded onto the wood line; three cabins.
+            Add(BuildingType.Fisher, 5, 33, E);
+            for (int x = 7; x <= 19; x++) Add(BuildingType.Belt, x, 33, E);
+            for (int y = 33; y >= 31; y--) Add(BuildingType.Belt, 20, y, S);
+            Add(BuildingType.Cabin, 24, 26, N);
+            Add(BuildingType.Cabin, 26, 26, N);
+            Add(BuildingType.Cabin, 28, 26, N);
+
             // Phase 2: bricks. Woodcutter fuels a stone mine and a brick kiln.
             Add(BuildingType.Woodcutter, 30, 53, S);
             for (int y = 52; y >= 48; y--) Add(BuildingType.Belt, 30, y, S);

@@ -22,10 +22,10 @@ before art. Goal: deliver 100 gears and 120 bricks to the lodge for the first wa
 ```
 Autopilot screenshot run (builds the demo factory, plays to the Tier 2 goal, saves screenshots, quits):
 ```
-Builds\Kilnwood-0.2.1\Kilnwood.exe -kwshots C:\path\to\shots -screen-width 1920 -screen-height 1080 -screen-fullscreen 0
+Builds\Kilnwood-0.3.0\Kilnwood.exe -kwshots C:\path\to\shots -screen-width 1920 -screen-height 1080 -screen-fullscreen 0
 ```
 
 ## Controls
-1-6 pick a building (belt, woodcutter, mine, kiln, smelter, workshop), R turns it (yellow side = output),
+1-9 pick a building (belt, woodcutter, mine, kiln, smelter, workshop, fisher, cabin, splitter), R turns it (yellow side = output),
 click to place. Belts: click and drag. X demolish. Click a building to inspect it and pick its recipe.
 Space pause, F fast, WASD / screen edge pan, scroll zoom, Q/E rotate, middle-drag orbit, Esc menu.

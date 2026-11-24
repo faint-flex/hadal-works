@@ -54,13 +54,16 @@ namespace Kilnwood.Game
         /// <summary>Upright text over machines; turned to face the camera fully so it never smears at low angles.</summary>
         public static readonly List<Transform> Billboards = new List<Transform>();
 
-        public static void TurnBillboards(Quaternion camRot)
+        /// <summary>Faces every billboard to the camera and grows far ones so they stay readable zoomed out.</summary>
+        public static void TurnBillboards(Quaternion camRot, Vector3 camPos)
         {
             for (int i = Billboards.Count - 1; i >= 0; i--)
             {
                 var t = Billboards[i];
                 if (t == null) { Billboards.RemoveAt(i); continue; }
                 t.rotation = camRot;
+                float k = Mathf.Clamp(Vector3.Distance(camPos, t.position) / 45f, 1f, 2f);
+                t.localScale = new Vector3(k, k, k);
             }
         }
 

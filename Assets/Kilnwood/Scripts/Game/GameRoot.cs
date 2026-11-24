@@ -13,7 +13,7 @@ namespace Kilnwood.Game
     public class GameRoot : MonoBehaviour
     {
         enum State { Title, Playing }
-        enum Tool { Select, Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Demolish }
+        enum Tool { Select, Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Fisher, Cabin, Splitter, Demolish }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
@@ -149,6 +149,9 @@ namespace Kilnwood.Game
             if (GameInput.Down(GameKey.Alpha4)) SetTool(Tool.Kiln);
             if (GameInput.Down(GameKey.Alpha5)) SetTool(Tool.Smelter);
             if (GameInput.Down(GameKey.Alpha6)) SetTool(Tool.Workshop);
+            if (GameInput.Down(GameKey.Alpha7)) SetTool(Tool.Fisher);
+            if (GameInput.Down(GameKey.Alpha8)) SetTool(Tool.Cabin);
+            if (GameInput.Down(GameKey.Alpha9)) SetTool(Tool.Splitter);
             if (GameInput.Down(GameKey.X)) SetTool(_tool == Tool.Demolish ? Tool.Select : Tool.Demolish);
             if (GameInput.Down(GameKey.R))
             {
@@ -181,6 +184,9 @@ namespace Kilnwood.Game
                 case Tool.Mine: return BuildingType.Mine;
                 case Tool.Kiln: return BuildingType.Kiln;
                 case Tool.Smelter: return BuildingType.Smelter;
+                case Tool.Fisher: return BuildingType.Fisher;
+                case Tool.Cabin: return BuildingType.Cabin;
+                case Tool.Splitter: return BuildingType.Splitter;
                 default: return BuildingType.Workshop;
             }
         }
@@ -350,7 +356,7 @@ namespace Kilnwood.Game
             if (_shotIndex < _shotTimes.Length && W.Time >= _shotTimes[_shotIndex])
             {
                 var lodge = WorldView.FootCenter(MapGen.LodgeX, MapGen.LodgeY, 4);
-                if (_shotIndex == 1) Rig.Frame(lodge + new Vector3(-26f, 0f, -2f), 30f, 40f, 30f);       // west woodcutter line
+                if (_shotIndex == 1) Rig.Frame(lodge + new Vector3(-30f, 0f, -6f), 20f, 42f, 46f);      // river fisher, cabins, west woodcutter line
                 else if (_shotIndex == 2) Rig.Frame(lodge + new Vector3(-1f, 0f, 32f), 160f, 38f, 32f);  // brick chain
                 else if (_shotIndex == 3) Rig.Frame(lodge + new Vector3(24f, 0f, 2f), 290f, 32f, 34f);   // iron + gear chain
                 else Rig.Frame(lodge + new Vector3(0f, 0f, 8f), 0f, 55f, 80f);
@@ -395,7 +401,7 @@ namespace Kilnwood.Game
 
         // ------------------------------------------------------------------ UI
 
-        GUIStyle _h1, _h2, _body, _small, _panel, _btn, _btnOn, _toastStyle, _bad;
+        GUIStyle _h1, _h2, _body, _small, _panel, _btn, _btnOn, _toastStyle, _bad, _badSmall, _btnSmall, _btnSmallOn;
 
         void Styles()
         {
@@ -409,6 +415,12 @@ namespace Kilnwood.Game
             _small = new GUIStyle(_body) { fontSize = 15 };
             _bad = new GUIStyle(_body) { fontStyle = FontStyle.Bold };
             _bad.normal.textColor = new Color(1f, 0.55f, 0.45f);
+            _badSmall = new GUIStyle(_small) { fontStyle = FontStyle.Bold };
+            _badSmall.normal.textColor = new Color(1f, 0.62f, 0.4f);
+            _btnSmall = new GUIStyle(GUI.skin.button) { fontSize = 14, padding = new RectOffset(4, 4, 4, 4), wordWrap = true };
+            _btnSmallOn = new GUIStyle(_btnSmall) { fontStyle = FontStyle.Bold };
+            _btnSmallOn.normal.textColor = Look.Accent;
+            _btnSmallOn.hover.textColor = Look.Accent;
             _panel = new GUIStyle(GUI.skin.box);
             var bg = new Texture2D(1, 1);
             bg.SetPixel(0, 0, new Color(0.09f, 0.07f, 0.05f, 0.96f));
@@ -473,8 +485,12 @@ namespace Kilnwood.Game
             var top = Panel(new Rect(10f, 10f, Wd - 20f, 58f));
             GUI.Label(new Rect(top.x + 14f, top.y + 6f, 660f, 26f),
                 "<b>Lodge</b>   W wood " + W.Storage[Item.Wood] + "   S stone " + W.Storage[Item.Stone] + "   I iron " + W.Storage[Item.Iron], _body);
-            GUI.Label(new Rect(top.x + 14f, top.y + 32f, 660f, 24f),
-                "C charcoal " + W.Storage[Item.Charcoal] + "   O ore " + W.Storage[Item.Ore] + "   (machines burn fuel: W wood 8 s, C charcoal 24 s)", _small);
+            GUI.Label(new Rect(top.x + 14f, top.y + 32f, 680f, 24f),
+                "C charcoal " + W.Storage[Item.Charcoal] + "   F fish " + W.Storage[Item.Fish] +
+                "   People: " + W.WorkersUsed + " working, " + W.Population + " living" +
+                (W.WorkersNeeded > W.Population ? "   ! NEED " + (W.WorkersNeeded - W.Population) + " MORE (build cabins)" : "") +
+                (W.Hungry ? "   ! HUNGRY: machines at half speed, send fish to the lodge" : ""),
+                W.Hungry || W.WorkersNeeded > W.Population ? _badSmall : _small);
             var goal = new Rect(top.x + 690f, top.y + 6f, 560f, 48f);
             GUI.Label(goal, "<b>Waterwheel parts</b>   G gears " + Mathf.Min(W.Delivered[Item.Gear], B.GoalGear) + "/" + B.GoalGear +
                 "   B bricks " + Mathf.Min(W.Delivered[Item.Brick], B.GoalBrick) + "/" + B.GoalBrick +
@@ -490,7 +506,7 @@ namespace Kilnwood.Game
             DrawBuildBar(Wd, Ht);
             if (_selected >= 0 && W.Buildings.TryGetValue(_selected, out var b)) DrawBuildingPanel(b, Wd, Ht);
 
-            var hint = _tool == Tool.Select ? "Click a building to inspect it.  1-6 build  ·  X demolish  ·  Space pause  ·  F fast  ·  WASD/edge pan  ·  scroll zoom  ·  Q/E rotate view"
+            var hint = _tool == Tool.Select ? "Click a building to inspect it.  1-9 build  ·  X demolish  ·  Space pause  ·  F fast  ·  WASD/edge pan  ·  scroll zoom  ·  Q/E rotate view"
                 : _tool == Tool.Demolish ? "DEMOLISH: click to remove (full refund). Hold and drag over belts. Right click or Esc to stop."
                 : _tool == Tool.Belt ? "BELTS: click and drag to lay a line; items flow toward where you drag. R turns a single belt. Right click to stop."
                 : "Click to place  ·  R turns it (the yellow side is the output)  ·  right click to stop.";
@@ -500,9 +516,9 @@ namespace Kilnwood.Game
 
         void DrawBuildBar(float Wd, float Ht)
         {
-            var bar = Panel(new Rect(Wd / 2f - 610f, Ht - 100f, 1220f, 90f));
-            Tool[] tools = { Tool.Belt, Tool.Woodcutter, Tool.Mine, Tool.Kiln, Tool.Smelter, Tool.Workshop, Tool.Demolish };
-            float w = 168f;
+            var bar = Panel(new Rect(Wd / 2f - 655f, Ht - 100f, 1310f, 90f));
+            Tool[] tools = { Tool.Belt, Tool.Woodcutter, Tool.Mine, Tool.Kiln, Tool.Smelter, Tool.Workshop, Tool.Fisher, Tool.Cabin, Tool.Splitter, Tool.Demolish };
+            float w = 125f;
             for (int i = 0; i < tools.Length; i++)
             {
                 var t = tools[i];
@@ -514,9 +530,10 @@ namespace Kilnwood.Game
                     var cost = new StringBuilder();
                     foreach (var c in d.Cost) cost.Append(cost.Length > 0 ? " + " : "").Append(c.count).Append(' ').Append(Items.Letter(c.item));
                     bool fuel = d.BurnsFuel || System.Array.Exists(d.Recipes, rc => rc.BurnsFuel);
-                    label = d.Key + "  " + d.Name + "\n" + cost + (fuel ? "  ·  burns fuel" : "");
+                    label = d.Key + "  " + d.Name + "\n" + cost + (fuel ? " · fuel" : "") +
+                            (d.Workers > 0 ? "\n" + d.Workers + (d.Workers == 1 ? " worker" : " workers") : d.Homes > 0 ? "\nhomes " + d.Homes : "");
                 }
-                if (GUI.Button(new Rect(bar.x + 8f + i * (w + 4f), bar.y + 8f, w, 74f), (_tool == t ? "> " : "") + label, _tool == t ? _btnOn : _btn))
+                if (GUI.Button(new Rect(bar.x + 8f + i * (w + 4f), bar.y + 8f, w, 74f), (_tool == t ? "> " : "") + label, _tool == t ? _btnSmallOn : _btnSmall))
                     SetTool(_tool == t ? Tool.Select : t);
             }
         }
@@ -529,7 +546,8 @@ namespace Kilnwood.Game
             GUILayout.Label(def.Name, _h2);
             if (b.Type == BuildingType.Lodge)
             {
-                GUILayout.Label("Everything that reaches the lodge is stored here. Building costs come out of it.", _small);
+                GUILayout.Label("Everything that reaches the lodge is stored here. Building costs come out of it. " +
+                    "Homes for " + def.Homes + " people; everyone eats 1 fish every " + B.EatSecondsPerPerson.ToString("0") + " s from here.", _small);
                 var sb = new StringBuilder();
                 foreach (Item it in System.Enum.GetValues(typeof(Item)))
                     if (it != Item.None) sb.AppendLine(Items.Letter(it) + "  " + Items.Name(it) + ": " + W.Storage[it] + "   (delivered " + W.Delivered[it] + ")");
@@ -538,7 +556,16 @@ namespace Kilnwood.Game
                 return;
             }
             GUILayout.Label("Status: <b>" + b.Status + "</b>", _body);
-            if (b.Type != BuildingType.Belt)
+            if (def.Workers > 0)
+                GUILayout.Label("Workers: " + def.Workers + (b.Staffed ? " (on the job)" : "  ! not enough people: build a cabin (8)"), b.Staffed ? _small : _badSmall);
+            if (b.Type == BuildingType.Woodcutter)
+            {
+                int trees = W.TreesInReach(b, out _);
+                GUILayout.Label("Trees with logs in reach: " + trees + " (cuts its own spot plus 1 tile around; trees regrow 1 log per " + B.RegrowSecondsPerLog.ToString("0") + " s)", _small);
+            }
+            if (b.Type == BuildingType.Splitter)
+                GUILayout.Label("Hands items out in turn: front, right, left. Feed it from the back or sides.", _small);
+            if (b.Type != BuildingType.Belt && b.Type != BuildingType.Cabin)
                 GUILayout.Label("Output side: " + Dir.Names[b.Facing] + " (yellow marker)", _small);
             if (b.Type == BuildingType.Belt)
                 GUILayout.Label("Carrying: " + (b.BeltItem == Item.None ? "nothing" : Items.Name(b.BeltItem)) + "   flow: " + Dir.Names[b.Facing], _small);
@@ -547,7 +574,7 @@ namespace Kilnwood.Game
                     (b.FuelLeft > 0f ? "\nBurning: " + b.FuelLeft.ToString("0") + " s left" : ""), _small);
             else if (b.Type == BuildingType.Kiln)
                 GUILayout.Label("Charcoal needs no fuel: the wood smoulders itself. Bricks burn fuel.", _small);
-            if (def.SitsOn != null)
+            if (def.SitsOn != null && b.Type != BuildingType.Woodcutter)
             {
                 var res = W.ExtractorResource(b, out int tiles);
                 GUILayout.Label("Pulling " + Items.Name(res) + " from " + tiles + " tiles (" + W.ExtractRate(b.Type, tiles).ToString("0.0") + " per second)", _small);

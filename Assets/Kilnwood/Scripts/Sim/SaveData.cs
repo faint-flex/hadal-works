@@ -15,6 +15,7 @@ namespace Kilnwood.Sim
         public List<SavedBuilding> Buildings = new List<SavedBuilding>();
         public List<int> StorageCounts = new List<int>();
         public List<int> DeliveredCounts = new List<int>();
+        public List<int> Logs = new List<int>();
 
         [Serializable]
         public class SavedBuilding
@@ -35,6 +36,7 @@ namespace Kilnwood.Sim
                 s.StorageCounts.Add(w.Storage[it]);
                 s.DeliveredCounts.Add(w.Delivered[it]);
             }
+            s.Logs.AddRange(w.Logs);
             return s;
         }
 
@@ -46,6 +48,7 @@ namespace Kilnwood.Sim
             var items = (Item[])Enum.GetValues(typeof(Item));
             for (int i = 0; i < items.Length && i < StorageCounts.Count; i++) w.Storage[items[i]] = StorageCounts[i];
             for (int i = 0; i < items.Length && i < DeliveredCounts.Count; i++) w.Delivered[items[i]] = DeliveredCounts[i];
+            if (Logs.Count == w.Logs.Length) w.RestoreLogs(Logs);
             w.RestoreTime(Time);
             return w;
         }

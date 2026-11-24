@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 
 namespace Kilnwood.Game
 {
-    public enum GameKey { W, A, S, D, Q, E, Up, Down, Left, Right, Space, F, X, Escape, Alpha0, Alpha1, Alpha2, Alpha3, Alpha4, Alpha5, Alpha6, Alpha7, Enter, Shift, R }
+    public enum GameKey { W, A, S, D, Q, E, Up, Down, Left, Right, Space, F, X, Escape, Alpha0, Alpha1, Alpha2, Alpha3, Alpha4, Alpha5, Alpha6, Alpha7, Alpha8, Alpha9, Enter, Shift, R }
 
     /// <summary>Works with either Unity input backend, so the project builds whichever one is active.</summary>
     public static class GameInput
@@ -37,6 +37,8 @@ namespace Kilnwood.Game
                 case GameKey.Alpha5: return Key.Digit5;
                 case GameKey.Alpha6: return Key.Digit6;
                 case GameKey.Alpha7: return Key.Digit7;
+                case GameKey.Alpha8: return Key.Digit8;
+                case GameKey.Alpha9: return Key.Digit9;
                 case GameKey.Enter: return Key.Enter;
                 case GameKey.R: return Key.R;
                 default: return Key.LeftShift;
@@ -80,6 +82,8 @@ namespace Kilnwood.Game
                 case GameKey.Alpha5: return KeyCode.Alpha5;
                 case GameKey.Alpha6: return KeyCode.Alpha6;
                 case GameKey.Alpha7: return KeyCode.Alpha7;
+                case GameKey.Alpha8: return KeyCode.Alpha8;
+                case GameKey.Alpha9: return KeyCode.Alpha9;
                 case GameKey.Enter: return KeyCode.Return;
                 case GameKey.R: return KeyCode.R;
                 default: return KeyCode.LeftShift;
