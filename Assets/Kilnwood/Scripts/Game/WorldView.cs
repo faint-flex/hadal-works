@@ -735,39 +735,47 @@ namespace Kilnwood.Game
         void DeclutterLabels(Camera cam)
         {
             _lab.Clear();
+            _placed.Clear();
+            float hudTop = Screen.height * (1f - 0.075f);   // the resource bar across the top of the screen
+            float pxPerMAt(float z) => Screen.height / (2f * z * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad));
             foreach (var v in _views.Values)
             {
-                if (v.Title == null || v.Post == null) continue;
-                SetLabelHeight(v, v.BaseTop);
+                if (v.Title == null) continue;
+                if (v.Post != null)
+                {
+                    SetLabelOffset(v, Vector3.zero);
+                    ShowLabel(v, true);
+                }
                 if (string.IsNullOrEmpty(v.Shown)) continue;
                 var pos = v.Title.transform.position;
                 var a = cam.WorldToScreenPoint(pos);
                 if (a.z <= 0f) continue;
-                var up = cam.WorldToScreenPoint(pos + Vector3.up);
-                float pxPerUp = Mathf.Max(1f, up.y - a.y);
                 // Size from the text itself (renderer bounds lag a frame behind moves): pixels per metre
-                // facing the camera, times line height and character count.
-                float pxPerM = Screen.height / (2f * a.z * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad));
-                float k = v.Title.transform.localScale.y;
+                // facing the camera, times line height and character count. Capitals run wide, so be generous.
+                float pxPerM = pxPerMAt(a.z);
+                float k = v.Title.transform.lossyScale.y;
                 float lineM = v.Title.characterSize * v.Title.fontSize * 0.1f * k;
                 var lines = RichTags.Replace(v.Shown, "").Split('\n');
                 float w = 0f, h = 0f;
                 for (int li = 0; li < lines.Length; li++)
                 {
                     float sz = li == 0 ? 1f : 0.875f;
-                    w = Mathf.Max(w, lines[li].Length * 0.55f * lineM * sz * pxPerM);
+                    w = Mathf.Max(w, lines[li].Length * 0.7f * lineM * sz * pxPerM);
                     h += lineM * sz * pxPerM;
                 }
-                var r = new Rect(a.x - w / 2f, a.y, w, h);
-                int prio = v.Shown != null && v.Shown.Contains("! ") ? 0 : 1;
-                _lab.Add((v, r, pxPerUp, prio));
+                w += 12f; h += 6f;
+                var r = v.Title.anchor == TextAnchor.UpperCenter ? new Rect(a.x - w / 2f, a.y - h, w, h) : new Rect(a.x - w / 2f, a.y, w, h);
+                // The lodge label doesn't move; it just keeps others off it.
+                if (v.Post == null) { _placed.Add(r); continue; }
+                int prio = v.Shown.Contains("! ") ? 0 : 1;
+                _lab.Add((v, r, pxPerM, prio));
             }
             _lab.Sort((p, q) => p.prio != q.prio ? p.prio.CompareTo(q.prio) : p.r.yMin.CompareTo(q.r.yMin));
-            _placed.Clear();
-            foreach (var (v, r0, pxPerUp, _) in _lab)
+            foreach (var (v, r0, pxPerM, prio) in _lab)
             {
                 var r = r0;
-                float shift = 0f;
+                float shift = 0f, maxShift = r0.height * 3f;
+                bool clear = false;
                 for (int tries = 0; tries < 12; tries++)
                 {
                     bool hit = false;
@@ -777,12 +785,39 @@ namespace Kilnwood.Game
                             float d = p.yMax - r.yMin + 3f;
                             r.y += d; shift += d; hit = true;
                         }
-                    if (!hit) break;
+                    if (!hit) { clear = true; break; }
                 }
-                float raise = Mathf.Min(shift / pxPerUp, 14f);
-                if (raise > 0.01f) SetLabelHeight(v, v.BaseTop + raise);
+                // Can't find a clear spot nearby, or it would sit under the top bar: hide it (click the building
+                // to see its details). Warnings always stay.
+                if (prio != 0 && (!clear || shift > maxShift || r.yMax > hudTop))
+                {
+                    ShowLabel(v, false);
+                    continue;
+                }
+                // Lift along the camera's up so a top-down view separates labels as well as a low one.
+                if (shift > 0.01f) SetLabelOffset(v, cam.transform.up * (shift / pxPerM));
                 _placed.Add(r);
             }
+        }
+
+        static void ShowLabel(BView v, bool on)
+        {
+            if (v.Title.gameObject.activeSelf != on) v.Title.gameObject.SetActive(on);
+            if (v.Post != null && v.Post.gameObject.activeSelf != on) v.Post.gameObject.SetActive(on);
+        }
+
+        /// <summary>Puts the label at its base height plus a world offset, with the post running from the roof to it.</summary>
+        static void SetLabelOffset(BView v, Vector3 off)
+        {
+            var root = v.Root.transform;
+            var at = root.TransformPoint(new Vector3(0f, v.BaseTop, 0f)) + off;
+            v.Title.transform.position = at;
+            var from = root.TransformPoint(new Vector3(0f, 2.4f, 0f));
+            var d = at - from;
+            float len = Mathf.Max(0.01f, d.magnitude);
+            v.Post.position = from + d / 2f;
+            v.Post.rotation = Quaternion.FromToRotation(Vector3.up, d / len);
+            v.Post.localScale = new Vector3(0.04f, len, 0.04f);
         }
 
         /// <summary>Items on belts grow a little when the camera is far away so their letters stay readable.</summary>

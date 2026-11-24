@@ -6,7 +6,7 @@ public static class Program
 {
     public static int Main(string[] args)
     {
-        if (args.Length > 0 && args[0] == "pit") return Pit();
+        if (args.Length > 0 && args[0] == "pit") return Pit(args.Length > 1 && args[1] == "map");
         var b = new Balance();
         var w = MapGen.NewTier1(b);
         var demo = new DemoFactory();
@@ -31,7 +31,7 @@ public static class Program
     }
 
     /// <summary>The screenshot run's open pit: demo factory + pit phase, with the autopilot's iron gift at 300 s.</summary>
-    static int Pit()
+    static int Pit(bool map)
     {
         var b = new Balance();
         var w = MapGen.NewTier1(b);
@@ -54,6 +54,29 @@ public static class Program
             }
         }
         Console.WriteLine(w.GoalReached ? $"Goal at {w.GoalReachedAt:0}s" : "no goal");
+        if (map) PrintMap(w);
         return 0;
+    }
+
+    /// <summary>ASCII map (north at the top): ground . f o s ~, buildings by first letter, belts &gt;, dug tiles _.</summary>
+    static void PrintMap(World w)
+    {
+        for (int y = w.H - 1; y >= 0; y--)
+        {
+            var sb = new System.Text.StringBuilder($"{y,3} ");
+            for (int x = 0; x < w.W; x++)
+            {
+                var bld = w.At(x, y);
+                int t = y * w.W + x;
+                char c = bld != null ? (bld.Type == BuildingType.Belt ? '=' : char.ToUpperInvariant(bld.Type.ToString()[0]))
+                    : w.Units[t] < 0 ? '_'
+                    : w.Ground[t] switch { Terrain.Forest => 'f', Terrain.IronOre => 'o', Terrain.Stone => 's', Terrain.Water => '~', _ => '.' };
+                sb.Append(c);
+            }
+            Console.WriteLine(sb.ToString());
+        }
+        var head = new System.Text.StringBuilder("    ");
+        for (int x = 0; x < w.W; x++) head.Append(x % 10 == 0 ? (char)('0' + x / 10 % 10) : ' ');
+        Console.WriteLine(head.ToString());
     }
 }

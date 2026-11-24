@@ -526,7 +526,10 @@ namespace Kilnwood.Game
                     // Keep a valley floor along the river where it leaves the map north and south.
                     float riverDist = Mathf.Abs(x - riverX);
                     hgt *= Mathf.Clamp01((riverDist - 6f) / 26f);
-                    verts[j * (n + 1) + i] = new Vector3(x, hgt - 0.06f, z);
+                    // Inside the map the valley floor mesh is the ground; drop the hills well below it so dug pits show.
+                    float inset = Mathf.Min(Mathf.Min(x, mapSize - x), Mathf.Min(z, mapSize - z));
+                    float y = inset >= step ? -30f : hgt - 0.06f;
+                    verts[j * (n + 1) + i] = new Vector3(x, y, z);
                     uv[j * (n + 1) + i] = new Vector2(x / 14f, z / 14f);
                 }
             var tris = new int[n * n * 6];

@@ -75,8 +75,10 @@ namespace Kilnwood.Sim
             // one excavator and two trucks dig ore and tip it into a hopper beside the lodge.
             if (pit)
             {
-                Add(BuildingType.Woodcutter, 47, 19, N);
-                Add(BuildingType.Garage, 47, 21, N);
+                Add(BuildingType.Woodcutter, 54, 40, S);   // north-east woods
+                Add(BuildingType.Belt, 54, 39, S);
+                Add(BuildingType.Belt, 54, 38, S);
+                Add(BuildingType.Garage, 54, 36, N);       // open grass beside the ore field
                 Add(BuildingType.Hopper, 34, 31, W);   // tips straight into the lodge beside it
             }
         }
@@ -85,7 +87,7 @@ namespace Kilnwood.Sim
         public void PitActions(World w)
         {
             if (!_pit) return;
-            var g = w.At(47, 21);
+            var g = w.At(54, 36);
             if (g == null || g.Type != BuildingType.Garage) return;
             if (!_marked) { w.MarkDig(46, 28, 50, 31); _marked = true; }
             if (w.CountVehicles(VehicleType.Excavator) < 1) w.Buy(g.Id, VehicleType.Excavator);

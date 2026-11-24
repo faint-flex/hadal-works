@@ -39,9 +39,12 @@ namespace Kilnwood.Game
                     {
                         go = new GameObject(want == 1 ? "Dig mark" : "Dump mark");
                         go.transform.SetParent(_markRoot, false);
-                        Art.Part("Arrow", go.transform, Art.Cone, Vector3.zero, new Vector3(0.55f, 0.6f, 0.55f), want == 1 ? DigCol : DumpCol,
+                        // A fat arrow: head plus shaft. Down = dig, up = dump.
+                        var col = want == 1 ? DigCol : DumpCol;
+                        float dir = want == 1 ? -1f : 1f;
+                        Art.Part("Arrow head", go.transform, Art.Cone, Vector3.zero, new Vector3(1.0f, 0.7f, 1.0f), col,
                             want == 1 ? new Vector3(180f, 0f, 0f) : Vector3.zero, false);
-                        Art.Part("Stake", go.transform, Art.Prim(PrimitiveType.Cube), new Vector3(0f, want == 1 ? 0.3f : -0.3f, 0f), new Vector3(0.08f, 0.6f, 0.08f), new Color(0.35f, 0.28f, 0.2f), default, false);
+                        Art.Part("Arrow shaft", go.transform, Art.Prim(PrimitiveType.Cylinder), new Vector3(0f, -dir * 0.35f, 0f), new Vector3(0.38f, 0.35f, 0.38f), col, default, false);
                         _marks[i] = go;
                     }
                 }
@@ -49,7 +52,7 @@ namespace Kilnwood.Game
                 {
                     var c = TileCenter(i % _w.W, i / _w.W);
                     float y = GroundHeight(c.x, c.z);
-                    go.transform.localPosition = new Vector3(c.x, y + (want == 1 ? 1.1f : 0.5f), c.z);
+                    go.transform.localPosition = new Vector3(c.x, y + (want == 1 ? 1.1f : 0.75f), c.z);
                 }
             }
             if (changedSet) RebuildMarkLabels();
@@ -328,16 +331,31 @@ namespace Kilnwood.Game
 
         void MakeHopper(Transform B, float s, BView v)
         {
-            Art.Cube("Pad", B, new Vector3(0f, 0.05f, 0f), new Vector3(s - 0.2f, 0.1f, s - 0.2f), new Color(0.42f, 0.4f, 0.37f));
+            // An open timber bin on a stone footing: trucks tip in over the top, a short chute feeds the belt at the front.
+            Art.Cube("Footing", B, new Vector3(0f, 0.3f, 0f), new Vector3(3.3f, 0.6f, 3.3f), Look.StoneWall);
+            const float wallH = 1.5f, half = 1.55f, baseY = 0.6f;
+            for (int side = 0; side < 4; side++)
+            {
+                bool alongX = side < 2;
+                float off = side % 2 == 0 ? -half : half;
+                var pos = alongX ? new Vector3(0f, baseY + wallH / 2f, off) : new Vector3(off, baseY + wallH / 2f, 0f);
+                var size = alongX ? new Vector3(3.3f, wallH, 0.14f) : new Vector3(0.14f, wallH, 3.3f);
+                Art.Cube("Wall", B, pos, size, Look.Timber);
+                // Board seams so it reads as planks.
+                for (int k = 1; k < 4; k++)
+                {
+                    var seam = pos; seam.y = baseY + k * wallH / 4f;
+                    seam += alongX ? new Vector3(0f, 0f, off * 0.03f) : new Vector3(off * 0.03f, 0f, 0f);
+                    Art.Cube("Seam", B, seam, alongX ? new Vector3(3.3f, 0.04f, 0.16f) : new Vector3(0.16f, 0.04f, 3.3f), Look.Timber * 0.6f);
+                }
+            }
             for (int i = 0; i < 4; i++)
-                Art.Cube("Leg", B, new Vector3(i % 2 == 0 ? -1.2f : 1.2f, 1.0f, i < 2 ? -1.2f : 1.2f), new Vector3(0.22f, 2.0f, 0.22f), Look.Timber * 0.85f);
-            // Funnel: wide at the top, narrow at the bottom (a frustum turned upside down).
-            Art.Part("Funnel", B, Art.Frustum, new Vector3(0f, 3.3f, 0f), new Vector3(3.4f, 1.5f, 3.4f), Look.Iron * 1.3f, new Vector3(180f, 0f, 0f));
-            Art.Cyl("Rim", B, new Vector3(0f, 3.25f, 0f), 3.5f, 0.12f, Look.Iron);
-            Art.Cube("Chute", B, new Vector3(0f, 1.3f, 1.0f), new Vector3(0.55f, 0.2f, 1.6f), Look.Iron, new Vector3(-20f, 0f, 0f));
-            // Heap inside so you can see it has something in it.
+                Art.Cube("Post", B, new Vector3(i % 2 == 0 ? -half : half, baseY + wallH / 2f + 0.1f, i < 2 ? -half : half), new Vector3(0.26f, wallH + 0.2f, 0.26f), Look.Timber * 0.75f);
+            // Dark inside floor, so an empty bin looks empty.
+            Art.Cube("Floor", B, new Vector3(0f, baseY + 0.25f, 0f), new Vector3(3.0f, 0.1f, 3.0f), new Color(0.2f, 0.17f, 0.14f));
+            Art.Cube("Chute", B, new Vector3(0f, 0.75f, half + 0.35f), new Vector3(0.7f, 0.12f, 0.8f), Look.Iron, new Vector3(18f, 0f, 0f));
             v.Spin = null;
-            var heap = Art.Part("Contents", B, Art.Rock, new Vector3(0f, 2.6f, 0f), new Vector3(2.2f, 0.6f, 2.2f), Look.OreRock);
+            var heap = Art.Part("Contents", B, Art.Rock, new Vector3(0f, baseY + 0.9f, 0f), new Vector3(2.8f, 1.2f, 2.8f), Look.OreRock);
             heap.SetActive(false);
             v.Extra = heap;
             Front(B, s / 2f);

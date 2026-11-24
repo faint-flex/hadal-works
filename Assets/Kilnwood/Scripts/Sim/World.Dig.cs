@@ -352,6 +352,15 @@ namespace Kilnwood.Sim
             if (dx * dx + dy * dy > 1e-4f) v.Heading = (float)(Math.Atan2(dx, dy) * 180.0 / Math.PI);
         }
 
+        void FaceAlongside(Vehicle v, int tile)
+        {
+            float dx = tile % W + 0.5f - v.X, dy = tile / W + 0.5f - v.Y;
+            if (dx * dx + dy * dy <= 1e-4f) return;
+            float h = (float)(Math.Atan2(dx, dy) * 180.0 / Math.PI) + 90f;
+            if (h > 180f) h -= 360f;
+            v.Heading = h;
+        }
+
         /// <summary>Heads home to refuel when the tank runs low. Returns true if it is busy with that.</summary>
         bool HandleFuel(Vehicle v, float dt)
         {
@@ -511,7 +520,9 @@ namespace Kilnwood.Sim
                     v.Serving = pick.Id;
                     int at = TileOf(pick), dig = pick.DigTile;
                     if (Near(TileOf(v), at, W) && TileOf(v) != at && TileOf(v) != dig) { v.State = VehicleState.Loading; return; }
-                    if (!Go(v, n => n != at && n != dig && Near(n, at, W), VehicleState.Loading)) { v.Serving = 0; v.Status = "Can't reach the excavator"; v.State = VehicleState.Waiting; return; }
+                    // Park beside the excavator, away from the hole it is digging (its arm swings that way).
+                    if (!Go(v, n => n != at && n != dig && Near(n, at, W) && (dig < 0 || !Near(n, dig, W)), VehicleState.Loading)
+                        && !Go(v, n => n != at && n != dig && Near(n, at, W), VehicleState.Loading)) { v.Serving = 0; v.Status = "Can't reach the excavator"; v.State = VehicleState.Waiting; return; }
                     v.Status = "Driving to the excavator";
                     return;
                 }
@@ -519,7 +530,8 @@ namespace Kilnwood.Sim
                 {
                     var ex = VehicleById(v.Serving);
                     if (ex == null || !Near(TileOf(v), TileOf(ex), W)) { v.Serving = 0; v.State = VehicleState.Idle; return; }
-                    Face(v, TileOf(ex));
+                    // Side-on to the excavator, so the bed is alongside it rather than the nose driving into it.
+                    FaceAlongside(v, TileOf(ex));
                     v.Status = "Being loaded " + v.LoadCount + " / " + B.TruckCap;
                     if (ex.BucketCount > 0)
                     {
