@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 #endif
 
-namespace HadalWorks.Game
+namespace Kilnwood.Game
 {
     public enum GameKey { W, A, S, D, Q, E, Up, Down, Left, Right, Space, F, X, Escape, Alpha0, Alpha1, Alpha2, Alpha3, Alpha4, Alpha5, Alpha6, Alpha7, Enter, Shift, R }
 

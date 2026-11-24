@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace HadalWorks.Sim
+namespace Kilnwood.Sim
 {
     /// <summary>
     /// What gets saved: buildings, hub storage and delivered counts, play time.
@@ -27,7 +27,7 @@ namespace HadalWorks.Sim
             var s = new SaveData { Time = w.Time };
             foreach (var b in w.Buildings.Values)
             {
-                if (b.Type == BuildingType.Hub) continue;
+                if (b.Type == BuildingType.Lodge) continue;
                 s.Buildings.Add(new SavedBuilding { Type = (int)b.Type, X = b.X, Y = b.Y, Facing = b.Facing, Recipe = b.Recipe });
             }
             foreach (Item it in Enum.GetValues(typeof(Item)))

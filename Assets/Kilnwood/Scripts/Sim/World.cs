@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace HadalWorks.Sim
+namespace Kilnwood.Sim
 {
     public class Building
     {
@@ -10,11 +10,11 @@ namespace HadalWorks.Sim
         public int X, Y;          // bottom-left tile
         public int Size;
         public int Facing;        // Dir; for tubes, the direction items move
-        public int Recipe;        // processors / fabricators
+        public int Recipe;        // kilns, smelters, workshops
 
-        // Tube state
-        public Item TubeItem;
-        public float TubeProgress;
+        // Belt state
+        public Item BeltItem;
+        public float BeltProgress;
 
         // Machine state
         public readonly Dictionary<Item, int> Input = new Dictionary<Item, int>();
@@ -23,13 +23,16 @@ namespace HadalWorks.Sim
         public float Work;        // seconds of progress on the current craft
         public bool Crafting;
         public float ExtractTimer;
+        public int FuelWood, FuelCharcoal; // fuel items waiting to burn
+        public float FuelLeft;             // seconds of burn left from the last fuel item
+        public int FuelCount => FuelWood + FuelCharcoal;
         public string Status = "";
 
         public bool Covers(int x, int y) => x >= X && x < X + Size && y >= Y && y < Y + Size;
     }
 
     /// <summary>
-    /// The seabed factory, simulated in seconds. Pure C# (no Unity) so the rules are unit-testable.
+    /// The valley factory, simulated in seconds. Pure C# (no Unity) so the rules are unit-testable.
     /// </summary>
     public class World
     {
@@ -38,20 +41,16 @@ namespace HadalWorks.Sim
         public readonly Terrain[] Ground;
         readonly int[] _occ;                       // building id per tile, -1 empty
         public readonly Dictionary<int, Building> Buildings = new Dictionary<int, Building>();
-        readonly List<Building> _tubes = new List<Building>();
+        readonly List<Building> _belts = new List<Building>();
         readonly List<Building> _machines = new List<Building>();
         int _nextId = 1;
 
         public readonly Dictionary<Item, int> Storage = new Dictionary<Item, int>();
         public readonly Dictionary<Item, int> Delivered = new Dictionary<Item, int>();
-        public Building Hub { get; private set; }
+        public Building Lodge { get; private set; }
         public float Time { get; private set; }
         public bool GoalReached { get; private set; }
         public float GoalReachedAt { get; private set; } = -1f;
-
-        public float PowerSupply { get; private set; }
-        public float PowerDemand { get; private set; }
-        public float PowerRatio { get; private set; } = 1f;
 
         public World(Balance b)
         {
@@ -61,8 +60,9 @@ namespace HadalWorks.Sim
             _occ = new int[W * H];
             for (int i = 0; i < _occ.Length; i++) _occ[i] = -1;
             foreach (Item it in Enum.GetValues(typeof(Item))) { Storage[it] = 0; Delivered[it] = 0; }
-            Storage[Item.Plate] = b.StartPlates;
-            Storage[Item.Glass] = b.StartGlass;
+            Storage[Item.Wood] = b.StartWood;
+            Storage[Item.Stone] = b.StartStone;
+            Storage[Item.Iron] = b.StartIron;
         }
 
         public void RestoreTime(float t) => Time = t;
@@ -70,7 +70,7 @@ namespace HadalWorks.Sim
         // ------------------------------------------------------------------ grid
 
         public bool InBounds(int x, int y) => x >= 0 && y >= 0 && x < W && y < H;
-        public Terrain GroundAt(int x, int y) => InBounds(x, y) ? Ground[y * W + x] : Terrain.Sand;
+        public Terrain GroundAt(int x, int y) => InBounds(x, y) ? Ground[y * W + x] : Terrain.Water;
         public void SetGround(int x, int y, Terrain t) { if (InBounds(x, y)) Ground[y * W + x] = t; }
 
         public Building At(int x, int y)
@@ -100,17 +100,15 @@ namespace HadalWorks.Sim
                     if (!InBounds(x + dx, y + dy)) return "Off the map";
                     if (_occ[(y + dy) * W + x + dx] >= 0) return "Something is already there";
                 }
-            if (type == BuildingType.VentTap && GroundAt(x, y) != Terrain.Vent) return "Vent taps go on a thermal vent";
-            if (type != BuildingType.VentTap)
-                for (int dy = 0; dy < s; dy++)
-                    for (int dx = 0; dx < s; dx++)
-                        if (GroundAt(x + dx, y + dy) == Terrain.Vent) return "Keep vents clear (vent taps only)";
-            if (type == BuildingType.Extractor && ExtractorResource(x, y, s, out _) == Item.None) return "Extractors must sit on ferrite, silica or kelp";
+            for (int dy = 0; dy < s; dy++)
+                for (int dx = 0; dx < s; dx++)
+                    if (GroundAt(x + dx, y + dy) == Terrain.Water) return "Can't build on the river";
+            if (def.SitsOn != null && ExtractorResource(type, x, y, out _) == Item.None)
+                return type == BuildingType.Woodcutter ? "Woodcutters must sit on forest" : "Mines must sit on iron ore or stone";
             if (!ignoreCost)
-            {
-                if (Storage[Item.Plate] < def.CostPlate) return "Need " + def.CostPlate + " plates (have " + Storage[Item.Plate] + ")";
-                if (Storage[Item.Glass] < def.CostGlass) return "Need " + def.CostGlass + " glass (have " + Storage[Item.Glass] + ")";
-            }
+                foreach (var c in def.Cost)
+                    if (Storage[c.item] < c.count)
+                        return "Need " + c.count + " " + Items.Name(c.item).ToLowerInvariant() + " (have " + Storage[c.item] + ")";
             return null;
         }
 
@@ -118,40 +116,34 @@ namespace HadalWorks.Sim
         {
             if (CanPlace(type, x, y, free) != null) return null;
             var def = B.Defs[type];
-            if (!free)
-            {
-                Storage[Item.Plate] -= def.CostPlate;
-                Storage[Item.Glass] -= def.CostGlass;
-            }
+            if (!free) foreach (var c in def.Cost) Storage[c.item] -= c.count;
             var b = new Building { Id = _nextId++, Type = type, X = x, Y = y, Size = def.Size, Facing = facing & 3, Recipe = recipe };
             Buildings[b.Id] = b;
             for (int dy = 0; dy < b.Size; dy++)
                 for (int dx = 0; dx < b.Size; dx++)
                     _occ[(y + dy) * W + x + dx] = b.Id;
-            if (type == BuildingType.Tube) _tubes.Add(b);
+            if (type == BuildingType.Belt) _belts.Add(b);
             else _machines.Add(b);
-            if (type == BuildingType.Hub) Hub = b;
+            if (type == BuildingType.Lodge) Lodge = b;
             return b;
         }
 
         public bool Demolish(int id)
         {
-            if (!Buildings.TryGetValue(id, out var b) || b.Type == BuildingType.Hub) return false;
-            var def = B.Defs[b.Type];
-            Storage[Item.Plate] += def.CostPlate;
-            Storage[Item.Glass] += def.CostGlass;
+            if (!Buildings.TryGetValue(id, out var b) || b.Type == BuildingType.Lodge) return false;
+            foreach (var c in B.Defs[b.Type].Cost) Storage[c.item] += c.count;
             for (int dy = 0; dy < b.Size; dy++)
                 for (int dx = 0; dx < b.Size; dx++)
                     _occ[(b.Y + dy) * W + b.X + dx] = -1;
             Buildings.Remove(id);
-            _tubes.Remove(b);
+            _belts.Remove(b);
             _machines.Remove(b);
             return true;
         }
 
         public void Rotate(int id)
         {
-            if (Buildings.TryGetValue(id, out var b) && b.Type != BuildingType.Hub) b.Facing = (b.Facing + 1) & 3;
+            if (Buildings.TryGetValue(id, out var b) && b.Type != BuildingType.Lodge) b.Facing = (b.Facing + 1) & 3;
         }
 
         public void SetRecipe(int id, int recipe)
@@ -161,27 +153,38 @@ namespace HadalWorks.Sim
             if (recipe < 0 || recipe >= def.Recipes.Length || recipe == b.Recipe) return;
             b.Recipe = recipe;
             b.Input.Clear();
+            if (!BurnsFuel(b)) { Storage[Item.Wood] += b.FuelWood; Storage[Item.Charcoal] += b.FuelCharcoal; b.FuelWood = b.FuelCharcoal = 0; }
             b.Crafting = false;
             b.Work = 0f;
         }
 
-        /// <summary>The resource an extractor at this spot would pull: the most common one under it.</summary>
-        public Item ExtractorResource(int x, int y, int size, out int tiles)
+        /// <summary>What a woodcutter or mine at this spot would pull: the most common ground it can work under it.</summary>
+        public Item ExtractorResource(BuildingType type, int x, int y, out int tiles)
         {
-            int f = 0, s = 0, k = 0;
-            for (int dy = 0; dy < size; dy++)
-                for (int dx = 0; dx < size; dx++)
-                    switch (GroundAt(x + dx, y + dy))
-                    {
-                        case Terrain.Ferrite: f++; break;
-                        case Terrain.Silica: s++; break;
-                        case Terrain.Kelp: k++; break;
-                    }
-            tiles = Math.Max(f, Math.Max(s, k));
-            if (tiles == 0) return Item.None;
-            if (f == tiles) return Item.Ferrite;
-            if (s == tiles) return Item.Silica;
-            return Item.Kelp;
+            tiles = 0;
+            var def = B.Defs[type];
+            if (def.SitsOn == null) return Item.None;
+            Item best = Item.None;
+            foreach (var t in def.SitsOn)
+            {
+                int n = 0;
+                for (int dy = 0; dy < def.Size; dy++)
+                    for (int dx = 0; dx < def.Size; dx++)
+                        if (GroundAt(x + dx, y + dy) == t) n++;
+                if (n > tiles) { tiles = n; best = Items.FromTerrain(t); }
+            }
+            return best;
+        }
+
+        public Item ExtractorResource(Building b, out int tiles) => ExtractorResource(b.Type, b.X, b.Y, out tiles);
+
+        /// <summary>Does this machine burn fuel right now (by type, or by its current recipe)?</summary>
+        public bool BurnsFuel(Building b)
+        {
+            var def = B.Defs[b.Type];
+            if (def.BurnsFuel) return true;
+            var r = RecipeOf(b);
+            return r != null && r.BurnsFuel;
         }
 
         public Recipe RecipeOf(Building b)
@@ -205,54 +208,39 @@ namespace HadalWorks.Sim
         void Step(float dt)
         {
             Time += dt;
-            UpdatePower();
-            foreach (var t in _tubes) StepTube(t, dt);
-            foreach (var m in _machines) StepMachine(m, dt * PowerRatio);
-            if (!GoalReached && Delivered[Item.Hull] >= B.GoalHull && Delivered[Item.Viewport] >= B.GoalViewport)
+            foreach (var t in _belts) StepBelt(t, dt);
+            foreach (var m in _machines) StepMachine(m, dt);
+            if (!GoalReached && Delivered[Item.Gear] >= B.GoalGear && Delivered[Item.Brick] >= B.GoalBrick)
             {
                 GoalReached = true;
                 GoalReachedAt = Time;
             }
         }
 
-        void UpdatePower()
+        void StepBelt(Building t, float dt)
         {
-            float supply = 0f, demand = 0f;
-            foreach (var m in _machines)
-            {
-                var def = B.Defs[m.Type];
-                supply += def.Supply;
-                demand += def.Power;
-            }
-            PowerSupply = supply;
-            PowerDemand = demand;
-            PowerRatio = demand <= 0f ? 1f : Math.Min(1f, supply / demand);
-        }
-
-        void StepTube(Building t, float dt)
-        {
-            if (t.TubeItem == Item.None) return;
-            if (t.TubeProgress < 1f) t.TubeProgress = Math.Min(1f, t.TubeProgress + B.TubeSpeed * dt);
-            if (t.TubeProgress < 1f) return;
+            if (t.BeltItem == Item.None) return;
+            if (t.BeltProgress < 1f) t.BeltProgress = Math.Min(1f, t.BeltProgress + B.BeltSpeed * dt);
+            if (t.BeltProgress < 1f) return;
             int nx = t.X + Dir.DX[t.Facing], ny = t.Y + Dir.DY[t.Facing];
             var next = At(nx, ny);
             if (next == null) return;
-            if (TryInsert(next, t.TubeItem, t.Facing))
+            if (TryInsert(next, t.BeltItem, t.Facing))
             {
-                t.TubeItem = Item.None;
-                t.TubeProgress = 0f;
+                t.BeltItem = Item.None;
+                t.BeltProgress = 0f;
             }
         }
 
         /// <summary>Push an item into a building from a neighbour moving in direction `moving`.</summary>
         bool TryInsert(Building target, Item item, int moving)
         {
-            if (target.Type == BuildingType.Tube)
+            if (target.Type == BuildingType.Belt)
             {
-                if (target.TubeItem != Item.None) return false;
+                if (target.BeltItem != Item.None) return false;
                 if (target.Facing == Dir.Opposite(moving)) return false; // head-on
-                target.TubeItem = item;
-                target.TubeProgress = 0f;
+                target.BeltItem = item;
+                target.BeltProgress = 0f;
                 return true;
             }
             return Accept(target, item);
@@ -263,43 +251,67 @@ namespace HadalWorks.Sim
         {
             switch (m.Type)
             {
-                case BuildingType.Hub:
+                case BuildingType.Lodge:
                     Storage[item]++;
                     Delivered[item]++;
                     return true;
-                case BuildingType.Processor:
-                case BuildingType.Fabricator:
-                    var r = RecipeOf(m);
-                    int need = r.Needs(item);
-                    if (need == 0) return false;
-                    m.Input.TryGetValue(item, out int have);
-                    if (have >= need * 2) return false;
-                    m.Input[item] = have + 1;
-                    return true;
-                default:
+                case BuildingType.Belt:
                     return false;
             }
+            // Recipe first (up to 2 crafts' worth), then the fuel slot.
+            var r = RecipeOf(m);
+            if (r != null)
+            {
+                int need = r.Needs(item);
+                if (need > 0)
+                {
+                    m.Input.TryGetValue(item, out int have);
+                    if (have < need * 2) { m.Input[item] = have + 1; return true; }
+                    return false;
+                }
+            }
+            if (Balance.IsFuel(item) && BurnsFuel(m) && m.FuelCount < B.FuelCap)
+            {
+                if (item == Item.Charcoal) m.FuelCharcoal++; else m.FuelWood++;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Burns fuel for dt seconds of work. Returns false (and does nothing) when out of fuel.</summary>
+        bool Burn(Building m, float dt)
+        {
+            if (m.FuelLeft <= 0f)
+            {
+                if (m.FuelCharcoal > 0) { m.FuelCharcoal--; m.FuelLeft += B.CharcoalFuelSeconds; }
+                else if (m.FuelWood > 0) { m.FuelWood--; m.FuelLeft += B.WoodFuelSeconds; }
+                else return false;
+            }
+            m.FuelLeft -= dt;
+            return true;
         }
 
         void StepMachine(Building m, float dt)
         {
             switch (m.Type)
             {
-                case BuildingType.Extractor: StepExtractor(m, dt); break;
-                case BuildingType.Processor:
-                case BuildingType.Fabricator: StepCrafter(m, dt); break;
-                case BuildingType.VentTap: m.Status = "Supplying " + B.Defs[m.Type].Supply + " power"; return;
-                case BuildingType.Hub: m.Status = "Storing"; return;
+                case BuildingType.Woodcutter:
+                case BuildingType.Mine: StepExtractor(m, dt); break;
+                case BuildingType.Kiln:
+                case BuildingType.Smelter:
+                case BuildingType.Workshop: StepCrafter(m, dt); break;
+                case BuildingType.Lodge: m.Status = "Storing"; return;
             }
             PushOutput(m);
         }
 
         void StepExtractor(Building m, float dt)
         {
-            var res = ExtractorResource(m.X, m.Y, m.Size, out int tiles);
+            var res = ExtractorResource(m, out int tiles);
             if (res == Item.None) { m.Status = "Nothing to extract"; return; }
             if (m.OutCount > 0 && m.OutItem != res) { m.Status = "Full, waiting for space"; return; }
             if (m.OutCount >= B.OutputCap) { m.Status = "Full, waiting for space"; return; }
+            if (B.Defs[m.Type].BurnsFuel && !Burn(m, dt)) { m.Status = "No fuel"; return; }
             float perSecond = Math.Min(B.ExtractMaxPerSecond, tiles / B.ExtractSecondsPerTile);
             m.ExtractTimer += dt * perSecond;
             while (m.ExtractTimer >= 1f && m.OutCount < B.OutputCap)
@@ -308,7 +320,7 @@ namespace HadalWorks.Sim
                 m.OutItem = res;
                 m.OutCount++;
             }
-            m.Status = PowerRatio < 0.999f ? "Low power" : "Working";
+            m.Status = "Working";
         }
 
         void StepCrafter(Building m, float dt)
@@ -326,8 +338,9 @@ namespace HadalWorks.Sim
                 m.Crafting = true;
                 m.Work = 0f;
             }
+            if (r.BurnsFuel && !Burn(m, dt)) { m.Status = "No fuel"; return; }
             m.Work += dt;
-            m.Status = PowerRatio < 0.999f ? "Low power" : "Working";
+            m.Status = "Working";
             if (m.Work >= r.Seconds)
             {
                 if (m.OutCount > 0 && m.OutItem != r.Out) { m.Status = "Full, waiting for space"; m.Work = r.Seconds; return; }
@@ -346,9 +359,9 @@ namespace HadalWorks.Sim
                 if (m.OutCount <= 0) break;
                 var t = At(x, y);
                 if (t == null || t == m) continue;
-                if (t.Type == BuildingType.Tube)
+                if (t.Type == BuildingType.Belt)
                 {
-                    if (t.Facing == Dir.Opposite(m.Facing) || t.TubeItem != Item.None) continue;
+                    if (t.Facing == Dir.Opposite(m.Facing) || t.BeltItem != Item.None) continue;
                 }
                 if (TryInsert(t, m.OutItem, m.Facing))
                 {

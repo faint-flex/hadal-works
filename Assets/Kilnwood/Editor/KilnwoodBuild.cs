@@ -5,24 +5,24 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace HadalWorks.EditorTools
+namespace Kilnwood.EditorTools
 {
     /// <summary>
     /// Build Engineer's entry points. From the command line:
-    ///   Unity.exe -batchmode -quit -projectPath . -executeMethod HadalWorks.EditorTools.HadalWorksBuild.Setup -logFile -
-    ///   Unity.exe -batchmode -quit -projectPath . -executeMethod HadalWorks.EditorTools.HadalWorksBuild.BuildWindows -logFile -
+    ///   Unity.exe -batchmode -quit -projectPath . -executeMethod Kilnwood.EditorTools.KilnwoodBuild.Setup -logFile -
+    ///   Unity.exe -batchmode -quit -projectPath . -executeMethod Kilnwood.EditorTools.KilnwoodBuild.BuildWindows -logFile -
     /// The game builds itself at runtime, so the only scene is an empty one.
     /// </summary>
-    public static class HadalWorksBuild
+    public static class KilnwoodBuild
     {
-        const string ScenePath = "Assets/HadalWorks/Scenes/Main.unity";
-        const string BaseMaterialPath = "Assets/HadalWorks/Resources/ND_Base.mat";
+        const string ScenePath = "Assets/Kilnwood/Scenes/Main.unity";
+        const string BaseMaterialPath = "Assets/Kilnwood/Resources/ND_Base.mat";
 
-        [MenuItem("Hadal Works/Setup project")]
+        [MenuItem("Kilnwood/Setup project")]
         public static void Setup()
         {
-            Directory.CreateDirectory("Assets/HadalWorks/Scenes");
-            Directory.CreateDirectory("Assets/HadalWorks/Resources");
+            Directory.CreateDirectory("Assets/Kilnwood/Scenes");
+            Directory.CreateDirectory("Assets/Kilnwood/Resources");
 
             // Base material on whatever render pipeline the project uses, so Look.Mat() works in builds.
             var shader = GraphicsSettings.currentRenderPipeline != null && GraphicsSettings.currentRenderPipeline.defaultMaterial != null
@@ -45,7 +45,7 @@ namespace HadalWorks.EditorTools
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
 
             PlayerSettings.companyName = "LyFe Apps";
-            PlayerSettings.productName = "Hadal Works";
+            PlayerSettings.productName = "Kilnwood";
             PlayerSettings.bundleVersion = ReadVersion();
             PlayerSettings.fullScreenMode = FullScreenMode.FullScreenWindow;
             PlayerSettings.defaultIsNativeResolution = true;
@@ -53,25 +53,25 @@ namespace HadalWorks.EditorTools
             PlayerSettings.resizableWindow = true;
 
             AssetDatabase.SaveAssets();
-            Debug.Log("Hadal Works: setup done (version " + PlayerSettings.bundleVersion + ", shader " + shader.name + ")");
+            Debug.Log("Kilnwood: setup done (version " + PlayerSettings.bundleVersion + ", shader " + shader.name + ")");
         }
 
-        [MenuItem("Hadal Works/Build Windows")]
+        [MenuItem("Kilnwood/Build Windows")]
         public static void BuildWindows()
         {
             Setup();
             string version = ReadVersion();
-            string outDir = Path.Combine("Builds", "HadalWorks-" + version);
+            string outDir = Path.Combine("Builds", "Kilnwood-" + version);
             var options = new BuildPlayerOptions
             {
                 scenes = new[] { ScenePath },
-                locationPathName = Path.Combine(outDir, "HadalWorks.exe"),
+                locationPathName = Path.Combine(outDir, "Kilnwood.exe"),
                 target = BuildTarget.StandaloneWindows64,
                 options = BuildOptions.None,
             };
             var report = BuildPipeline.BuildPlayer(options);
             var s = report.summary;
-            Debug.Log("Hadal Works: build " + s.result + " in " + s.totalTime + ", " + (s.totalSize / (1024 * 1024)) + " MB -> " + options.locationPathName);
+            Debug.Log("Kilnwood: build " + s.result + " in " + s.totalTime + ", " + (s.totalSize / (1024 * 1024)) + " MB -> " + options.locationPathName);
             if (Application.isBatchMode && s.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
                 EditorApplication.Exit(1);
         }

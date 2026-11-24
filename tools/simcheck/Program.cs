@@ -1,5 +1,5 @@
 using System;
-using HadalWorks.Sim;
+using Kilnwood.Sim;
 
 /// <summary>Systems Designer's check: how fast the scripted demo factory reaches the Tier 2 goal.</summary>
 public static class Program
@@ -16,14 +16,14 @@ public static class Program
             w.Tick(1f);
             if (w.Time >= nextReport)
             {
-                Console.WriteLine($"{w.Time,6:0}s  built {demo.Placed}/{demo.Total}  plates {w.Storage[Item.Plate],4} glass {w.Storage[Item.Glass],3}  hull {w.Delivered[Item.Hull],3}/{b.GoalHull} viewport {w.Delivered[Item.Viewport],3}/{b.GoalViewport}  power {w.PowerSupply}/{w.PowerDemand}");
+                Console.WriteLine($"{w.Time,6:0}s  built {demo.Placed}/{demo.Total}  wood {w.Storage[Item.Wood],4} stone {w.Storage[Item.Stone],3} iron {w.Storage[Item.Iron],3}  gear {w.Delivered[Item.Gear],3}/{b.GoalGear} brick {w.Delivered[Item.Brick],3}/{b.GoalBrick}");
                 nextReport += 60f;
             }
         }
         Console.WriteLine(w.GoalReached ? $"Goal reached at {w.GoalReachedAt:0}s ({w.GoalReachedAt / 60f:0.0} min)" : "Goal NOT reached in an hour");
         foreach (var bd in w.Buildings.Values)
-            if (bd.Type != BuildingType.Tube && bd.Type != BuildingType.Hub)
-                Console.WriteLine($"  {bd.Type,-10} at {bd.X},{bd.Y}: {bd.Status}");
+            if (bd.Type != BuildingType.Belt && bd.Type != BuildingType.Lodge)
+                Console.WriteLine($"  {bd.Type,-10} at {bd.X},{bd.Y}: {bd.Status}  fuel {bd.FuelWood}W {bd.FuelCharcoal}C");
         return 0;
     }
 }

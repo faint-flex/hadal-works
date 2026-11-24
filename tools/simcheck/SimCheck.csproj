@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Cloud-side check of the pure C# rules engine (Assets/HadalWorks/Scripts/Sim) without Unity.
+  <!-- Cloud-side check of the pure C# rules engine (Assets/Kilnwood/Scripts/Sim) without Unity.
        "dotnet test" runs the same NUnit tests Unity runs; "dotnet run" plays shifts with a bot for balance. -->
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -10,8 +10,8 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../../Assets/HadalWorks/Scripts/Sim/**/*.cs" />
-    <Compile Include="../../Assets/HadalWorks/Tests/EditMode/**/*.cs" />
+    <Compile Include="../../Assets/Kilnwood/Scripts/Sim/**/*.cs" />
+    <Compile Include="../../Assets/Kilnwood/Tests/EditMode/**/*.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />

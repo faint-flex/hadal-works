@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace HadalWorks.Game
+namespace Kilnwood.Game
 {
     /// <summary>Factory camera: WASD / arrows / screen-edge pan, scroll zoom, Q/E rotate, middle-drag orbit.</summary>
     public class CameraRig : MonoBehaviour
@@ -25,7 +25,7 @@ namespace HadalWorks.Game
             camGo.transform.SetParent(go.transform, false);
             rig.Cam = camGo.AddComponent<Camera>();
             rig.Cam.clearFlags = CameraClearFlags.SolidColor;
-            rig.Cam.backgroundColor = new Color(0.01f, 0.05f, 0.09f);
+            rig.Cam.backgroundColor = new Color(0.62f, 0.72f, 0.82f);
             rig.Cam.fieldOfView = 45f;
             rig.Cam.nearClipPlane = 0.3f;
             rig.Cam.farClipPlane = 600f;

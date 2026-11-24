@@ -1,6 +1,6 @@
 {
-    "name": "HadalWorks.Sim",
-    "rootNamespace": "HadalWorks.Sim",
+    "name": "Kilnwood.Sim",
+    "rootNamespace": "Kilnwood.Sim",
     "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],

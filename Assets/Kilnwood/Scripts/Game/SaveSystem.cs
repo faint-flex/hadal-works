@@ -1,15 +1,15 @@
 using System;
 using System.IO;
-using HadalWorks.Sim;
+using Kilnwood.Sim;
 using UnityEngine;
 
-namespace HadalWorks.Game
+namespace Kilnwood.Game
 {
     /// <summary>One save slot. Autosaves every 2 minutes, on quit, and from the menu.</summary>
     public static class SaveSystem
     {
         public static string PathOverride;
-        public static string FilePath => PathOverride ?? Path.Combine(Application.persistentDataPath, "hadal-save.json");
+        public static string FilePath => PathOverride ?? Path.Combine(Application.persistentDataPath, "kilnwood-save.json");
         public static bool Exists => File.Exists(FilePath);
 
         public static void Save(World w)
@@ -21,7 +21,7 @@ namespace HadalWorks.Game
                 if (File.Exists(FilePath)) File.Delete(FilePath);
                 File.Move(tmp, FilePath);
             }
-            catch (Exception e) { Debug.LogError("Hadal Works: save failed: " + e.Message); }
+            catch (Exception e) { Debug.LogError("Kilnwood: save failed: " + e.Message); }
         }
 
         public static World Load(Balance b)
@@ -34,7 +34,7 @@ namespace HadalWorks.Game
             }
             catch (Exception e)
             {
-                Debug.LogError("Hadal Works: save unreadable: " + e.Message);
+                Debug.LogError("Kilnwood: save unreadable: " + e.Message);
                 return null;
             }
         }

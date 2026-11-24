@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using HadalWorks.Sim;
+using Kilnwood.Sim;
 using UnityEngine;
 
-namespace HadalWorks.Game
+namespace Kilnwood.Game
 {
     /// <summary>
     /// The game loop and gray-box UI. Creates itself in any scene (the build has one empty scene).
@@ -13,13 +13,13 @@ namespace HadalWorks.Game
     public class GameRoot : MonoBehaviour
     {
         enum State { Title, Playing }
-        enum Tool { Select, Tube, Extractor, Processor, Fabricator, VentTap, Demolish }
+        enum Tool { Select, Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Demolish }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
         {
             if (FindAnyObjectByType<GameRoot>() != null) return;
-            new GameObject("HadalWorks").AddComponent<GameRoot>();
+            new GameObject("Kilnwood").AddComponent<GameRoot>();
         }
 
         readonly Balance B = new Balance();
@@ -41,7 +41,7 @@ namespace HadalWorks.Game
         string _toast;
         float _toastUntil;
 
-        // Tube drag
+        // Belt drag
         bool _dragging;
         int _dragX, _dragY;
 
@@ -49,11 +49,11 @@ namespace HadalWorks.Game
         readonly List<Rect> _uiRectsLast = new List<Rect>();
         float _uiScale = 1f;
 
-        // Autopilot screenshot run: HadalWorks.exe -hwshots <folder>
+        // Autopilot screenshot run: Kilnwood.exe -kwshots <folder>
         string _shotsDir;
         DemoFactory _demo;
         int _shotIndex;
-        readonly float[] _shotTimes = { 5f, 90f, 240f, 480f, 760f };
+        readonly float[] _shotTimes = { 5f, 90f, 240f, 420f, 620f };
         int _frames;
         float _frameTime;
         float _worstFrame;
@@ -69,7 +69,7 @@ namespace HadalWorks.Game
 
             var args = System.Environment.GetCommandLineArgs();
             for (int i = 0; i < args.Length - 1; i++)
-                if (args[i] == "-hwshots") _shotsDir = args[i + 1];
+                if (args[i] == "-kwshots") _shotsDir = args[i + 1];
 
             if (_shotsDir != null)
             {
@@ -78,14 +78,14 @@ namespace HadalWorks.Game
                 StartWorld(MapGen.NewTier1(B));
                 _demo = new DemoFactory();
                 _speed = 8;
-                File.WriteAllText(Path.Combine(_shotsDir, "shots-result.txt"), "Hadal Works autopilot run\n");
+                File.WriteAllText(Path.Combine(_shotsDir, "shots-result.txt"), "Kilnwood autopilot run\n");
             }
             else
             {
                 _hasSave = SaveSystem.Exists;
                 StartWorld(MapGen.NewTier1(B));
                 _state = State.Title;
-                Rig.Frame(WorldView.FootCenter(MapGen.HubX, MapGen.HubY, 4), 20f, 40f, 70f);
+                Rig.Frame(WorldView.FootCenter(MapGen.LodgeX, MapGen.LodgeY, 4), 20f, 40f, 70f);
                 Rig.InputEnabled = false;
             }
         }
@@ -94,7 +94,7 @@ namespace HadalWorks.Game
         {
             if (View != null) Destroy(View.gameObject);
             W = w;
-            var go = new GameObject("Seabed");
+            var go = new GameObject("Valley");
             go.transform.SetParent(transform, false);
             View = go.AddComponent<WorldView>();
             View.Build(w);
@@ -104,7 +104,7 @@ namespace HadalWorks.Game
             _goalShown = w.GoalReached;
             _autosaveAt = Time.unscaledTime + 120f;
             Rig.InputEnabled = true;
-            Rig.Frame(WorldView.FootCenter(MapGen.HubX, MapGen.HubY, 4) + new Vector3(0f, 0f, 8f), 0f, 55f, 66f);
+            Rig.Frame(WorldView.FootCenter(MapGen.LodgeX, MapGen.LodgeY, 4) + new Vector3(0f, 0f, 8f), 0f, 55f, 66f);
         }
 
         void NewGame() => StartWorld(MapGen.NewTier1(B));
@@ -143,11 +143,12 @@ namespace HadalWorks.Game
 
             if (GameInput.Down(GameKey.Space)) _paused = !_paused;
             if (GameInput.Down(GameKey.F)) _speed = _speed == 1 ? 2 : 1;
-            if (GameInput.Down(GameKey.Alpha1)) SetTool(Tool.Tube);
-            if (GameInput.Down(GameKey.Alpha2)) SetTool(Tool.Extractor);
-            if (GameInput.Down(GameKey.Alpha3)) SetTool(Tool.Processor);
-            if (GameInput.Down(GameKey.Alpha4)) SetTool(Tool.Fabricator);
-            if (GameInput.Down(GameKey.Alpha5)) SetTool(Tool.VentTap);
+            if (GameInput.Down(GameKey.Alpha1)) SetTool(Tool.Belt);
+            if (GameInput.Down(GameKey.Alpha2)) SetTool(Tool.Woodcutter);
+            if (GameInput.Down(GameKey.Alpha3)) SetTool(Tool.Mine);
+            if (GameInput.Down(GameKey.Alpha4)) SetTool(Tool.Kiln);
+            if (GameInput.Down(GameKey.Alpha5)) SetTool(Tool.Smelter);
+            if (GameInput.Down(GameKey.Alpha6)) SetTool(Tool.Workshop);
             if (GameInput.Down(GameKey.X)) SetTool(_tool == Tool.Demolish ? Tool.Select : Tool.Demolish);
             if (GameInput.Down(GameKey.R))
             {
@@ -175,11 +176,12 @@ namespace HadalWorks.Game
         {
             switch (t)
             {
-                case Tool.Tube: return BuildingType.Tube;
-                case Tool.Extractor: return BuildingType.Extractor;
-                case Tool.Processor: return BuildingType.Processor;
-                case Tool.Fabricator: return BuildingType.Fabricator;
-                default: return BuildingType.VentTap;
+                case Tool.Belt: return BuildingType.Belt;
+                case Tool.Woodcutter: return BuildingType.Woodcutter;
+                case Tool.Mine: return BuildingType.Mine;
+                case Tool.Kiln: return BuildingType.Kiln;
+                case Tool.Smelter: return BuildingType.Smelter;
+                default: return BuildingType.Workshop;
             }
         }
 
@@ -229,36 +231,36 @@ namespace HadalWorks.Game
 
                 case Tool.Demolish:
                     View.HideGhost();
-                    if (GameInput.LeftDown || (GameInput.LeftHeld && W.At(tx, ty)?.Type == BuildingType.Tube))
+                    if (GameInput.LeftDown || (GameInput.LeftHeld && W.At(tx, ty)?.Type == BuildingType.Belt))
                     {
                         var b = W.At(tx, ty);
-                        if (b != null && b.Type != BuildingType.Hub) W.Demolish(b.Id);
-                        else if (b != null && GameInput.LeftDown) Toast("The hub can't be removed");
+                        if (b != null && b.Type != BuildingType.Lodge) W.Demolish(b.Id);
+                        else if (b != null && GameInput.LeftDown) Toast("The lodge can't be removed");
                     }
                     break;
 
-                case Tool.Tube:
+                case Tool.Belt:
                     if (!_dragging)
                     {
                         var path = new List<(int, int, int)> { (tx, ty, _facing) };
                         CheckPath(path, out int ok, out string why);
-                        View.ShowTubeGhosts(path, ok, why);
+                        View.ShowBeltGhosts(path, ok, why);
                         if (GameInput.LeftDown) { _dragging = true; _dragX = tx; _dragY = ty; }
                     }
                     if (_dragging)
                     {
-                        var path = TubePath(_dragX, _dragY, tx, ty);
+                        var path = BeltPath(_dragX, _dragY, tx, ty);
                         CheckPath(path, out int ok, out string why);
-                        View.ShowTubeGhosts(path, ok, why);
+                        View.ShowBeltGhosts(path, ok, why);
                         if (!GameInput.LeftHeld)
                         {
                             int placed = 0;
                             foreach (var (x, y, d) in path)
                             {
-                                if (W.Place(BuildingType.Tube, x, y, d) == null) break;
+                                if (W.Place(BuildingType.Belt, x, y, d) == null) break;
                                 placed++;
                             }
-                            if (placed < path.Count) Toast("Built " + placed + " of " + path.Count + " tubes: " + (why ?? "blocked"));
+                            if (placed < path.Count) Toast("Built " + placed + " of " + path.Count + " belts: " + (why ?? "blocked"));
                             _dragging = false;
                         }
                     }
@@ -275,14 +277,8 @@ namespace HadalWorks.Game
                         if (reason != null) Toast(reason);
                         else
                         {
-                            int recipe = 0;
-                            if (type == BuildingType.Processor)
-                            {
-                                // Pre-pick the recipe from what's nearby? Keep it simple: plate by default.
-                                recipe = 0;
-                            }
-                            var b = W.Place(type, ox, oy, _facing, recipe);
-                            if (b != null && (type == BuildingType.Processor || type == BuildingType.Fabricator))
+                            var b = W.Place(type, ox, oy, _facing, 0);
+                            if (b != null && B.Defs[type].Recipes.Length > 1)
                             {
                                 _selected = b.Id;
                                 _tool = Tool.Select;
@@ -294,8 +290,8 @@ namespace HadalWorks.Game
             }
         }
 
-        /// <summary>L-shaped tube path: along the longer axis first, then the other. Each tile points to the next.</summary>
-        static List<(int x, int y, int d)> TubePath(int x0, int y0, int x1, int y1)
+        /// <summary>L-shaped belt path: along the longer axis first, then the other. Each tile points to the next.</summary>
+        static List<(int x, int y, int d)> BeltPath(int x0, int y0, int x1, int y1)
         {
             var cells = new List<(int x, int y)>();
             int x = x0, y = y0;
@@ -330,13 +326,13 @@ namespace HadalWorks.Game
         void CheckPath(List<(int x, int y, int d)> path, out int ok, out string why)
         {
             ok = 0; why = null;
-            int plates = W.Storage[Item.Plate];
+            int wood = W.Storage[Item.Wood];
             foreach (var (x, y, _) in path)
             {
-                string r = W.CanPlace(BuildingType.Tube, x, y, true);
-                if (r == null && plates < 1) r = "Out of plates";
+                string r = W.CanPlace(BuildingType.Belt, x, y, true);
+                if (r == null && wood < 1) r = "Out of wood";
                 if (r != null) { why = r; break; }
-                plates--;
+                wood--;
                 ok++;
             }
         }
@@ -353,11 +349,11 @@ namespace HadalWorks.Game
 
             if (_shotIndex < _shotTimes.Length && W.Time >= _shotTimes[_shotIndex])
             {
-                var hub = WorldView.FootCenter(MapGen.HubX, MapGen.HubY, 4);
-                if (_shotIndex == 1) Rig.Frame(hub + new Vector3(-26f, 0f, -2f), 30f, 40f, 28f);
-                else if (_shotIndex == 2) Rig.Frame(hub + new Vector3(4f, 0f, 14f), 200f, 38f, 30f);
-                else if (_shotIndex == 3) Rig.Frame(hub + new Vector3(20f, 0f, 6f), 290f, 30f, 26f);
-                else Rig.Frame(hub + new Vector3(0f, 0f, 8f), 0f, 55f, 74f);
+                var lodge = WorldView.FootCenter(MapGen.LodgeX, MapGen.LodgeY, 4);
+                if (_shotIndex == 1) Rig.Frame(lodge + new Vector3(-26f, 0f, -2f), 30f, 40f, 30f);       // west woodcutter line
+                else if (_shotIndex == 2) Rig.Frame(lodge + new Vector3(-1f, 0f, 32f), 160f, 38f, 32f);  // brick chain
+                else if (_shotIndex == 3) Rig.Frame(lodge + new Vector3(24f, 0f, 2f), 290f, 32f, 34f);   // iron + gear chain
+                else Rig.Frame(lodge + new Vector3(0f, 0f, 8f), 0f, 55f, 80f);
                 StartCoroutine(ShotNextFrame((_shotIndex + 1).ToString("00") + "-t" + Mathf.RoundToInt(W.Time) + "s"));
                 _shotIndex++;
             }
@@ -378,18 +374,17 @@ namespace HadalWorks.Game
 
         System.Collections.IEnumerator ShotsFinish()
         {
-            var hub = WorldView.FootCenter(MapGen.HubX, MapGen.HubY, 4);
-            Rig.Frame(hub + new Vector3(0f, 0f, 8f), 0f, 55f, 74f);
+            var lodge = WorldView.FootCenter(MapGen.LodgeX, MapGen.LodgeY, 4);
+            Rig.Frame(lodge + new Vector3(0f, 0f, 8f), 0f, 55f, 80f);
             yield return null;
             yield return new WaitForEndOfFrame();
             ScreenCapture.CaptureScreenshot(Path.Combine(_shotsDir, "09-goal.png"));
             var sb = new StringBuilder();
             sb.AppendLine("goal reached: " + W.GoalReached + " at " + W.GoalReachedAt.ToString("0") + " s game time");
-            sb.AppendLine("buildings " + W.Buildings.Count + ", hull " + W.Delivered[Item.Hull] + ", viewports " + W.Delivered[Item.Viewport] + ", plates in hub " + W.Storage[Item.Plate]);
-            sb.AppendLine("power " + W.PowerSupply + " / " + W.PowerDemand);
+            sb.AppendLine("buildings " + W.Buildings.Count + ", gears " + W.Delivered[Item.Gear] + ", bricks " + W.Delivered[Item.Brick] + ", wood in lodge " + W.Storage[Item.Wood]);
             sb.AppendLine("fps average " + (_frames / Mathf.Max(_frameTime, 1e-4f)).ToString("0") + ", worst frame " + (_worstFrame * 1000f).ToString("0.0") + " ms");
             foreach (var b in W.Buildings.Values)
-                if (b.Type != BuildingType.Tube) sb.AppendLine("  " + b.Type + " at " + b.X + "," + b.Y + ": " + b.Status);
+                if (b.Type != BuildingType.Belt) sb.AppendLine("  " + b.Type + " at " + b.X + "," + b.Y + ": " + b.Status + " (fuel " + b.FuelCount + ")");
             File.AppendAllText(Path.Combine(_shotsDir, "shots-result.txt"), sb.ToString());
             SaveSystem.Save(W);
             var reloaded = SaveSystem.Load(B);
@@ -406,17 +401,17 @@ namespace HadalWorks.Game
         {
             if (_h1 != null) return;
             _h1 = new GUIStyle(GUI.skin.label) { fontSize = 64, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
-            _h1.normal.textColor = new Color(0.45f, 0.95f, 0.9f);
+            _h1.normal.textColor = new Color(1f, 0.74f, 0.35f);
             _h2 = new GUIStyle(GUI.skin.label) { fontSize = 24, fontStyle = FontStyle.Bold };
             _h2.normal.textColor = Color.white;
             _body = new GUIStyle(GUI.skin.label) { fontSize = 18, wordWrap = true, richText = true };
-            _body.normal.textColor = new Color(0.9f, 0.94f, 0.97f);
+            _body.normal.textColor = new Color(0.97f, 0.94f, 0.88f);
             _small = new GUIStyle(_body) { fontSize = 15 };
             _bad = new GUIStyle(_body) { fontStyle = FontStyle.Bold };
             _bad.normal.textColor = new Color(1f, 0.55f, 0.45f);
             _panel = new GUIStyle(GUI.skin.box);
             var bg = new Texture2D(1, 1);
-            bg.SetPixel(0, 0, new Color(0.02f, 0.06f, 0.09f, 0.95f));
+            bg.SetPixel(0, 0, new Color(0.09f, 0.07f, 0.05f, 0.96f));
             bg.Apply();
             _panel.normal.background = bg;
             _btn = new GUIStyle(GUI.skin.button) { fontSize = 17, padding = new RectOffset(8, 8, 5, 5), wordWrap = true };
@@ -459,8 +454,8 @@ namespace HadalWorks.Game
         {
             var r = Panel(new Rect(Wd / 2f - 330f, Ht / 2f - 250f, 660f, 500f));
             GUILayout.BeginArea(new Rect(r.x + 30f, r.y + 20f, r.width - 60f, r.height - 40f));
-            GUILayout.Label("HADAL WORKS", _h1, GUILayout.Height(90f));
-            GUILayout.Label("Build an automated factory on the ocean floor. Tap the vents, pipe the ore, go deeper.", _body);
+            GUILayout.Label("KILNWOOD", _h1, GUILayout.Height(90f));
+            GUILayout.Label("Build an automated factory in a wild river valley. Cut wood, bake charcoal, and let the fires run your machines.", _body);
             GUILayout.Space(20f);
             if (_hasSave && GUILayout.Button("Continue", _btn, GUILayout.Height(54f))) ContinueGame();
             GUILayout.Space(6f);
@@ -474,17 +469,15 @@ namespace HadalWorks.Game
 
         void DrawHud(float Wd, float Ht)
         {
-            // Top bar: power, storage, goal.
+            // Top bar: storage and goal.
             var top = Panel(new Rect(10f, 10f, Wd - 20f, 58f));
-            bool low = W.PowerRatio < 0.999f;
-            string power = "Power " + W.PowerDemand.ToString("0") + " used / " + W.PowerSupply.ToString("0") + " made" + (low ? "   LOW POWER: machines at " + Mathf.RoundToInt(W.PowerRatio * 100f) + "%" : "");
-            GUI.Label(new Rect(top.x + 14f, top.y + 6f, 640f, 26f), power, low ? _bad : _body);
-            GUI.Label(new Rect(top.x + 14f, top.y + 30f, 900f, 26f),
-                "Hub:  P plates " + W.Storage[Item.Plate] + "   G glass " + W.Storage[Item.Glass] + "   L sealant " + W.Storage[Item.Sealant] +
-                "   F " + W.Storage[Item.Ferrite] + "   S " + W.Storage[Item.Silica] + "   K " + W.Storage[Item.Kelp], _small);
-            var goal = new Rect(top.x + 680f, top.y + 6f, 560f, 48f);
-            GUI.Label(goal, "<b>Tier 2 hull rating</b>   H hull panels " + Mathf.Min(W.Delivered[Item.Hull], B.GoalHull) + "/" + B.GoalHull +
-                "   V viewports " + Mathf.Min(W.Delivered[Item.Viewport], B.GoalViewport) + "/" + B.GoalViewport +
+            GUI.Label(new Rect(top.x + 14f, top.y + 6f, 660f, 26f),
+                "<b>Lodge</b>   W wood " + W.Storage[Item.Wood] + "   S stone " + W.Storage[Item.Stone] + "   I iron " + W.Storage[Item.Iron], _body);
+            GUI.Label(new Rect(top.x + 14f, top.y + 32f, 660f, 24f),
+                "C charcoal " + W.Storage[Item.Charcoal] + "   O ore " + W.Storage[Item.Ore] + "   (machines burn fuel: W wood 8 s, C charcoal 24 s)", _small);
+            var goal = new Rect(top.x + 690f, top.y + 6f, 560f, 48f);
+            GUI.Label(goal, "<b>Waterwheel parts</b>   G gears " + Mathf.Min(W.Delivered[Item.Gear], B.GoalGear) + "/" + B.GoalGear +
+                "   B bricks " + Mathf.Min(W.Delivered[Item.Brick], B.GoalBrick) + "/" + B.GoalBrick +
                 (W.GoalReached ? "   UNLOCKED" : ""), _body);
             if (_shotsDir == null)
             {
@@ -497,9 +490,9 @@ namespace HadalWorks.Game
             DrawBuildBar(Wd, Ht);
             if (_selected >= 0 && W.Buildings.TryGetValue(_selected, out var b)) DrawBuildingPanel(b, Wd, Ht);
 
-            var hint = _tool == Tool.Select ? "Click a building to inspect it.  1-5 build  ·  X demolish  ·  Space pause  ·  F fast  ·  WASD/edge pan  ·  scroll zoom  ·  Q/E rotate view"
-                : _tool == Tool.Demolish ? "DEMOLISH: click to remove (full refund). Hold and drag over tubes. Right click or Esc to stop."
-                : _tool == Tool.Tube ? "TUBES: click and drag to lay a line; items flow toward where you drag. R turns a single tube. Right click to stop."
+            var hint = _tool == Tool.Select ? "Click a building to inspect it.  1-6 build  ·  X demolish  ·  Space pause  ·  F fast  ·  WASD/edge pan  ·  scroll zoom  ·  Q/E rotate view"
+                : _tool == Tool.Demolish ? "DEMOLISH: click to remove (full refund). Hold and drag over belts. Right click or Esc to stop."
+                : _tool == Tool.Belt ? "BELTS: click and drag to lay a line; items flow toward where you drag. R turns a single belt. Right click to stop."
                 : "Click to place  ·  R turns it (the yellow side is the output)  ·  right click to stop.";
             GUI.Label(new Rect(14f, Ht - 128f, Wd - 28f, 24f), hint, _small);
             if (_paused) GUI.Label(new Rect(Wd / 2f - 60f, 80f, 200f, 30f), "<b>PAUSED</b>", _body);
@@ -507,8 +500,8 @@ namespace HadalWorks.Game
 
         void DrawBuildBar(float Wd, float Ht)
         {
-            var bar = Panel(new Rect(Wd / 2f - 520f, Ht - 100f, 1040f, 90f));
-            Tool[] tools = { Tool.Tube, Tool.Extractor, Tool.Processor, Tool.Fabricator, Tool.VentTap, Tool.Demolish };
+            var bar = Panel(new Rect(Wd / 2f - 610f, Ht - 100f, 1220f, 90f));
+            Tool[] tools = { Tool.Belt, Tool.Woodcutter, Tool.Mine, Tool.Kiln, Tool.Smelter, Tool.Workshop, Tool.Demolish };
             float w = 168f;
             for (int i = 0; i < tools.Length; i++)
             {
@@ -518,8 +511,10 @@ namespace HadalWorks.Game
                 else
                 {
                     var d = B.Defs[TypeOf(t)];
-                    label = d.Key + "  " + d.Name + "\n" + d.CostPlate + " P" + (d.CostGlass > 0 ? " + " + d.CostGlass + " G" : "") +
-                            (d.Power > 0 ? "  ·  -" + d.Power + " pw" : d.Supply > 0 ? "  ·  +" + d.Supply + " pw" : "");
+                    var cost = new StringBuilder();
+                    foreach (var c in d.Cost) cost.Append(cost.Length > 0 ? " + " : "").Append(c.count).Append(' ').Append(Items.Letter(c.item));
+                    bool fuel = d.BurnsFuel || System.Array.Exists(d.Recipes, rc => rc.BurnsFuel);
+                    label = d.Key + "  " + d.Name + "\n" + cost + (fuel ? "  ·  burns fuel" : "");
                 }
                 if (GUI.Button(new Rect(bar.x + 8f + i * (w + 4f), bar.y + 8f, w, 74f), (_tool == t ? "> " : "") + label, _tool == t ? _btnOn : _btn))
                     SetTool(_tool == t ? Tool.Select : t);
@@ -532,9 +527,9 @@ namespace HadalWorks.Game
             var r = Panel(new Rect(10f, 78f, 380f, 470f));
             GUILayout.BeginArea(new Rect(r.x + 14f, r.y + 10f, r.width - 28f, r.height - 20f));
             GUILayout.Label(def.Name, _h2);
-            if (b.Type == BuildingType.Hub)
+            if (b.Type == BuildingType.Lodge)
             {
-                GUILayout.Label("Everything that reaches the hub is stored here. Building costs come out of it.", _small);
+                GUILayout.Label("Everything that reaches the lodge is stored here. Building costs come out of it.", _small);
                 var sb = new StringBuilder();
                 foreach (Item it in System.Enum.GetValues(typeof(Item)))
                     if (it != Item.None) sb.AppendLine(Items.Letter(it) + "  " + Items.Name(it) + ": " + W.Storage[it] + "   (delivered " + W.Delivered[it] + ")");
@@ -543,13 +538,18 @@ namespace HadalWorks.Game
                 return;
             }
             GUILayout.Label("Status: <b>" + b.Status + "</b>", _body);
-            if (b.Type != BuildingType.Tube && b.Type != BuildingType.VentTap)
+            if (b.Type != BuildingType.Belt)
                 GUILayout.Label("Output side: " + Dir.Names[b.Facing] + " (yellow marker)", _small);
-            if (b.Type == BuildingType.Tube)
-                GUILayout.Label("Carrying: " + (b.TubeItem == Item.None ? "nothing" : Items.Name(b.TubeItem)) + "   flow: " + Dir.Names[b.Facing], _small);
-            if (b.Type == BuildingType.Extractor)
+            if (b.Type == BuildingType.Belt)
+                GUILayout.Label("Carrying: " + (b.BeltItem == Item.None ? "nothing" : Items.Name(b.BeltItem)) + "   flow: " + Dir.Names[b.Facing], _small);
+            if (W.BurnsFuel(b))
+                GUILayout.Label("Fuel: W wood " + b.FuelWood + "   C charcoal " + b.FuelCharcoal + "  (holds " + B.FuelCap + ", burns charcoal first)" +
+                    (b.FuelLeft > 0f ? "\nBurning: " + b.FuelLeft.ToString("0") + " s left" : ""), _small);
+            else if (b.Type == BuildingType.Kiln)
+                GUILayout.Label("Charcoal needs no fuel: the wood smoulders itself. Bricks burn fuel.", _small);
+            if (def.SitsOn != null)
             {
-                var res = W.ExtractorResource(b.X, b.Y, b.Size, out int tiles);
+                var res = W.ExtractorResource(b, out int tiles);
                 GUILayout.Label("Pulling " + Items.Name(res) + " from " + tiles + " tiles (" + Mathf.Min(B.ExtractMaxPerSecond, tiles / B.ExtractSecondsPerTile).ToString("0.0") + " per second)", _small);
             }
             if (def.Recipes.Length > 0)
@@ -577,7 +577,7 @@ namespace HadalWorks.Game
             if (b.OutCount > 0) GUILayout.Label("Waiting to send: " + b.OutCount + " " + Items.Name(b.OutItem), _small);
             GUILayout.FlexibleSpace();
             GUILayout.BeginHorizontal();
-            if (b.Type != BuildingType.VentTap && GUILayout.Button("Turn (R)", _btn, GUILayout.Height(40f))) W.Rotate(b.Id);
+            if (GUILayout.Button("Turn (R)", _btn, GUILayout.Height(40f))) W.Rotate(b.Id);
             if (GUILayout.Button("Demolish", _btn, GUILayout.Height(40f))) { W.Demolish(b.Id); _selected = -1; }
             GUILayout.EndHorizontal();
             GUILayout.EndArea();
@@ -604,7 +604,7 @@ namespace HadalWorks.Game
             var r = Panel(new Rect(Wd / 2f - 330f, Ht / 2f - 170f, 660f, 340f));
             GUILayout.BeginArea(new Rect(r.x + 28f, r.y + 20f, r.width - 56f, r.height - 40f));
             GUILayout.Label("TIER 2 UNLOCKED", _h1, GUILayout.Height(80f));
-            GUILayout.Label("Your hull panels and viewports are rated for 400 m. The Twilight Shelf is next, with richer ore and higher pressure.", _body);
+            GUILayout.Label("You have the gears and bricks for the valley's first waterwheel. Tier 2 brings water power down the river.", _body);
             GUILayout.Label("That's the end of this test build. You can keep building here as long as you like.", _small);
             GUILayout.FlexibleSpace();
             if (GUILayout.Button("Keep building", _btn, GUILayout.Height(50f))) _goalPanel = false;

@@ -1,23 +1,34 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace HadalWorks.Game
+namespace Kilnwood.Game
 {
     /// <summary>Gray-box materials, colours and text labels. Every colour cue is paired with a letter or word.</summary>
     public static class Look
     {
-        public static readonly Color Seabed = new Color(0.16f, 0.19f, 0.2f);
-        public static readonly Color FerriteGround = new Color(0.42f, 0.22f, 0.16f);
-        public static readonly Color SilicaGround = new Color(0.72f, 0.68f, 0.55f);
-        public static readonly Color KelpGround = new Color(0.08f, 0.32f, 0.3f);
-        public static readonly Color KelpGlow = new Color(0.25f, 0.95f, 0.85f);
-        public static readonly Color Vent = new Color(0.08f, 0.07f, 0.07f);
-        public static readonly Color VentGlow = new Color(1f, 0.45f, 0.12f);
-        public static readonly Color Hub = new Color(0.42f, 0.5f, 0.58f);
-        public static readonly Color Machine = new Color(0.55f, 0.6f, 0.66f);
-        public static readonly Color MachineDark = new Color(0.22f, 0.25f, 0.3f);
+        public static readonly Color Grass = new Color(0.36f, 0.46f, 0.25f);
+        public static readonly Color FarHills = new Color(0.3f, 0.38f, 0.26f);
+        public static readonly Color ForestFloor = new Color(0.27f, 0.3f, 0.17f);
+        public static readonly Color Bark = new Color(0.36f, 0.25f, 0.16f);
+        public static readonly Color Leaves = new Color(0.2f, 0.42f, 0.2f);
+        public static readonly Color LeavesDark = new Color(0.14f, 0.32f, 0.17f);
+        public static readonly Color OreGround = new Color(0.45f, 0.3f, 0.22f);
+        public static readonly Color OreRock = new Color(0.5f, 0.24f, 0.17f);
+        public static readonly Color StoneGround = new Color(0.55f, 0.54f, 0.5f);
+        public static readonly Color Boulder = new Color(0.68f, 0.67f, 0.63f);
+        public static readonly Color Water = new Color(0.2f, 0.42f, 0.55f);
+        public static readonly Color Timber = new Color(0.55f, 0.4f, 0.26f);
+        public static readonly Color Planks = new Color(0.62f, 0.5f, 0.34f);
+        public static readonly Color Roof = new Color(0.32f, 0.22f, 0.18f);
+        public static readonly Color StoneWall = new Color(0.58f, 0.56f, 0.52f);
+        public static readonly Color Brickwork = new Color(0.62f, 0.32f, 0.24f);
+        public static readonly Color MineDark = new Color(0.2f, 0.19f, 0.18f);
+        public static readonly Color Iron = new Color(0.35f, 0.37f, 0.4f);
+        public static readonly Color Fire = new Color(1f, 0.55f, 0.15f);
+        public static readonly Color FireLight = new Color(1f, 0.6f, 0.25f);
+        public static readonly Color BeltFrame = new Color(0.4f, 0.3f, 0.2f);
+        public static readonly Color Belt = new Color(0.22f, 0.2f, 0.18f);
         public static readonly Color Accent = new Color(1f, 0.78f, 0.15f);
-        public static readonly Color Tube = new Color(0.45f, 0.62f, 0.7f);
         public static readonly Color Ok = new Color(0.3f, 0.85f, 0.45f);
         public static readonly Color Bad = new Color(0.95f, 0.3f, 0.25f);
         public static readonly Color Select = new Color(1f, 0.92f, 0.2f);
@@ -79,6 +90,20 @@ namespace HadalWorks.Game
             m.color = c;
             if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
             _cache[c] = m;
+            return m;
+        }
+
+        static readonly Dictionary<Color, Material> _glow = new Dictionary<Color, Material>();
+
+        /// <summary>A self-lit material (fire, embers) that glows even in shade.</summary>
+        public static Material GlowMat(Color c)
+        {
+            if (_glow.TryGetValue(c, out var m)) return m;
+            m = new Material(Mat(c));
+            m.EnableKeyword("_EMISSION");
+            if (m.HasProperty("_EmissionColor")) m.SetColor("_EmissionColor", c * 2.2f);
+            m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+            _glow[c] = m;
             return m;
         }
 

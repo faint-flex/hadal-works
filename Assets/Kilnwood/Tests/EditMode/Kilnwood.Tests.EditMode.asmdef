@@ -1,8 +1,8 @@
 {
-    "name": "HadalWorks.Tests.EditMode",
-    "rootNamespace": "HadalWorks.Tests",
+    "name": "Kilnwood.Tests.EditMode",
+    "rootNamespace": "Kilnwood.Tests",
     "references": [
-        "HadalWorks.Sim",
+        "Kilnwood.Sim",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],
