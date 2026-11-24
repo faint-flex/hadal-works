@@ -76,7 +76,7 @@ namespace Kilnwood.Game
                 Directory.CreateDirectory(_shotsDir);
                 SaveSystem.PathOverride = Path.Combine(_shotsDir, "save-shots.json");
                 StartWorld(MapGen.NewTier1(B));
-                _demo = new DemoFactory();
+                _demo = new DemoFactory(B.PeopleEnabled);
                 _speed = 8;
                 File.WriteAllText(Path.Combine(_shotsDir, "shots-result.txt"), "Kilnwood autopilot run\n");
             }
@@ -149,8 +149,8 @@ namespace Kilnwood.Game
             if (GameInput.Down(GameKey.Alpha4)) SetTool(Tool.Kiln);
             if (GameInput.Down(GameKey.Alpha5)) SetTool(Tool.Smelter);
             if (GameInput.Down(GameKey.Alpha6)) SetTool(Tool.Workshop);
-            if (GameInput.Down(GameKey.Alpha7)) SetTool(Tool.Fisher);
-            if (GameInput.Down(GameKey.Alpha8)) SetTool(Tool.Cabin);
+            if (B.PeopleEnabled && GameInput.Down(GameKey.Alpha7)) SetTool(Tool.Fisher);
+            if (B.PeopleEnabled && GameInput.Down(GameKey.Alpha8)) SetTool(Tool.Cabin);
             if (GameInput.Down(GameKey.Alpha9)) SetTool(Tool.Splitter);
             if (GameInput.Down(GameKey.X)) SetTool(_tool == Tool.Demolish ? Tool.Select : Tool.Demolish);
             if (GameInput.Down(GameKey.R))
@@ -486,10 +486,10 @@ namespace Kilnwood.Game
             GUI.Label(new Rect(top.x + 14f, top.y + 6f, 660f, 26f),
                 "<b>Lodge</b>   W wood " + W.Storage[Item.Wood] + "   S stone " + W.Storage[Item.Stone] + "   I iron " + W.Storage[Item.Iron], _body);
             GUI.Label(new Rect(top.x + 14f, top.y + 32f, 680f, 24f),
-                "C charcoal " + W.Storage[Item.Charcoal] + "   F fish " + W.Storage[Item.Fish] +
-                "   People: " + W.WorkersUsed + " working, " + W.Population + " living" +
+                "C charcoal " + W.Storage[Item.Charcoal] + "   O ore " + W.Storage[Item.Ore] +
+                (!B.PeopleEnabled ? "" : "   F fish " + W.Storage[Item.Fish] + "   People: " + W.WorkersUsed + " working, " + W.Population + " living" +
                 (W.WorkersNeeded > W.Population ? "   ! NEED " + (W.WorkersNeeded - W.Population) + " MORE (build cabins)" : "") +
-                (W.Hungry ? "   ! HUNGRY: machines at half speed, send fish to the lodge" : ""),
+                (W.Hungry ? "   ! HUNGRY: machines at half speed, send fish to the lodge" : "")),
                 W.Hungry || W.WorkersNeeded > W.Population ? _badSmall : _small);
             var goal = new Rect(top.x + 690f, top.y + 6f, 560f, 48f);
             GUI.Label(goal, "<b>Waterwheel parts</b>   G gears " + Mathf.Min(W.Delivered[Item.Gear], B.GoalGear) + "/" + B.GoalGear +
@@ -506,7 +506,7 @@ namespace Kilnwood.Game
             DrawBuildBar(Wd, Ht);
             if (_selected >= 0 && W.Buildings.TryGetValue(_selected, out var b)) DrawBuildingPanel(b, Wd, Ht);
 
-            var hint = _tool == Tool.Select ? "Click a building to inspect it.  1-9 build  ·  X demolish  ·  Space pause  ·  F fast  ·  WASD/edge pan  ·  scroll zoom  ·  Q/E rotate view"
+            var hint = _tool == Tool.Select ? "Click a building to inspect it.  1-6 build, 9 splitter  ·  X demolish  ·  Space pause  ·  F fast  ·  WASD/edge pan  ·  scroll zoom  ·  Q/E rotate view"
                 : _tool == Tool.Demolish ? "DEMOLISH: click to remove (full refund). Hold and drag over belts. Right click or Esc to stop."
                 : _tool == Tool.Belt ? "BELTS: click and drag to lay a line; items flow toward where you drag. R turns a single belt. Right click to stop."
                 : "Click to place  ·  R turns it (the yellow side is the output)  ·  right click to stop.";
@@ -517,8 +517,10 @@ namespace Kilnwood.Game
         void DrawBuildBar(float Wd, float Ht)
         {
             var bar = Panel(new Rect(Wd / 2f - 655f, Ht - 100f, 1310f, 90f));
-            Tool[] tools = { Tool.Belt, Tool.Woodcutter, Tool.Mine, Tool.Kiln, Tool.Smelter, Tool.Workshop, Tool.Fisher, Tool.Cabin, Tool.Splitter, Tool.Demolish };
-            float w = 125f;
+            Tool[] tools = B.PeopleEnabled
+                ? new[] { Tool.Belt, Tool.Woodcutter, Tool.Mine, Tool.Kiln, Tool.Smelter, Tool.Workshop, Tool.Fisher, Tool.Cabin, Tool.Splitter, Tool.Demolish }
+                : new[] { Tool.Belt, Tool.Woodcutter, Tool.Mine, Tool.Kiln, Tool.Smelter, Tool.Workshop, Tool.Splitter, Tool.Demolish };
+            float w = B.PeopleEnabled ? 125f : 157f;
             for (int i = 0; i < tools.Length; i++)
             {
                 var t = tools[i];
@@ -531,7 +533,7 @@ namespace Kilnwood.Game
                     foreach (var c in d.Cost) cost.Append(cost.Length > 0 ? " + " : "").Append(c.count).Append(' ').Append(Items.Letter(c.item));
                     bool fuel = d.BurnsFuel || System.Array.Exists(d.Recipes, rc => rc.BurnsFuel);
                     label = d.Key + "  " + d.Name + "\n" + cost + (fuel ? " · fuel" : "") +
-                            (d.Workers > 0 ? "\n" + d.Workers + (d.Workers == 1 ? " worker" : " workers") : d.Homes > 0 ? "\nhomes " + d.Homes : "");
+                            (!B.PeopleEnabled ? "" : d.Workers > 0 ? "\n" + d.Workers + (d.Workers == 1 ? " worker" : " workers") : d.Homes > 0 ? "\nhomes " + d.Homes : "");
                 }
                 if (GUI.Button(new Rect(bar.x + 8f + i * (w + 4f), bar.y + 8f, w, 74f), (_tool == t ? "> " : "") + label, _tool == t ? _btnSmallOn : _btnSmall))
                     SetTool(_tool == t ? Tool.Select : t);
@@ -547,7 +549,7 @@ namespace Kilnwood.Game
             if (b.Type == BuildingType.Lodge)
             {
                 GUILayout.Label("Everything that reaches the lodge is stored here. Building costs come out of it. " +
-                    "Homes for " + def.Homes + " people; everyone eats 1 fish every " + B.EatSecondsPerPerson.ToString("0") + " s from here.", _small);
+                    (B.PeopleEnabled ? "Homes for " + def.Homes + " people; everyone eats 1 fish every " + B.EatSecondsPerPerson.ToString("0") + " s from here." : ""), _small);
                 var sb = new StringBuilder();
                 foreach (Item it in System.Enum.GetValues(typeof(Item)))
                     if (it != Item.None) sb.AppendLine(Items.Letter(it) + "  " + Items.Name(it) + ": " + W.Storage[it] + "   (delivered " + W.Delivered[it] + ")");
@@ -556,7 +558,7 @@ namespace Kilnwood.Game
                 return;
             }
             GUILayout.Label("Status: <b>" + b.Status + "</b>", _body);
-            if (def.Workers > 0)
+            if (B.PeopleEnabled && def.Workers > 0)
                 GUILayout.Label("Workers: " + def.Workers + (b.Staffed ? " (on the job)" : "  ! not enough people: build a cabin (8)"), b.Staffed ? _small : _badSmall);
             if (b.Type == BuildingType.Woodcutter)
             {

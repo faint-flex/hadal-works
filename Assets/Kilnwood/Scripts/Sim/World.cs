@@ -307,6 +307,13 @@ namespace Kilnwood.Sim
         /// <summary>Homes, who works where (in build order), and eating fish from the lodge.</summary>
         void StepPeople(float dt)
         {
+            if (!B.PeopleEnabled)
+            {
+                foreach (var m in _machines) m.Staffed = true;
+                Population = WorkersNeeded = WorkersUsed = 0;
+                Hungry = false;
+                return;
+            }
             int pop = 0, need = 0, used = 0;
             foreach (var m in _machines) pop += B.Defs[m.Type].Homes;
             int free = pop;

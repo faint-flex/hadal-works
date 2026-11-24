@@ -37,6 +37,22 @@ namespace Kilnwood.EditorTools
             else if (mat.shader != shader) mat.shader = shader;
             EditorUtility.SetDirty(mat);
 
+            // Sky and smoke materials live in Resources so their shaders are included in the build.
+            MakeMaterial("Assets/Kilnwood/Resources/KW_Sky.mat", "Skybox/Procedural", m =>
+            {
+                m.SetFloat("_SunDisk", 2f);
+                m.SetFloat("_SunSize", 0.035f);
+                m.SetFloat("_SunSizeConvergence", 6f);
+                m.SetFloat("_AtmosphereThickness", 0.85f);
+                m.SetColor("_SkyTint", new Color(0.52f, 0.6f, 0.72f));
+                m.SetColor("_GroundColor", new Color(0.42f, 0.45f, 0.4f));
+                m.SetFloat("_Exposure", 1.15f);
+            });
+            MakeMaterial("Assets/Kilnwood/Resources/KW_Smoke.mat", "Legacy Shaders/Particles/Alpha Blended", m => { });
+
+            // Linear colour space: softer, more natural lighting falloff.
+            PlayerSettings.colorSpace = ColorSpace.Linear;
+
             if (!File.Exists(ScenePath))
             {
                 var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -74,6 +90,21 @@ namespace Kilnwood.EditorTools
             Debug.Log("Kilnwood: build " + s.result + " in " + s.totalTime + ", " + (s.totalSize / (1024 * 1024)) + " MB -> " + options.locationPathName);
             if (Application.isBatchMode && s.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
                 EditorApplication.Exit(1);
+        }
+
+        static void MakeMaterial(string path, string shaderName, Action<Material> configure)
+        {
+            var sh = Shader.Find(shaderName);
+            if (sh == null) { Debug.LogWarning("Kilnwood: shader not found: " + shaderName); return; }
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (m == null)
+            {
+                m = new Material(sh) { name = Path.GetFileNameWithoutExtension(path) };
+                AssetDatabase.CreateAsset(m, path);
+            }
+            else if (m.shader != sh) m.shader = sh;
+            configure(m);
+            EditorUtility.SetDirty(m);
         }
 
         static string ReadVersion()

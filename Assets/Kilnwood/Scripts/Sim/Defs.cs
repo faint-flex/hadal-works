@@ -112,6 +112,7 @@ namespace Kilnwood.Sim
         public int LogsPerTile = 8;
         public float RegrowSecondsPerLog = 15f;
         public int WoodcutterReach = 1;          // tiles of forest around the woodcutter it can cut
+        public bool PeopleEnabled = false;       // workers + food: built, but parked until LyFe wants them (2026-11-24)
         public float FishSeconds = 4f;           // a fisher makes 1 fish every 4 s
         public float EatSecondsPerPerson = 90f;  // each person eats 1 fish every 90 s
         public float HungrySpeed = 0.5f;

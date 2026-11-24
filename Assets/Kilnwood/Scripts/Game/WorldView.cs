@@ -6,7 +6,7 @@ using Terrain = Kilnwood.Sim.Terrain;
 namespace Kilnwood.Game
 {
     /// <summary>
-    /// Gray-box 3D view of the valley factory. Mirrors the World every frame; never changes it.
+    /// 3D view of the valley factory (low-poly models built in code by Art). Mirrors the World every frame; never changes it.
     /// One tile = 2 m. Tile (x, y) sits at world (x*2+1, 0, y*2+1).
     /// </summary>
     public class WorldView : MonoBehaviour
@@ -23,6 +23,11 @@ namespace Kilnwood.Game
             public int Facing = -1;
             public int Recipe = -1;
             public GameObject Fire;     // glow shown while the machine burns fuel (or a kiln smoulders)
+            public Light FireLight;
+            public ParticleSystem Smoke;
+            public Transform Spin;      // wheel or gear that turns while working (around its local y)
+            public float SpinSpeed, SpinAngle;
+            public float Seed;
         }
 
         readonly Dictionary<int, BView> _views = new Dictionary<int, BView>();
@@ -33,9 +38,6 @@ namespace Kilnwood.Game
         readonly Dictionary<int, (Transform tree, GameObject stump)> _trees = new Dictionary<int, (Transform, GameObject)>();
         // Big field names on the ground; hidden once you build near them so they don't fight machine labels.
         readonly List<(int x, int y, GameObject go)> _fieldLabels = new List<(int x, int y, GameObject go)>();
-        readonly List<Transform> _itemPool = new List<Transform>();
-        readonly List<TextMesh> _itemLabels = new List<TextMesh>();
-        readonly List<Item> _itemKinds = new List<Item>();
         Transform _items;
 
         // Ghost (placement preview) and selection marker.
@@ -67,26 +69,34 @@ namespace Kilnwood.Game
             }
         }
 
+        Material _beltMat, _waterMat;
+        HillHeight _hills;
+
         public void Build(World w)
         {
             _w = w;
             var root = transform;
             float size = w.W * T;
 
-            Look.Box("Valley floor", root, new Vector3(size / 2f, -0.15f, size / 2f), new Vector3(size, 0.3f, size), Look.Grass);
-            Look.Box("Hills", root, new Vector3(size / 2f, -0.6f, size / 2f), new Vector3(size * 3f, 0.3f, size * 3f), Look.FarHills);
+            Art.GroundPlane(root, w, T);
+            float riverX = (MapGen.RiverX0 + MapGen.RiverX1) / 2f * T + T / 2f;
+            _hills = Art.Hills(root, size, riverX).GetComponent<HillHeight>();
+            BuildRiver(root, size);
+            BuildFarForest(root, size, riverX);
 
             for (int y = 0; y < w.H; y++)
                 for (int x = 0; x < w.W; x++)
                 {
                     var t = w.GroundAt(x, y);
-                    if (t == Terrain.Grass) continue;
+                    if (t == Terrain.Grass || t == Terrain.Water) continue;
                     BuildGroundTile(root, x, y, t);
                 }
             foreach (var l in MapGen.Labels)
                 _fieldLabels.Add((l.x, l.y, Look.Label(l.text, root, TileCenter(l.x, l.y) + new Vector3(0f, 0.1f, 0f), 3.2f, new Color(1f, 0.97f, 0.85f)).gameObject));
 
             BuildLights(root);
+
+            _beltMat = Art.TexturedMat(Art.BeltTexture, Color.white, 0.18f);
 
             _items = new GameObject("Items").transform;
             _items.SetParent(root, false);
@@ -102,39 +112,103 @@ namespace Kilnwood.Game
             _select.SetActive(false);
         }
 
+        /// <summary>One water mesh for the river tiles, plus the river running on out of the valley both ways.</summary>
+        void BuildRiver(Transform root, float size)
+        {
+            var v = new List<Vector3>();
+            var uv = new List<Vector2>();
+            var tri = new List<int>();
+            void Quad(float x0, float z0, float x1, float z1)
+            {
+                int i = v.Count;
+                v.Add(new Vector3(x0, 0.06f, z0)); v.Add(new Vector3(x1, 0.06f, z0)); v.Add(new Vector3(x1, 0.06f, z1)); v.Add(new Vector3(x0, 0.06f, z1));
+                foreach (var p in new[] { v[i], v[i + 1], v[i + 2], v[i + 3] }) uv.Add(new Vector2(p.x / 8f, p.z / 8f));
+                tri.Add(i); tri.Add(i + 2); tri.Add(i + 1); tri.Add(i); tri.Add(i + 3); tri.Add(i + 2);
+            }
+            for (int y = 0; y < _w.H; y++)
+                for (int x = 0; x < _w.W; x++)
+                    if (_w.GroundAt(x, y) == Terrain.Water) Quad(x * T, y * T, x * T + T, y * T + T);
+            // Out of the valley: extend the first and last rows of river into the hills' corridor.
+            for (int end = 0; end < 2; end++)
+            {
+                int y = end == 0 ? 0 : _w.H - 1;
+                int x0 = -1, x1 = -1;
+                for (int x = 0; x < _w.W; x++)
+                    if (_w.GroundAt(x, y) == Terrain.Water) { if (x0 < 0) x0 = x; x1 = x; }
+                if (x0 < 0) continue;
+                float a = x0 * T, b = x1 * T + T;
+                if (end == 0) Quad(a, -size * 1.2f, b, 0f);
+                else Quad(a, size, b, size * 2.2f);
+            }
+            var m = new Mesh { name = "River" };
+            m.SetVertices(v); m.SetUVs(0, uv); m.SetTriangles(tri, 0);
+            m.RecalculateNormals(); m.RecalculateBounds();
+            var go = new GameObject("River");
+            go.transform.SetParent(root, false);
+            go.AddComponent<MeshFilter>().sharedMesh = m;
+            var r = go.AddComponent<MeshRenderer>();
+            _waterMat = Art.TexturedMat(Art.WaterTexture, Color.white, 0.85f);
+            r.sharedMaterial = _waterMat;
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        /// <summary>Woods on the hills around the valley, in clumps, kept off the river corridor.</summary>
+        void BuildFarForest(Transform root, float size, float riverX)
+        {
+            var far = new GameObject("Far forest").transform;
+            far.SetParent(root, false);
+            const float step = 5f;
+            for (float z = -size * 0.75f; z < size * 1.75f; z += step)
+                for (float x = -size * 0.75f; x < size * 1.75f; x += step)
+                {
+                    bool inside = x > -6f && x < size + 6f && z > -6f && z < size + 6f;
+                    if (inside || Mathf.Abs(x - riverX) < 12f) continue;
+                    int ix = Mathf.RoundToInt(x), iz = Mathf.RoundToInt(z);
+                    float clump = Mathf.PerlinNoise(x * 0.025f + 11f, z * 0.025f + 5f);
+                    if (Art.Hash(ix, iz, 1) > clump * 1.25f - 0.2f) continue;
+                    float px = x + (Art.Hash(ix, iz, 2) - 0.5f) * step * 0.8f, pz = z + (Art.Hash(ix, iz, 3) - 0.5f) * step * 0.8f;
+                    var t = new GameObject("Far tree").transform;
+                    t.SetParent(far, false);
+                    t.localPosition = new Vector3(px, _hills.At(px, pz) - 0.2f, pz);
+                    t.localRotation = Quaternion.Euler(0f, Art.Hash(ix, iz, 4) * 360f, 0f);
+                    Art.FarTree(t, Art.Hash(ix, iz, 5), Art.Hash(ix, iz, 6));
+                }
+        }
+
         void BuildGroundTile(Transform root, int x, int y, Terrain t)
         {
             var c = TileCenter(x, y);
-            // Small deterministic jitter so patches don't look like a chessboard.
-            float j = Mathf.Abs((x * 73856093) ^ (y * 19349663)) % 100 / 100f;
+            int key = y * _w.W + x;
+            float j = Art.Hash(x, y), k = Art.Hash(x, y, 7);
             switch (t)
             {
                 case Terrain.Forest:
-                    Look.Box("Leaf litter", root, c + new Vector3(0f, 0.02f, 0f), new Vector3(T, 0.06f, T), Look.ForestFloor);
-                    // One or two trees per tile: trunk + layered crown.
-                    float h = 3.5f + j * 2.5f;
-                    var tc = c + new Vector3(-0.35f + j * 0.5f, 0f, 0.3f - j * 0.5f);
+                {
+                    // One tree per tile, pushed off-centre so the wood doesn't look planted in rows.
+                    var tc = c + new Vector3((j - 0.5f) * 0.9f, 0f, (k - 0.5f) * 0.9f);
                     var tree = new GameObject("Tree").transform;
                     tree.SetParent(root, false);
                     tree.localPosition = tc;
-                    Look.Box("Trunk", tree, new Vector3(0f, h * 0.3f, 0f), new Vector3(0.3f, h * 0.6f, 0.3f), Look.Bark);
-                    Look.Box("Crown", tree, new Vector3(0f, h * 0.7f, 0f), new Vector3(1.5f, h * 0.45f, 1.5f), j < 0.5f ? Look.Leaves : Look.LeavesDark);
-                    Look.Box("Crown top", tree, new Vector3(0f, h * 1.0f, 0f), new Vector3(0.9f, h * 0.25f, 0.9f), j < 0.5f ? Look.Leaves : Look.LeavesDark);
-                    var stump = Look.Box("Stump", root, tc + new Vector3(0f, 0.2f, 0f), new Vector3(0.45f, 0.4f, 0.45f), Look.Bark);
+                    tree.localRotation = Quaternion.Euler(0f, j * 360f, 0f);
+                    Art.Tree(tree, Art.Hash(x, y, 9), k);
+                    var stump = new GameObject("Stump");
+                    stump.transform.SetParent(root, false);
+                    stump.transform.localPosition = tc;
+                    Art.Cyl("Stump", stump.transform, Vector3.zero, 0.42f, 0.32f, Look.Bark);
+                    Art.Cyl("Cut", stump.transform, new Vector3(0f, 0.32f, 0f), 0.36f, 0.02f, new Color(0.78f, 0.64f, 0.45f));
                     stump.SetActive(false);
-                    _trees[y * _w.W + x] = (tree, stump);
+                    _trees[key] = (tree, stump);
+                    if (j > 0.55f) Deco(x, y, Art.Ball("Bush", root, c + new Vector3(0.55f - k, 0.25f, j - 0.8f), new Vector3(0.9f, 0.6f, 0.8f), Art.LeafGreens[(int)(k * 3.99f)] * 0.85f));
                     break;
+                }
                 case Terrain.IronOre:
-                    Look.Box("Ore ground", root, c + new Vector3(0f, 0.02f, 0f), new Vector3(T, 0.06f, T), Look.OreGround);
-                    Deco(x, y, Look.Box("Ore rock", root, c + new Vector3(-0.4f + j * 0.3f, 0.25f, 0.3f), new Vector3(0.7f, 0.5f, 0.6f), Look.OreRock));
-                    Deco(x, y, Look.Box("Ore rock", root, c + new Vector3(0.45f, 0.18f, -0.35f + j * 0.4f), new Vector3(0.5f, 0.35f, 0.5f), Look.OreRock));
+                    Deco(x, y, Art.RockAt("Ore rock", root, c + new Vector3(-0.45f + j * 0.3f, 0f, 0.35f), new Vector3(0.9f, 0.55f + k * 0.3f, 0.8f), Look.OreRock, j));
+                    Deco(x, y, Art.RockAt("Ore rock", root, c + new Vector3(0.45f, 0f, -0.4f + k * 0.4f), new Vector3(0.6f, 0.4f, 0.6f), Look.OreRock * 0.8f, k));
+                    if (k > 0.5f) Deco(x, y, Art.RockAt("Ore pebble", root, c + new Vector3(0.2f, 0f, 0.6f), new Vector3(0.35f, 0.22f, 0.35f), Look.OreRock * 1.15f, j));
                     break;
                 case Terrain.Stone:
-                    Look.Box("Stone ground", root, c + new Vector3(0f, 0.04f, 0f), new Vector3(T, 0.1f, T), Look.StoneGround);
-                    Deco(x, y, Look.Box("Boulder", root, c + new Vector3(0.3f - j * 0.4f, 0.35f, -0.2f), new Vector3(0.9f, 0.7f, 0.8f), Look.Boulder));
-                    break;
-                case Terrain.Water:
-                    Look.Box("River", root, c + new Vector3(0f, 0.03f, 0f), new Vector3(T, 0.06f, T), Look.Water);
+                    Deco(x, y, Art.RockAt("Boulder", root, c + new Vector3(0.3f - j * 0.5f, 0f, -0.2f), new Vector3(1.2f, 0.75f + k * 0.4f, 1.0f), Look.Boulder, k));
+                    if (j > 0.4f) Deco(x, y, Art.RockAt("Stone", root, c + new Vector3(0.6f, 0f, 0.55f), new Vector3(0.55f, 0.35f, 0.5f), Look.Boulder * 0.9f, j));
                     break;
             }
         }
@@ -202,20 +276,32 @@ namespace Kilnwood.Game
             var sun = new GameObject("Sun").AddComponent<Light>();
             sun.transform.SetParent(root, false);
             sun.type = LightType.Directional;
-            sun.color = new Color(1f, 0.93f, 0.8f);
-            sun.intensity = 1.15f;
+            sun.color = new Color(1f, 0.92f, 0.78f);
+            sun.intensity = 1.25f;
             sun.shadows = LightShadows.Soft;
-            sun.transform.rotation = Quaternion.Euler(50f, -35f, 0f);
+            sun.shadowStrength = 0.8f;
+            sun.shadowBias = 0.04f;
+            sun.shadowNormalBias = 0.3f;
+            sun.transform.rotation = Quaternion.Euler(42f, -40f, 0f);
+            RenderSettings.sun = sun;
+
+            QualitySettings.shadows = ShadowQuality.All;
+            QualitySettings.shadowResolution = ShadowResolution.VeryHigh;
+            QualitySettings.shadowDistance = 180f;
+            QualitySettings.shadowCascades = 4;
+            QualitySettings.shadowProjection = ShadowProjection.StableFit;
+            QualitySettings.antiAliasing = 4;
+            QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;
+            QualitySettings.pixelLightCount = 8;
 
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.55f, 0.65f, 0.78f);
-            RenderSettings.ambientEquatorColor = new Color(0.45f, 0.48f, 0.42f);
-            RenderSettings.ambientGroundColor = new Color(0.22f, 0.2f, 0.15f);
+            RenderSettings.ambientSkyColor = new Color(0.58f, 0.68f, 0.82f);
+            RenderSettings.ambientEquatorColor = new Color(0.5f, 0.52f, 0.46f);
+            RenderSettings.ambientGroundColor = new Color(0.25f, 0.22f, 0.17f);
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogColor = new Color(0.66f, 0.74f, 0.8f);
-            RenderSettings.fogDensity = 0.0035f;
-
+            RenderSettings.fogColor = CameraRig.Horizon;
+            RenderSettings.fogDensity = 0.0032f;
         }
 
         static void PointLight(Transform root, Vector3 pos, Color c, float intensity, float range)
@@ -240,105 +326,188 @@ namespace Kilnwood.Game
             v.Body = new GameObject("Body").transform;
             v.Body.SetParent(v.Root.transform, false);
             float s = b.Size * T;
+            float h = s / 2f;
+            var B = v.Body;
+            v.Seed = Art.Hash(b.X, b.Y, 3) * 10f;
+            Color planks = Look.Planks, timber = Look.Timber, dark = Look.MineDark, stone = Look.StoneWall;
+            Color logEnd = new Color(0.74f, 0.6f, 0.42f);
             switch (b.Type)
             {
                 case BuildingType.Belt:
-                    Look.Box("Frame", v.Body, new Vector3(0f, 0.2f, 0f), new Vector3(1.5f, 0.3f, T), Look.BeltFrame);
-                    Look.Box("Belt", v.Body, new Vector3(0f, 0.38f, 0f), new Vector3(1.2f, 0.06f, T), Look.Belt);
-                    Look.Box("Chevron", v.Body, new Vector3(0f, 0.43f, 0.45f), new Vector3(0.35f, 0.04f, 0.35f), Look.Accent);
-                    break;
-                case BuildingType.Woodcutter:
-                    Look.Box("Yard", v.Body, new Vector3(0f, 0.1f, 0f), new Vector3(s - 0.3f, 0.2f, s - 0.3f), Look.Planks);
-                    Look.Box("Shed", v.Body, new Vector3(-0.6f, 1.2f, -0.6f), new Vector3(2f, 2f, 2f), Look.Timber);
-                    Look.Box("Roof", v.Body, new Vector3(-0.6f, 2.4f, -0.6f), new Vector3(2.4f, 0.4f, 2.4f), Look.Roof);
-                    Look.Box("Log pile", v.Body, new Vector3(0.9f, 0.45f, 0.4f), new Vector3(1.2f, 0.7f, 1.6f), Look.Bark);
-                    Look.Box("Front", v.Body, new Vector3(0f, 0.5f, s / 2f - 0.15f), new Vector3(1.6f, 0.6f, 0.3f), Look.Accent);
-                    break;
-                case BuildingType.Mine:
-                    Look.Box("Pit", v.Body, new Vector3(0f, 0.1f, 0f), new Vector3(s - 0.3f, 0.2f, s - 0.3f), Look.MineDark);
-                    Look.Box("Headframe L", v.Body, new Vector3(-0.9f, 2f, -0.4f), new Vector3(0.3f, 4f, 0.3f), Look.Timber);
-                    Look.Box("Headframe R", v.Body, new Vector3(0.9f, 2f, -0.4f), new Vector3(0.3f, 4f, 0.3f), Look.Timber);
-                    Look.Box("Headframe top", v.Body, new Vector3(0f, 4f, -0.4f), new Vector3(2.2f, 0.35f, 0.6f), Look.Timber);
-                    Look.Box("Boiler", v.Body, new Vector3(1.1f, 0.8f, -1.2f), new Vector3(1f, 1.4f, 1f), Look.Iron);
-                    v.Fire = Look.Box("Firebox", v.Body, new Vector3(1.1f, 0.4f, -0.66f), new Vector3(0.6f, 0.4f, 0.1f), Look.Fire);
-                    Look.Box("Front", v.Body, new Vector3(0f, 0.5f, s / 2f - 0.15f), new Vector3(1.6f, 0.6f, 0.3f), Look.Accent);
-                    break;
-                case BuildingType.Kiln:
-                    // Beehive kiln: stepped rings that narrow toward the top.
-                    Look.Box("Ring 1", v.Body, new Vector3(0f, 0.6f, 0f), new Vector3(s - 0.5f, 1.2f, s - 0.5f), Look.Brickwork);
-                    Look.Box("Ring 2", v.Body, new Vector3(0f, 1.55f, 0f), new Vector3(s - 1.0f, 0.7f, s - 1.0f), Look.Brickwork);
-                    Look.Box("Ring 3", v.Body, new Vector3(0f, 2.15f, 0f), new Vector3(s - 1.6f, 0.5f, s - 1.6f), Look.Brickwork);
-                    Look.Box("Ring 4", v.Body, new Vector3(0f, 2.55f, 0f), new Vector3(s - 2.4f, 0.3f, s - 2.4f), Look.Brickwork);
-                    Look.Box("Chimney", v.Body, new Vector3(0.9f, 3.2f, -0.9f), new Vector3(0.6f, 1.8f, 0.6f), Look.MineDark);
-                    v.Fire = Look.Box("Fire mouth", v.Body, new Vector3(0f, 0.6f, s / 2f - 0.28f), new Vector3(1.1f, 0.8f, 0.1f), Look.Fire);
-                    Look.Box("Front", v.Body, new Vector3(0f, 0.2f, s / 2f - 0.15f), new Vector3(1.6f, 0.3f, 0.3f), Look.Accent);
-                    break;
-                case BuildingType.Smelter:
-                    Look.Box("Base", v.Body, new Vector3(0f, 0.6f, 0f), new Vector3(s - 0.4f, 1.2f, s - 0.4f), Look.StoneWall);
-                    Look.Box("Furnace", v.Body, new Vector3(0f, 2.2f, -0.2f), new Vector3(1.8f, 2f, 1.8f), Look.StoneWall);
-                    Look.Box("Stack", v.Body, new Vector3(0f, 4f, -0.2f), new Vector3(0.8f, 1.6f, 0.8f), Look.MineDark);
-                    v.Fire = Look.Box("Glow", v.Body, new Vector3(0f, 1.6f, 0.72f), new Vector3(0.8f, 0.6f, 0.1f), Look.Fire);
-                    Look.Box("Front", v.Body, new Vector3(0f, 0.5f, s / 2f - 0.15f), new Vector3(1.6f, 0.6f, 0.3f), Look.Accent);
-                    break;
-                case BuildingType.Workshop:
-                    Look.Box("Walls", v.Body, new Vector3(0f, 1.2f, 0f), new Vector3(s - 0.4f, 2.4f, s - 0.6f), Look.Timber);
-                    Look.Box("Roof", v.Body, new Vector3(0f, 2.6f, 0f), new Vector3(s, 0.4f, s - 0.2f), Look.Roof);
-                    Look.Box("Forge chimney", v.Body, new Vector3(-1f, 3.2f, -0.8f), new Vector3(0.5f, 1.6f, 0.5f), Look.StoneWall);
-                    Look.Box("Waterwheel gear", v.Body, new Vector3(1.75f, 1.4f, 0f), new Vector3(0.2f, 1.6f, 1.6f), Look.Iron);
-                    v.Fire = Look.Box("Forge glow", v.Body, new Vector3(-0.6f, 0.9f, s / 2f - 0.28f), new Vector3(0.8f, 0.5f, 0.1f), Look.Fire);
-                    Look.Box("Front", v.Body, new Vector3(0f, 0.2f, s / 2f - 0.15f), new Vector3(1.6f, 0.3f, 0.3f), Look.Accent);
-                    break;
-                case BuildingType.Fisher:
-                    Look.Box("Hut", v.Body, new Vector3(0f, 1f, -0.6f), new Vector3(2.4f, 2f, 2f), Look.Timber);
-                    Look.Box("Roof", v.Body, new Vector3(0f, 2.2f, -0.6f), new Vector3(2.8f, 0.4f, 2.4f), Look.Roof);
-                    Look.Box("Drying rack", v.Body, new Vector3(-1.2f, 0.9f, 1f), new Vector3(0.15f, 1.8f, 1.2f), Look.Bark);
-                    Look.Box("Fish basket", v.Body, new Vector3(0.9f, 0.35f, 1f), new Vector3(0.8f, 0.7f, 0.8f), Look.Planks);
-                    Look.Box("Front", v.Body, new Vector3(0f, 0.3f, s / 2f - 0.15f), new Vector3(1.6f, 0.4f, 0.3f), Look.Accent);
-                    break;
-                case BuildingType.Cabin:
-                    Look.Box("Log walls", v.Body, new Vector3(0f, 1.1f, 0f), new Vector3(s - 1f, 2.2f, s - 1.4f), Look.Timber);
-                    Look.Box("Roof", v.Body, new Vector3(0f, 2.45f, 0f), new Vector3(s - 0.4f, 0.5f, s - 0.8f), Look.Roof);
-                    Look.Box("Roof ridge", v.Body, new Vector3(0f, 2.9f, 0f), new Vector3(s - 0.4f, 0.4f, s - 2.4f), Look.Roof);
-                    Look.Box("Chimney", v.Body, new Vector3(1f, 3.1f, -0.6f), new Vector3(0.45f, 1.1f, 0.45f), Look.StoneWall);
-                    Look.Box("Door", v.Body, new Vector3(0f, 0.6f, (s - 1.4f) / 2f + 0.02f), new Vector3(0.7f, 1.2f, 0.06f), Look.Roof);
+                    Art.Cube("Rail L", B, new Vector3(-0.72f, 0.3f, 0f), new Vector3(0.14f, 0.24f, T), Look.BeltFrame);
+                    Art.Cube("Rail R", B, new Vector3(0.72f, 0.3f, 0f), new Vector3(0.14f, 0.24f, T), Look.BeltFrame);
+                    Art.Cube("Cross back", B, new Vector3(0f, 0.12f, -0.6f), new Vector3(1.4f, 0.16f, 0.18f), dark);
+                    Art.Cube("Cross front", B, new Vector3(0f, 0.12f, 0.6f), new Vector3(1.4f, 0.16f, 0.18f), dark);
+                    BeltDeck(B, new Vector3(0f, 0.38f, 0f), new Vector3(1.32f, 1f, T));
+                    // Arrow heads on the rails: direction reads even when the belt is still (and in screenshots).
+                    Art.Arrow("Arrow L", B, new Vector3(-0.72f, 0.43f, 0.3f), 0.3f, 0.45f, Look.Accent);
+                    Art.Arrow("Arrow R", B, new Vector3(0.72f, 0.43f, 0.3f), 0.3f, 0.45f, Look.Accent);
                     break;
                 case BuildingType.Splitter:
-                    Look.Box("Frame", v.Body, new Vector3(0f, 0.22f, 0f), new Vector3(1.8f, 0.36f, 1.8f), Look.BeltFrame);
-                    Look.Box("Deck", v.Body, new Vector3(0f, 0.42f, 0f), new Vector3(1.4f, 0.06f, 1.4f), Look.Belt);
-                    Look.Box("Arrow front", v.Body, new Vector3(0f, 0.48f, 0.6f), new Vector3(0.3f, 0.05f, 0.4f), Look.Accent);
-                    Look.Box("Arrow right", v.Body, new Vector3(0.6f, 0.48f, 0f), new Vector3(0.4f, 0.05f, 0.3f), Look.Accent);
-                    Look.Box("Arrow left", v.Body, new Vector3(-0.6f, 0.48f, 0f), new Vector3(0.4f, 0.05f, 0.3f), Look.Accent);
-                    Look.Box("Hub", v.Body, new Vector3(0f, 0.55f, 0f), new Vector3(0.45f, 0.2f, 0.45f), Look.Iron);
+                    Art.Cube("Frame", B, new Vector3(0f, 0.18f, 0f), new Vector3(1.85f, 0.36f, 1.85f), Look.BeltFrame);
+                    BeltDeck(B, new Vector3(0f, 0.37f, 0f), new Vector3(1.45f, 1f, 1.45f));
+                    Art.Arrow("Out front", B, new Vector3(0f, 0.4f, 0.55f), 0.4f, 0.38f, Look.Accent);
+                    Art.Arrow("Out right", B, new Vector3(0.55f, 0.4f, 0f), 0.4f, 0.38f, Look.Accent, 90f);
+                    Art.Arrow("Out left", B, new Vector3(-0.55f, 0.4f, 0f), 0.4f, 0.38f, Look.Accent, -90f);
+                    for (int i = 0; i < 4; i++)
+                        Art.Cyl("Post", B, new Vector3(i % 2 == 0 ? -0.82f : 0.82f, 0f, i < 2 ? -0.82f : 0.82f), 0.16f, 0.62f, Look.Iron);
+                    break;
+                case BuildingType.Woodcutter:
+                    Art.Cube("Yard", B, new Vector3(0f, 0.05f, 0f), new Vector3(s - 0.3f, 0.1f, s - 0.3f), planks * 0.85f);
+                    Art.Cube("Shed", B, new Vector3(-0.7f, 0.95f, -0.7f), new Vector3(2.0f, 1.8f, 1.8f), timber);
+                    Art.Cube("Shed door", B, new Vector3(-0.7f, 0.75f, 0.21f), new Vector3(0.7f, 1.2f, 0.04f), Look.Roof);
+                    Art.RoofAt("Roof", B, new Vector3(-0.7f, 1.85f, -0.7f), 2.5f, 2.3f, 0.95f, Look.Roof, 90f);
+                    // Log pile: 3 on the bottom, 2, then 1.
+                    for (int i = 0; i < 6; i++)
+                    {
+                        int row = i < 3 ? 0 : i < 5 ? 1 : 2;
+                        int col = i < 3 ? i : i < 5 ? i - 3 : 0;
+                        float lz = (col - (row == 0 ? 1f : row == 1 ? 0.5f : 0f)) * 0.36f;
+                        Art.Log("Log", B, new Vector3(0.95f, 0.28f + row * 0.31f, lz - 0.2f), 1.5f, 0.34f, i % 2 == 0 ? Look.Bark : Look.Bark * 1.1f, 90f);
+                    }
+                    Art.Cyl("Chopping block", B, new Vector3(-0.3f, 0.1f, 1.1f), 0.55f, 0.45f, Look.Bark);
+                    Art.Cyl("Block top", B, new Vector3(-0.3f, 0.55f, 1.1f), 0.5f, 0.02f, logEnd);
+                    Art.Cube("Axe handle", B, new Vector3(-0.3f, 0.8f, 1.1f), new Vector3(0.06f, 0.55f, 0.06f), Look.Bark * 1.3f, new Vector3(0f, 0f, 18f));
+                    Art.Cube("Axe head", B, new Vector3(-0.22f, 0.6f, 1.1f), new Vector3(0.2f, 0.1f, 0.05f), Look.Iron, new Vector3(0f, 0f, 18f));
+                    Front(B, h);
+                    break;
+                case BuildingType.Mine:
+                    Art.Cube("Pad", B, new Vector3(0f, 0.04f, 0f), new Vector3(s - 0.3f, 0.08f, s - 0.3f), new Color(0.36f, 0.32f, 0.28f));
+                    Art.Cube("Shaft", B, new Vector3(0f, 0.06f, 0.4f), new Vector3(1.3f, 0.06f, 1.3f), dark * 0.5f);
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        Art.Cube("Post", B, new Vector3(side * 0.8f, 2f, 0.4f), new Vector3(0.22f, 4f, 0.22f), timber);
+                        Art.Cube("Brace", B, new Vector3(side * 0.8f, 1.95f, -0.35f), new Vector3(0.2f, 4.2f, 0.2f), timber * 0.9f, new Vector3(21f, 0f, 0f));
+                    }
+                    Art.Cube("Crossbeam", B, new Vector3(0f, 4.0f, 0.4f), new Vector3(2.0f, 0.28f, 0.4f), timber);
+                    {
+                        var pivot = new GameObject("Wheel pivot").transform;
+                        pivot.SetParent(B, false);
+                        pivot.localPosition = new Vector3(0f, 4.55f, 0.4f);
+                        pivot.localRotation = Quaternion.Euler(0f, 0f, 90f);
+                        v.Spin = Art.Gear("Wheel", pivot, Vector3.zero, 1.3f, 0.12f, Look.Iron, 6);
+                        v.SpinSpeed = 120f;
+                    }
+                    Art.Cube("Cable", B, new Vector3(0f, 2.35f, 1.0f), new Vector3(0.05f, 4.2f, 0.05f), dark);
+                    Art.Log("Boiler", B, new Vector3(1.15f, 0.65f, -1.0f), 1.6f, 0.95f, Look.Iron, 90f);
+                    Art.Cyl("Stack", B, new Vector3(1.15f, 1.0f, -1.55f), 0.3f, 2.4f, dark);
+                    v.Smoke = Art.Smoke(B, new Vector3(1.15f, 3.5f, -1.55f), 0.8f);
+                    Art.Cube("Firebox", B, new Vector3(1.15f, 0.45f, -0.15f), new Vector3(0.6f, 0.5f, 0.14f), dark);
+                    v.Fire = Art.Cube("Fire", B, new Vector3(1.15f, 0.42f, -0.07f), new Vector3(0.42f, 0.3f, 0.04f), Look.Fire);
+                    Art.Cube("Cart", B, new Vector3(-1.05f, 0.4f, 1.15f), new Vector3(0.8f, 0.45f, 0.6f), Look.Iron * 0.9f);
+                    Art.RockAt("Cart load", B, new Vector3(-1.05f, 0.55f, 1.15f), new Vector3(0.65f, 0.3f, 0.5f), Look.OreRock, 0.3f);
+                    Front(B, h);
+                    break;
+                case BuildingType.Kiln:
+                    Art.Cube("Pad", B, new Vector3(0f, 0.06f, 0f), new Vector3(s - 0.4f, 0.12f, s - 0.4f), stone * 0.9f);
+                    Art.Cyl("Drum", B, new Vector3(0f, 0.12f, 0f), 3.0f, 1.0f, Look.Brickwork);
+                    Art.Ball("Dome", B, new Vector3(0f, 1.1f, 0f), new Vector3(3.0f, 2.7f, 3.0f), Look.Brickwork * 1.04f);
+                    Art.Cyl("Band", B, new Vector3(0f, 1.0f, 0f), 3.08f, 0.14f, Look.Iron);
+                    Art.Cyl("Vent", B, new Vector3(0f, 2.2f, -0.1f), 0.6f, 0.75f, Look.Brickwork * 0.8f);
+                    v.Smoke = Art.Smoke(B, new Vector3(0f, 3.0f, -0.1f), 1.1f);
+                    Art.Cube("Mouth", B, new Vector3(0f, 0.55f, 1.42f), new Vector3(0.95f, 0.85f, 0.3f), dark * 0.6f);
+                    v.Fire = Art.Cube("Fire", B, new Vector3(0f, 0.48f, 1.58f), new Vector3(0.7f, 0.55f, 0.04f), Look.Fire);
+                    Art.Log("Firewood", B, new Vector3(-1.45f, 0.3f, 1.45f), 0.9f, 0.26f, Look.Bark, 20f);
+                    Art.Log("Firewood", B, new Vector3(-1.45f, 0.3f, 1.2f), 0.9f, 0.26f, Look.Bark * 1.1f, 10f);
+                    Front(B, h);
+                    break;
+                case BuildingType.Smelter:
+                    Art.Cube("Base", B, new Vector3(0f, 0.3f, 0f), new Vector3(s - 0.4f, 0.6f, s - 0.4f), stone * 0.9f);
+                    Art.Part("Furnace", B, Art.Frustum, new Vector3(0f, 0.6f, -0.2f), new Vector3(2.4f, 3.2f, 2.4f), stone);
+                    Art.Cyl("Band low", B, new Vector3(0f, 1.3f, -0.2f), 2.22f, 0.12f, Look.Iron);
+                    Art.Cyl("Band high", B, new Vector3(0f, 2.6f, -0.2f), 1.86f, 0.12f, Look.Iron);
+                    Art.Cyl("Stack", B, new Vector3(0f, 3.8f, -0.2f), 0.7f, 1.4f, dark);
+                    v.Smoke = Art.Smoke(B, new Vector3(0f, 5.3f, -0.2f), 1.2f);
+                    Art.Cube("Tap hole", B, new Vector3(0f, 1.15f, 0.82f), new Vector3(0.85f, 0.75f, 0.5f), dark);
+                    v.Fire = Art.Cube("Glow", B, new Vector3(0f, 1.1f, 1.08f), new Vector3(0.6f, 0.5f, 0.04f), Look.Fire);
+                    Art.Cube("Bellows", B, new Vector3(-1.45f, 0.95f, -0.2f), new Vector3(0.5f, 0.35f, 0.9f), Look.Bark, new Vector3(0f, 0f, -12f));
+                    Art.RockAt("Ore heap", B, new Vector3(1.35f, 0.6f, 1.1f), new Vector3(0.8f, 0.45f, 0.7f), Look.OreRock, 0.6f);
+                    Front(B, h);
+                    break;
+                case BuildingType.Workshop:
+                    Art.Cube("Floor", B, new Vector3(0f, 0.07f, 0f), new Vector3(s - 0.3f, 0.14f, s - 0.3f), stone * 0.85f);
+                    Art.Cube("Walls", B, new Vector3(0f, 1.14f, -0.1f), new Vector3(s - 0.7f, 2.0f, s - 1.1f), timber);
+                    Art.Cube("Sill", B, new Vector3(0f, 0.3f, -0.1f), new Vector3(s - 0.6f, 0.3f, s - 1.0f), stone * 0.8f);
+                    Art.RoofAt("Roof", B, new Vector3(0f, 2.14f, -0.1f), s - 0.2f, s - 0.6f, 1.1f, Look.Roof);
+                    Art.Cube("Chimney", B, new Vector3(-1.05f, 2.4f, -0.9f), new Vector3(0.5f, 2.3f, 0.5f), stone);
+                    v.Smoke = Art.Smoke(B, new Vector3(-1.05f, 3.6f, -0.9f), 0.9f);
+                    Art.Cube("Door", B, new Vector3(0.55f, 0.95f, 1.36f), new Vector3(0.8f, 1.4f, 0.05f), Look.Roof);
+                    Art.Cube("Forge", B, new Vector3(-0.75f, 0.75f, 1.36f), new Vector3(0.9f, 0.7f, 0.08f), dark);
+                    v.Fire = Art.Cube("Forge glow", B, new Vector3(-0.75f, 0.72f, 1.4f), new Vector3(0.65f, 0.45f, 0.04f), Look.Fire);
+                    {
+                        var pivot = new GameObject("Gear pivot").transform;
+                        pivot.SetParent(B, false);
+                        pivot.localPosition = new Vector3(1.86f, 1.3f, -0.2f);
+                        pivot.localRotation = Quaternion.Euler(0f, 0f, 90f);
+                        v.Spin = Art.Gear("Gear", pivot, Vector3.zero, 1.6f, 0.16f, new Color(0.78f, 0.62f, 0.25f), 10);
+                        v.SpinSpeed = 45f;
+                    }
+                    Front(B, h);
+                    break;
+                case BuildingType.Fisher:
+                    Art.Cube("Deck", B, new Vector3(0f, 0.08f, 0f), new Vector3(s - 0.3f, 0.16f, s - 0.3f), planks);
+                    Art.Cube("Hut", B, new Vector3(0f, 1.0f, -0.6f), new Vector3(2.2f, 1.7f, 1.8f), timber);
+                    Art.RoofAt("Roof", B, new Vector3(0f, 1.85f, -0.6f), 2.6f, 2.2f, 0.9f, Look.Roof);
+                    Art.Cube("Drying rack", B, new Vector3(-1.2f, 0.9f, 1f), new Vector3(0.12f, 1.6f, 1.2f), Look.Bark);
+                    Art.Cyl("Basket", B, new Vector3(0.9f, 0.16f, 1f), 0.8f, 0.5f, planks * 0.9f);
+                    Front(B, h);
+                    break;
+                case BuildingType.Cabin:
+                    Art.Cube("Log walls", B, new Vector3(0f, 1.05f, 0f), new Vector3(s - 1f, 2.0f, s - 1.4f), timber);
+                    Art.RoofAt("Roof", B, new Vector3(0f, 2.05f, 0f), s - 0.4f, s - 0.8f, 1.2f, Look.Roof, 90f);
+                    Art.Cube("Chimney", B, new Vector3(1f, 2.6f, -0.5f), new Vector3(0.45f, 1.4f, 0.45f), stone);
+                    v.Smoke = Art.Smoke(B, new Vector3(1f, 3.4f, -0.5f), 0.5f);
+                    Art.Cube("Door", B, new Vector3(0f, 0.65f, (s - 1.4f) / 2f + 0.02f), new Vector3(0.7f, 1.2f, 0.05f), Look.Roof);
                     break;
                 case BuildingType.Lodge:
-                    Look.Box("Stone base", v.Body, new Vector3(0f, 0.4f, 0f), new Vector3(s - 0.4f, 0.8f, s - 0.4f), Look.StoneWall);
-                    Look.Box("Log walls", v.Body, new Vector3(0f, 2f, 0f), new Vector3(s - 1.4f, 2.4f, s - 1.4f), Look.Timber);
-                    Look.Box("Roof", v.Body, new Vector3(0f, 3.6f, 0f), new Vector3(s - 0.6f, 0.8f, s - 0.6f), Look.Roof);
-                    Look.Box("Roof ridge", v.Body, new Vector3(0f, 4.3f, 0f), new Vector3(s - 3.4f, 0.6f, s - 0.8f), Look.Roof);
-                    Look.Box("Chimney", v.Body, new Vector3(2f, 4.6f, -1.6f), new Vector3(0.8f, 2f, 0.8f), Look.StoneWall);
-                    Look.Box("Flag pole", v.Body, new Vector3(-3f, 3.5f, -3f), new Vector3(0.15f, 7f, 0.15f), Look.Bark);
-                    Look.Box("Flag", v.Body, new Vector3(-2.4f, 6.4f, -3f), new Vector3(1.1f, 0.7f, 0.05f), Look.Accent);
+                {
+                    float fz = (s - 2.2f) / 2f;   // front wall
+                    Art.Cube("Stone base", B, new Vector3(0f, 0.35f, 0f), new Vector3(s - 0.6f, 0.7f, s - 0.6f), stone);
+                    Art.Cube("Log walls", B, new Vector3(0f, 1.9f, 0f), new Vector3(s - 1.8f, 2.4f, s - 2.2f), timber);
+                    for (int i = 0; i < 4; i++)
+                        Art.Cube("Log line", B, new Vector3(0f, 1.05f + i * 0.55f, 0f), new Vector3(s - 1.74f, 0.07f, s - 2.14f), timber * 0.72f);
+                    Art.RoofAt("Roof", B, new Vector3(0f, 3.1f, 0f), s - 1.2f, s - 0.6f, 2.4f, Look.Roof, 90f);
+                    Art.Cube("Chimney", B, new Vector3(2.1f, 3.7f, -1.3f), new Vector3(0.9f, 3.6f, 0.9f), stone * 0.95f);
+                    v.Smoke = Art.Smoke(B, new Vector3(2.1f, 5.6f, -1.3f), 1f);
+                    Art.Cube("Door", B, new Vector3(0f, 1.5f, fz + 0.03f), new Vector3(1.1f, 1.7f, 0.06f), Look.Roof);
+                    Art.Cube("Porch", B, new Vector3(0f, 0.78f, fz + 0.55f), new Vector3(3.2f, 0.14f, 1.0f), planks);
+                    Art.Cube("Porch post L", B, new Vector3(-1.4f, 1.85f, fz + 0.95f), new Vector3(0.14f, 2.1f, 0.14f), timber * 0.9f);
+                    Art.Cube("Porch post R", B, new Vector3(1.4f, 1.85f, fz + 0.95f), new Vector3(0.14f, 2.1f, 0.14f), timber * 0.9f);
+                    Art.Cube("Porch roof", B, new Vector3(0f, 2.95f, fz + 0.6f), new Vector3(3.4f, 0.12f, 1.3f), Look.Roof, new Vector3(-14f, 0f, 0f));
+                    for (int i = 0; i < 2; i++)
+                        Art.Cube("Window", B, new Vector3(i == 0 ? -2.0f : 2.0f, 2.1f, fz + 0.03f), new Vector3(0.8f, 0.7f, 0.05f), new Color(0.95f, 0.82f, 0.5f));
+                    Art.Cyl("Flag pole", B, new Vector3(-3.4f, 0.7f, -3.4f), 0.14f, 6.5f, Look.Bark);
+                    Art.Cube("Flag", B, new Vector3(-2.85f, 6.75f, -3.4f), new Vector3(1.0f, 0.65f, 0.04f), Look.Accent);
+                    Art.Cyl("Barrel", B, new Vector3(3.2f, 0.7f, 3.2f), 0.6f, 0.8f, timber * 0.8f);
+                    Art.Cyl("Barrel", B, new Vector3(2.55f, 0.7f, 3.3f), 0.6f, 0.8f, timber * 0.75f);
+                    for (int i = 0; i < 3; i++)
+                        Art.Log("Firewood", B, new Vector3(-3.15f, 0.85f + i * 0.22f, 0.5f - i * 0.1f), 1.6f - i * 0.3f, 0.22f, Look.Bark * (1f + i * 0.08f), 90f);
                     break;
+                }
             }
             if (v.Fire != null)
             {
                 v.Fire.GetComponent<Renderer>().sharedMaterial = Look.GlowMat(Look.Fire);
-                var glow = new GameObject("Fire light").AddComponent<Light>();
-                glow.transform.SetParent(v.Fire.transform, false);
-                glow.transform.localPosition = new Vector3(0f, 0f, 4f);
-                glow.type = LightType.Point;
-                glow.color = Look.FireLight;
-                glow.intensity = 1.6f;
-                glow.range = 5f;
+                v.Fire.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                v.FireLight = new GameObject("Fire light").AddComponent<Light>();
+                v.FireLight.transform.SetParent(B, false);
+                v.FireLight.transform.localPosition = v.Fire.transform.localPosition + new Vector3(0f, 0.2f, 0.9f);
+                v.FireLight.type = LightType.Point;
+                v.FireLight.color = Look.FireLight;
+                v.FireLight.intensity = 1.6f;
+                v.FireLight.range = 5f;
+                v.FireLight.enabled = false;
                 v.Fire.SetActive(false);
             }
+            // Machines only smoke while they burn; the lodge (and cabins) always have a hearth going.
+            if (v.Smoke != null && b.Type != BuildingType.Lodge && b.Type != BuildingType.Cabin) SetSmoke(v.Smoke, false);
             // Belts, splitters and cabins have no floating label: their shapes say what they are (click for details).
             if (b.Type != BuildingType.Belt && b.Type != BuildingType.Splitter && b.Type != BuildingType.Cabin)
             {
                 // One upright label per machine: name on top, status (and fuel) underneath.
                 // Neighbouring machines alternate label heights so their names don't stack on each other.
                 // Three label heights in a pattern, so any two neighbouring 2x2 machines get different heights.
-                float top = (b.Type == BuildingType.Mine || b.Type == BuildingType.Smelter ? 5.2f : 4.2f) + ((b.X / 2 + 2 * (b.Y / 2)) % 3) * 1.8f;
+                float top = (b.Type == BuildingType.Mine || b.Type == BuildingType.Smelter ? 6.0f : 4.4f) + ((b.X / 2 + 2 * (b.Y / 2)) % 3) * 1.8f;
                 if (b.Type == BuildingType.Lodge)
                 {
                     // Lodge name sits in front (south side), clear of the machines behind it.
@@ -353,6 +522,22 @@ namespace Kilnwood.Game
                 }
             }
             return v;
+        }
+
+        void BeltDeck(Transform parent, Vector3 pos, Vector3 scale)
+        {
+            var deck = Art.Part("Deck", parent, Art.BeltQuad, pos, scale, Look.Belt, default, false);
+            deck.GetComponent<Renderer>().sharedMaterial = _beltMat;
+        }
+
+        /// <summary>Yellow step on the output side (the same cue as before), so you can see where things come out.</summary>
+        static void Front(Transform parent, float half) =>
+            Art.Cube("Front", parent, new Vector3(0f, 0.16f, half - 0.14f), new Vector3(1.3f, 0.32f, 0.28f), Look.Accent);
+
+        static void SetSmoke(ParticleSystem ps, bool on)
+        {
+            var em = ps.emission;
+            if (em.enabled != on) em.enabled = on;
         }
 
         string TitleFor(Building b)
@@ -397,14 +582,30 @@ namespace Kilnwood.Game
                 }
             }
 
-            // Fire glow: on while burning fuel, or while a charcoal kiln smoulders.
+            // Fire glow, flicker and smoke: on while burning fuel, or while a charcoal kiln smoulders.
+            // Wheels and gears turn while the machine works.
+            float now = Time.time;
             foreach (var b in _w.Buildings.Values)
             {
                 var v = _views[b.Id];
-                if (v.Fire == null) continue;
-                bool lit = b.Status == "Working" && (_w.BurnsFuel(b) || b.Type == BuildingType.Kiln || b.Type == BuildingType.Smelter);
-                if (v.Fire.activeSelf != lit) v.Fire.SetActive(lit);
+                bool working = b.Status == "Working";
+                if (v.Fire != null)
+                {
+                    bool lit = working && (_w.BurnsFuel(b) || b.Type == BuildingType.Kiln || b.Type == BuildingType.Smelter);
+                    if (v.Fire.activeSelf != lit) { v.Fire.SetActive(lit); v.FireLight.enabled = lit; }
+                    if (lit) v.FireLight.intensity = 1.2f + 0.8f * Mathf.PerlinNoise(now * 5f, v.Seed);
+                    if (v.Smoke != null) SetSmoke(v.Smoke, lit);
+                }
+                if (v.Spin != null && working && Time.timeScale > 0f)
+                {
+                    v.SpinAngle = (v.SpinAngle + v.SpinSpeed * Time.deltaTime) % 360f;
+                    v.Spin.localRotation = Quaternion.Euler(0f, v.SpinAngle, 0f);
+                }
             }
+
+            // Belts move with the game clock (they stop when paused); the river drifts south.
+            if (_beltMat != null) _beltMat.mainTextureOffset = new Vector2(0f, -((_w.Time * _w.B.BeltSpeed) % 1f));
+            if (_waterMat != null) _waterMat.mainTextureOffset = new Vector2(Mathf.Sin(now * 0.3f) * 0.02f, (now * 0.05f) % 1f);
 
             if (_w.Buildings.Count != _decoBuildingCount || gone != null) UpdateDeco();
             if (_w.ChangedLogs.Count > 0)
@@ -419,44 +620,96 @@ namespace Kilnwood.Game
             if (cam != null) { Look.TurnFlatLabels(cam.transform.eulerAngles.y); Look.TurnBillboards(cam.transform.rotation, cam.transform.position); }
         }
 
+        // Items on belts: one pool per kind, each a little model of the thing (log, ore, bar, gear...)
+        // with its letter on a dark badge on top, so the kind never depends on colour alone.
+        readonly Dictionary<Item, List<Transform>> _pools = new Dictionary<Item, List<Transform>>();
+        readonly Dictionary<Item, int> _used = new Dictionary<Item, int>();
+
         void UpdateItems()
         {
-            int n = 0;
+            foreach (var k in _pools.Keys) _used[k] = 0;
             foreach (var b in _w.Buildings.Values)
             {
                 if ((b.Type != BuildingType.Belt && b.Type != BuildingType.Splitter) || b.BeltItem == Item.None) continue;
-                var tr = ItemAt(n, b.BeltItem);
+                var tr = ItemFromPool(b.BeltItem);
                 var c = TileCenter(b.X, b.Y);
-                tr.localPosition = c + DirVec(b.Facing) * ((b.BeltProgress * 2f - 1f) * 0.85f) + new Vector3(0f, 0.95f, 0f);
-                n++;
+                tr.localPosition = c + DirVec(b.Facing) * ((b.BeltProgress * 2f - 1f) * 0.85f) + new Vector3(0f, 0.4f, 0f);
+                tr.localRotation = FacingRot(b.Facing);
             }
-            for (int i = n; i < _itemPool.Count; i++)
-                if (_itemPool[i].gameObject.activeSelf) _itemPool[i].gameObject.SetActive(false);
+            foreach (var kv in _pools)
+            {
+                int used = _used[kv.Key];
+                for (int i = used; i < kv.Value.Count; i++)
+                    if (kv.Value[i].gameObject.activeSelf) kv.Value[i].gameObject.SetActive(false);
+            }
         }
 
-        Transform ItemAt(int i, Item kind)
+        Transform ItemFromPool(Item kind)
         {
-            while (_itemPool.Count <= i)
-            {
-                var go = new GameObject("Item");
-                go.transform.SetParent(_items, false);
-                var box = Look.Box("Crate", go.transform, Vector3.zero, new Vector3(0.6f, 0.6f, 0.6f), Color.white);
-                var label = Look.Label("", go.transform, new Vector3(0f, 0.32f, 0f), 0.7f, Color.black);
-                _itemPool.Add(go.transform);
-                _itemLabels.Add(label);
-                _itemKinds.Add(Item.None);
-            }
-            var tr = _itemPool[i];
+            if (!_pools.TryGetValue(kind, out var list)) { _pools[kind] = list = new List<Transform>(); _used[kind] = 0; }
+            int i = _used[kind]++;
+            if (i >= list.Count) list.Add(MakeItem(kind));
+            var tr = list[i];
             if (!tr.gameObject.activeSelf) tr.gameObject.SetActive(true);
-            if (_itemKinds[i] != kind)
-            {
-                _itemKinds[i] = kind;
-                tr.GetChild(0).GetComponent<Renderer>().sharedMaterial = Look.Mat(ItemColor(kind));
-                _itemLabels[i].text = Items.Letter(kind);
-                var ic = ItemColor(kind);
-                _itemLabels[i].color = (ic.r + ic.g + ic.b) / 3f < 0.45f ? Color.white : Color.black;
-            }
             return tr;
+        }
+
+        Transform MakeItem(Item kind)
+        {
+            var go = new GameObject("Item " + kind);
+            go.transform.SetParent(_items, false);
+            var t = go.transform;
+            var col = ItemColor(kind);
+            float top;
+            switch (kind)
+            {
+                case Item.Wood:
+                    Art.Log("Log", t, new Vector3(0f, 0.17f, 0f), 0.85f, 0.34f, col);
+                    top = 0.36f;
+                    break;
+                case Item.Ore:
+                    Art.RockAt("Ore", t, Vector3.zero, new Vector3(0.6f, 0.36f, 0.55f), col, 0.2f);
+                    Art.RockAt("Ore", t, new Vector3(0.2f, 0f, 0.18f), new Vector3(0.3f, 0.22f, 0.3f), col * 0.8f, 0.7f);
+                    top = 0.38f;
+                    break;
+                case Item.Stone:
+                    Art.RockAt("Stone", t, Vector3.zero, new Vector3(0.62f, 0.38f, 0.56f), col, 0.6f);
+                    top = 0.4f;
+                    break;
+                case Item.Charcoal:
+                    Art.RockAt("Lump", t, new Vector3(-0.12f, 0f, 0f), new Vector3(0.36f, 0.24f, 0.32f), col, 0.1f);
+                    Art.RockAt("Lump", t, new Vector3(0.15f, 0f, 0.08f), new Vector3(0.32f, 0.2f, 0.3f), col * 1.2f, 0.5f);
+                    Art.RockAt("Lump", t, new Vector3(0.02f, 0f, -0.16f), new Vector3(0.28f, 0.22f, 0.28f), col * 0.9f, 0.9f);
+                    top = 0.26f;
+                    break;
+                case Item.Iron:
+                    Art.Part("Bar", t, Art.Ingot, Vector3.zero, new Vector3(0.36f, 0.2f, 0.7f), col);
+                    top = 0.22f;
+                    break;
+                case Item.Brick:
+                    Art.Cube("Brick", t, new Vector3(-0.16f, 0.12f, 0f), new Vector3(0.28f, 0.24f, 0.58f), col);
+                    Art.Cube("Brick", t, new Vector3(0.16f, 0.12f, 0f), new Vector3(0.28f, 0.24f, 0.58f), col * 0.9f);
+                    top = 0.26f;
+                    break;
+                case Item.Gear:
+                    Art.Gear("Gear", t, new Vector3(0f, 0.07f, 0f), 0.62f, 0.14f, col, 8);
+                    top = 0.16f;
+                    break;
+                case Item.Fish:
+                    Art.Ball("Body", t, new Vector3(0f, 0.13f, 0f), new Vector3(0.28f, 0.24f, 0.62f), col);
+                    Art.Part("Tail", t, Art.Cone, new Vector3(0f, 0.13f, -0.28f), new Vector3(0.3f, 0.22f, 0.08f), col * 0.85f, new Vector3(-90f, 0f, 0f));
+                    top = 0.26f;
+                    break;
+                default:
+                    Art.Cube("Crate", t, new Vector3(0f, 0.25f, 0f), new Vector3(0.5f, 0.5f, 0.5f), col);
+                    top = 0.5f;
+                    break;
+            }
+            // Letter badge: white letter on a dark disc, same for every item.
+            Art.Cyl("Badge", t, new Vector3(0f, top, 0f), 0.46f, 0.04f, new Color(0.1f, 0.1f, 0.1f));
+            var label = Look.Label(Items.Letter(kind), t, new Vector3(0f, top + 0.05f, 0f), 0.55f, Color.white);
+            label.fontStyle = FontStyle.Bold;
+            return t;
         }
 
         // ------------------------------------------------------------------ ghost / selection

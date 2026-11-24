@@ -21,7 +21,7 @@ namespace Kilnwood.Sim
         public int Total => _steps.Count;
         public int Placed => _next;
 
-        public DemoFactory()
+        public DemoFactory(bool people = false)
         {
             const int N = 0, E = 1, S = 2, W = 3;
             const int Charcoal = 0, Brick = 1;
@@ -30,12 +30,15 @@ namespace Kilnwood.Sim
             for (int x = 16; x <= 29; x++) Add(BuildingType.Belt, x, 30, E);
 
             // Phase 1b: food and homes. A fisher on the river, its fish side-loaded onto the wood line; three cabins.
-            Add(BuildingType.Fisher, 5, 33, E);
-            for (int x = 7; x <= 19; x++) Add(BuildingType.Belt, x, 33, E);
-            for (int y = 33; y >= 31; y--) Add(BuildingType.Belt, 20, y, S);
-            Add(BuildingType.Cabin, 24, 26, N);
-            Add(BuildingType.Cabin, 26, 26, N);
-            Add(BuildingType.Cabin, 28, 26, N);
+            if (people)
+            {
+                Add(BuildingType.Fisher, 5, 33, E);
+                for (int x = 7; x <= 19; x++) Add(BuildingType.Belt, x, 33, E);
+                for (int y = 33; y >= 31; y--) Add(BuildingType.Belt, 20, y, S);
+                Add(BuildingType.Cabin, 24, 26, N);
+                Add(BuildingType.Cabin, 26, 26, N);
+                Add(BuildingType.Cabin, 28, 26, N);
+            }
 
             // Phase 2: bricks. Woodcutter fuels a stone mine and a brick kiln.
             Add(BuildingType.Woodcutter, 30, 53, S);
@@ -87,7 +90,7 @@ namespace Kilnwood.Sim
         /// <summary>Runs the demo from a fresh map until the goal or the time limit. Returns seconds taken (or -1).</summary>
         public static float RunToGoal(World w, float limitSeconds = 3600f)
         {
-            var demo = new DemoFactory();
+            var demo = new DemoFactory(w.B.PeopleEnabled);
             while (w.Time < limitSeconds)
             {
                 demo.BuildWhatYouCan(w);

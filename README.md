@@ -22,7 +22,7 @@ before art. Goal: deliver 100 gears and 120 bricks to the lodge for the first wa
 ```
 Autopilot screenshot run (builds the demo factory, plays to the Tier 2 goal, saves screenshots, quits):
 ```
-Builds\Kilnwood-0.3.1\Kilnwood.exe -kwshots C:\path\to\shots -screen-width 1920 -screen-height 1080 -screen-fullscreen 0
+Builds\Kilnwood-0.4.0\Kilnwood.exe -kwshots C:\path\to\shots -screen-width 1920 -screen-height 1080 -screen-fullscreen 0
 ```
 
 ## Controls

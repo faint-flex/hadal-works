@@ -271,6 +271,7 @@ namespace Kilnwood.Tests
         [Test]
         public void Machines_need_workers_in_build_order()
         {
+            B.PeopleEnabled = true;
             var w = Empty();                                  // lodge houses 6
             var a = w.Place(BuildingType.Smelter, 2, 2, 1, 0, free: true);   // 2
             var b = w.Place(BuildingType.Smelter, 5, 2, 1, 0, free: true);   // 2
@@ -289,6 +290,7 @@ namespace Kilnwood.Tests
         [Test]
         public void People_eat_fish_and_hunger_halves_speed()
         {
+            B.PeopleEnabled = true;
             var w = Empty();
             w.Storage[Item.Fish] = 1;
             w.Tick(B.EatSecondsPerPerson / 6f + 0.1f);       // 6 people eat 1 fish
@@ -356,6 +358,15 @@ namespace Kilnwood.Tests
             float t = DemoFactory.RunToGoal(w, 3600f);
             Assert.Greater(t, 0f, "demo never reached the goal");
             Assert.Less(t, 1500f);
+        }
+
+        [Test]
+        public void Demo_with_people_reaches_goal_without_going_hungry()
+        {
+            B.PeopleEnabled = true;
+            var w = MapGen.NewTier1(B);
+            Assert.Greater(DemoFactory.RunToGoal(w, 3600f), 0f);
+            Assert.IsFalse(w.Hungry);
         }
 
         [Test]

@@ -5,6 +5,9 @@ namespace Kilnwood.Game
     /// <summary>Factory camera: WASD / arrows / screen-edge pan, scroll zoom, Q/E rotate, middle-drag orbit.</summary>
     public class CameraRig : MonoBehaviour
     {
+        /// <summary>Sky colour at the horizon; fog uses it too so far hills fade into the sky.</summary>
+        public static readonly Color Horizon = new Color(0.7f, 0.78f, 0.86f);
+
         public Camera Cam;
         public bool InputEnabled = true;
         public bool EdgePan = true;
@@ -25,7 +28,16 @@ namespace Kilnwood.Game
             camGo.transform.SetParent(go.transform, false);
             rig.Cam = camGo.AddComponent<Camera>();
             rig.Cam.clearFlags = CameraClearFlags.SolidColor;
-            rig.Cam.backgroundColor = new Color(0.62f, 0.72f, 0.82f);
+            rig.Cam.backgroundColor = Horizon;
+            // Procedural sky (made by Setup so its shader ships in the build); plain colour if it's missing.
+            var sky = Resources.Load<Material>("KW_Sky");
+            if (sky != null)
+            {
+                RenderSettings.skybox = sky;
+                rig.Cam.clearFlags = CameraClearFlags.Skybox;
+            }
+            rig.Cam.allowMSAA = true;
+            rig.Cam.allowHDR = false;
             rig.Cam.fieldOfView = 45f;
             rig.Cam.nearClipPlane = 0.3f;
             rig.Cam.farClipPlane = 600f;

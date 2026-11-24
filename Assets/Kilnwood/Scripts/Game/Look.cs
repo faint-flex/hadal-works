@@ -111,6 +111,7 @@ namespace Kilnwood.Game
             }
             m = new Material(_base);
             m.color = c;
+            m.enableInstancing = true;   // thousands of trees and rocks share a few materials: draw them in batches
             if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
             _cache[c] = m;
             return m;
