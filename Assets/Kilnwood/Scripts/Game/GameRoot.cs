@@ -61,7 +61,8 @@ namespace Kilnwood.Game
         bool _ironGift;
         int _frames;
         float _frameTime;
-        float _worstFrame;
+        float _worstFrame, _worstAt;
+        int _worstFrameNo, _spikes;
 
         void Awake()
         {
@@ -103,6 +104,7 @@ namespace Kilnwood.Game
             go.transform.SetParent(transform, false);
             View = go.AddComponent<WorldView>();
             View.Build(w);
+            Shader.WarmupAllShaders();   // compile shader variants now, not mid-game when something first comes into view
             _state = State.Playing;
             _tool = Tool.Select;
             _selected = -1;
@@ -423,7 +425,11 @@ namespace Kilnwood.Game
         {
             _frames++;
             _frameTime += Time.unscaledDeltaTime;
-            if (_frames > 30) _worstFrame = Mathf.Max(_worstFrame, Time.unscaledDeltaTime);
+            if (_frames > 30)
+            {
+                if (Time.unscaledDeltaTime > 0.05f) _spikes++;
+                if (Time.unscaledDeltaTime > _worstFrame) { _worstFrame = Time.unscaledDeltaTime; _worstAt = W.Time; _worstFrameNo = _frames; }
+            }
             _demo.BuildWhatYouCan(W);
             _demo.PitActions(W);
             _demo.RailActions(W);
@@ -538,7 +544,7 @@ namespace Kilnwood.Game
             int dugTiles = 0; foreach (var u in W.Units) if (u < 0) dugTiles++;
             sb.AppendLine("vehicles " + W.Vehicles.Count + ", dug tiles " + dugTiles + ", ore delivered " + W.Delivered[Item.Ore]);
             sb.AppendLine("buildings " + W.Buildings.Count + ", gears " + W.Delivered[Item.Gear] + ", bricks " + W.Delivered[Item.Brick] + ", wood in lodge " + W.Storage[Item.Wood]);
-            sb.AppendLine("fps average " + (_frames / Mathf.Max(_frameTime, 1e-4f)).ToString("0") + ", worst frame " + (_worstFrame * 1000f).ToString("0.0") + " ms");
+            sb.AppendLine("fps average " + (_frames / Mathf.Max(_frameTime, 1e-4f)).ToString("0") + ", worst frame " + (_worstFrame * 1000f).ToString("0.0") + " ms (frame " + _worstFrameNo + ", game time " + _worstAt.ToString("0") + " s), frames over 50 ms: " + _spikes);
             foreach (var b in W.Buildings.Values)
                 if (b.Type != BuildingType.Belt && b.Type != BuildingType.Shaft && b.Type != BuildingType.Rail) sb.AppendLine("  " + b.Type + " at " + b.X + "," + b.Y + ": " + b.Status + " (fuel " + b.FuelCount + ", power " + b.Power.ToString("0.00") + ")");
             File.AppendAllText(Path.Combine(_shotsDir, "shots-result.txt"), sb.ToString());

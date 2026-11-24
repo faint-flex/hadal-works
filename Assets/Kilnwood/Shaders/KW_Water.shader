@@ -6,7 +6,8 @@ Shader "Kilnwood/Water"
     {
         _MainTex ("Water colour", 2D) = "white" {}
         _Color ("Tint", Color) = (0.55,0.68,0.72,1)
-        _Deep ("Looking straight down", Color) = (0.06,0.14,0.16,1)
+        _Deep ("Looking straight down", Color) = (0.11,0.23,0.26,1)
+        _SkyGlow ("Sky sheen from far away", Range(0,1)) = 0.14
         _Waves ("Ripple normal", 2D) = "bump" {}
         _WaveScale ("Ripple repeats per metre", Float) = 0.12
         _WaveStrength ("Ripple strength", Range(0,2)) = 0.55
@@ -24,7 +25,7 @@ Shader "Kilnwood/Water"
 
         sampler2D _MainTex, _Waves;
         fixed4 _Color, _Deep;
-        float _WaveScale, _WaveStrength;
+        float _WaveScale, _WaveStrength, _SkyGlow;
         float4 _Flow;
         half _Glossiness;
 
@@ -45,7 +46,9 @@ Shader "Kilnwood/Water"
             fixed3 c = tex2D(_MainTex, IN.uv_MainTex).rgb * _Color.rgb;
             // Steep views see into the water (dark); grazing views see the sky reflection more.
             half facing = saturate(dot(normalize(IN.viewDir), float3(0, 0, 1)));
-            o.Albedo = lerp(c, _Deep.rgb, facing * 0.6);
+            o.Albedo = lerp(c, _Deep.rgb, facing * 0.45);
+            // From high up the probe reflection is small; a soft sky sheen keeps the river reading as water, not ink.
+            o.Emission = unity_AmbientSky.rgb * _SkyGlow * (1.0 - 0.4 * facing);
             o.Metallic = 0;
             o.Smoothness = _Glossiness;
             o.Alpha = 1;

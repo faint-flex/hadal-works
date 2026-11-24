@@ -435,6 +435,8 @@ namespace Kilnwood.Game
             var m = new Material(src);
             m.SetTexture("_MainTex", WaterTexture);
             m.SetTexture("_Waves", Ripples);
+            if (m.HasProperty("_Deep")) m.SetColor("_Deep", new Color(0.11f, 0.23f, 0.26f));
+            if (m.HasProperty("_SkyGlow")) m.SetFloat("_SkyGlow", 0.14f);
             return m;
         }
 

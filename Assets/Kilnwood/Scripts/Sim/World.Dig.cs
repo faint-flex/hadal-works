@@ -324,6 +324,17 @@ namespace Kilnwood.Sim
             return true;
         }
 
+        /// <summary>Where a vehicle is (or will be once it arrives): the end of its path while driving.</summary>
+        int ParkedAt(Vehicle v) => v.State == VehicleState.Driving && v.Path.Count > 0 ? v.Path[v.Path.Count - 1] : TileOf(v);
+
+        /// <summary>True if another pit vehicle is standing on, or heading for, this tile.</summary>
+        bool Occupied(int tile, Vehicle self)
+        {
+            foreach (var o in Vehicles)
+                if (o != self && o.Type != VehicleType.Train && (ParkedAt(o) == tile || TileOf(o) == tile)) return true;
+            return false;
+        }
+
         // ------------------------------------------------------------------ stepping
 
         void StepVehicles(float dt)
@@ -414,7 +425,8 @@ namespace Kilnwood.Sim
                     if (target < 0) { v.Status = "Nothing marked to dig"; return; }
                     v.DigTile = target;
                     if (Near(TileOf(v), target, W) && TileOf(v) != target) { v.State = VehicleState.Digging; return; }
-                    if (!Go(v, n => n != target && Near(n, target, W), VehicleState.Digging))
+                    if (!Go(v, n => n != target && Near(n, target, W) && !Occupied(n, v), VehicleState.Digging)
+                        && !Go(v, n => n != target && Near(n, target, W), VehicleState.Digging))
                     {
                         v.DigTile = -1;
                         v.Status = "Can't reach the dig area";
@@ -427,7 +439,7 @@ namespace Kilnwood.Sim
                     if (v.DigTile >= 0) Face(v, v.DigTile);
                     // Is this still a good tile? (Layer by layer: leave it once it is deeper than the shallowest marked tile.)
                     bool tileDone = v.DigTile < 0 || !DigMark[v.DigTile] || MaterialAt(v.DigTile) == Item.None
-                                    || Layer(v.DigTile) < ShallowestMarked(v.DigTile);
+                                    || Layer(v.DigTile) < ShallowestFor(v, v.DigTile);
                     if (v.BucketCount >= B.BucketCap || (v.BucketCount > 0 && v.DigTile >= 0 && MaterialAt(v.DigTile) != v.Bucket))
                     {
                         v.Status = "Waiting for a truck";
@@ -476,6 +488,35 @@ namespace Kilnwood.Sim
 
         int DigKind(int i) => CoalSeam[i] ? 1 : Ground[i] == Terrain.IronOre ? 2 : 0;
 
+        /// <summary>Is tile i near another excavator's hole or where it stands? gap 0: only the very tile.</summary>
+        bool Taken(Vehicle v, int i, int gap)
+        {
+            foreach (var o in Vehicles)
+            {
+                if (o == v || o.Type != VehicleType.Excavator) continue;
+                // Its hole, and where it stands (a parked excavator waiting for a truck has no hole but still takes room).
+                if (o.DigTile >= 0 && Math.Abs(o.DigTile % W - i % W) <= gap && Math.Abs(o.DigTile / W - i / W) <= gap) return true;
+                int at = ParkedAt(o);
+                if (at == i || (gap > 0 && Math.Abs(at % W - i % W) <= gap + 1 && Math.Abs(at / W - i / W) <= gap + 1)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>Shallowest layer this excavator may work on for that kind of ground: same rule PickDigTile uses
+        /// (tiles clear of other excavators first), so it never picks a tile and then drops it as "too deep".</summary>
+        int ShallowestFor(Vehicle v, int like)
+        {
+            int kind = DigKind(like);
+            for (int pass = 0; pass < 2; pass++)
+            {
+                int best = int.MinValue;
+                for (int i = 0; i < DigMark.Length; i++)
+                    if (DigMark[i] && MaterialAt(i) != Item.None && DigKind(i) == kind && Layer(i) > best && (i == v.DigTile || !Taken(v, i, pass == 0 ? 2 : 0))) best = Layer(i);
+                if (best != int.MinValue) return best;
+            }
+            return int.MinValue;
+        }
+
         /// <summary>Shallowest marked tile first (layer by layer), nearest first; not one another excavator has.</summary>
         int PickDigTile(Vehicle v)
         {
@@ -499,12 +540,7 @@ namespace Kilnwood.Sim
             {
                 if (!DigMark[i] || MaterialAt(i) == Item.None) continue;
                 // Keep clear of other excavators' spots (2 tiles), so machines and their trucks don't pile up.
-                bool taken = false;
-                foreach (var o in Vehicles)
-                {
-                    int gap = pass == 0 ? 2 : 0;   // second pass: anything not already being dug
-                    if (o != v && o.Type == VehicleType.Excavator && o.DigTile >= 0 && Math.Abs(o.DigTile % W - i % W) <= gap && Math.Abs(o.DigTile / W - i / W) <= gap) { taken = true; break; }
-                }
+                bool taken = Taken(v, i, pass == 0 ? 2 : 0);
                 if (taken) continue;
                 int d = Math.Abs(i % W - me % W) + Math.Abs(i / W - me / W);
                 int layer = Layer(i) - ShallowestOf(i, shallow);
@@ -560,7 +596,9 @@ namespace Kilnwood.Sim
                     int at = TileOf(pick), dig = pick.DigTile;
                     if (Near(TileOf(v), at, W) && TileOf(v) != at && TileOf(v) != dig) { v.State = VehicleState.Loading; return; }
                     // Park beside the excavator, away from the hole it is digging (its arm swings that way).
-                    if (!Go(v, n => n != at && n != dig && Near(n, at, W) && (dig < 0 || !Near(n, dig, W)), VehicleState.Loading)
+                    if (!Go(v, n => n != at && n != dig && Near(n, at, W) && (dig < 0 || !Near(n, dig, W)) && !Occupied(n, v), VehicleState.Loading)
+                        && !Go(v, n => n != at && n != dig && Near(n, at, W) && !Occupied(n, v), VehicleState.Loading)
+                        && !Go(v, n => n != at && n != dig && Near(n, at, W) && (dig < 0 || !Near(n, dig, W)), VehicleState.Loading)
                         && !Go(v, n => n != at && n != dig && Near(n, at, W), VehicleState.Loading)) { v.Serving = 0; v.Status = "Can't reach the excavator"; v.State = VehicleState.Waiting; return; }
                     v.Status = "Driving to the excavator";
                     return;

@@ -39,8 +39,26 @@ public static class Program
         int dig = 0; foreach (var m in w.DigMark) if (m) dig++;
         Console.Write($"{w.Time,5:0} steel {w.Delivered[Item.Steel]} digMarks {dig} |");
         foreach (var bd in w.Buildings.Values) if (bd.Type == BuildingType.Furnace || (bd.Type == BuildingType.Hopper && bd.X == 39)) Console.Write($" {bd.Type}: {bd.Status} [{string.Join(",", System.Linq.Enumerable.Select(bd.Input, kv => kv.Key + "=" + kv.Value))}]");
-        foreach (var v in w.Vehicles) Console.Write($" | {v.Type} '{v.Status}' {v.Load}x{v.LoadCount}");
+        foreach (var v in w.Vehicles) Console.Write($" | {v.Type} '{v.Status}' {v.Load}x{v.LoadCount} b{v.BucketCount} d{v.DigTile} @{v.TileX},{v.TileY} tank{v.Tank:0} st{v.State}");
         Console.WriteLine();
+    }
+
+    /// <summary>Two stopped pit vehicles on the same tile, or two excavators side by side.</summary>
+    static bool Crowded(World w)
+    {
+        var vs = w.Vehicles;
+        for (int a = 0; a < vs.Count; a++)
+            for (int c = a + 1; c < vs.Count; c++)
+            {
+                var p = vs[a]; var q = vs[c];
+                if (p.Type == VehicleType.Train || q.Type == VehicleType.Train) continue;
+                if (p.State == VehicleState.Driving || q.State == VehicleState.Driving) continue;
+                if (p.State == VehicleState.Refuelling || q.State == VehicleState.Refuelling || p.State == VehicleState.Waiting || q.State == VehicleState.Waiting) continue;
+                int dx = Math.Abs(p.TileX - q.TileX), dy = Math.Abs(p.TileY - q.TileY);
+                if (dx == 0 && dy == 0) return true;
+                if (p.Type == VehicleType.Excavator && q.Type == VehicleType.Excavator && dx <= 1 && dy <= 1) return true;
+            }
+        return false;
     }
 
     static int Jitter(int seeds)
@@ -53,6 +71,7 @@ public static class Program
             var w = MapGen.NewTier1(b);
             var demo = new DemoFactory(false, true, tier2: true, tier3: true, tier4: true);
             bool gift = false, gift3 = false;
+            int samples = 0, crowded = 0; float nextCrowd = 0f;
             while (w.Time < 4800f && w.Tier < 5)
             {
                 demo.BuildWhatYouCan(w);
@@ -61,9 +80,11 @@ public static class Program
                 if (!gift && w.Time >= 200f) { w.Storage[Item.Iron] += 60; gift = true; }
                 if (!gift3 && w.Tier >= 3) { w.Storage[Item.Iron] += 80; gift3 = true; }
                 w.Tick((float)(0.02 + rng.NextDouble() * 0.5));
+                if (w.Time >= nextCrowd) { nextCrowd = w.Time + 5f; samples++; if (Crowded(w)) crowded++; }
                 if (seeds == 1 && w.Tier >= 3 && w.Time >= _trace) { _trace = w.Time + 60f; Trace(w); }
             }
             if (w.Tier < 5) fails++;
+            Console.WriteLine($"seed {seed}: pit vehicles crowded (two parked on one tile / excavators touching) in {crowded} of {samples} samples");
             Console.Write($"seed {seed}: T1 {w.GoalReachedAt:0}  T2 {w.Tier2GoalAt:0}  T3 {w.Tier3GoalAt:0}  T4 {w.Tier4GoalAt:0} rail {w.RailHauled}  steel {w.Delivered[Item.Steel]} coal {w.Delivered[Item.Coal]} ore {w.Delivered[Item.Ore]} |");
             foreach (var v in w.Vehicles) Console.Write($" {v.Type} '{v.Status}';");
             Console.WriteLine();
