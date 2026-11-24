@@ -36,6 +36,12 @@ namespace Kilnwood.Sim
         public int DropBuilding;            // hopper / lodge id to tip into (0 = dump tile)
         public int DropTile = -1;
 
+        // Train (GarageId = the station it was bought at).
+        public int TargetStation;
+        public int FromYard;                // fuel on board that came from the lodge           // station it is running to (0 = none yet)
+        public readonly Dictionary<Item, int> Cargo = new Dictionary<Item, int>();
+        public int CargoCount { get { int n = 0; foreach (var kv in Cargo) n += kv.Value; return n; } }
+
         public int TileX => (int)Math.Floor(X);
         public int TileY => (int)Math.Floor(Y);
     }
@@ -195,11 +201,12 @@ namespace Kilnwood.Sim
             int occ = _occ[i];
             if (occ < 0) return true;
             var t = Buildings[occ].Type;
-            return t == BuildingType.Belt || t == BuildingType.Splitter;
+            return t == BuildingType.Belt || t == BuildingType.Splitter || t == BuildingType.Rail;   // level crossings
         }
 
         public string CanBuy(Building garage, VehicleType t)
         {
+            if (t == VehicleType.Train) return CanBuyTrain(garage);
             if (garage == null || garage.Type != BuildingType.Garage) return "Click a garage";
             foreach (var c in B.VehicleCost(t))
                 if (Storage[c.item] < c.count)
@@ -213,6 +220,7 @@ namespace Kilnwood.Sim
             Buildings.TryGetValue(garageId, out var g);
             if (!free && CanBuy(g, t) != null) return null;
             if (g == null) return null;
+            if (t == VehicleType.Train) return BuyTrain(g, free);
             int tile = SpawnTile(g);
             if (tile < 0) return null;
             if (!free) foreach (var c in B.VehicleCost(t)) Storage[c.item] -= c.count;
@@ -322,6 +330,7 @@ namespace Kilnwood.Sim
             foreach (var v in Vehicles)
             {
                 if (v.Type == VehicleType.Excavator) StepExcavator(v, dt);
+                else if (v.Type == VehicleType.Train) StepTrain(v, dt);
                 else StepTruck(v, dt);
             }
         }

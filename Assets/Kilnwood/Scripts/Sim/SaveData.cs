@@ -19,6 +19,7 @@ namespace Kilnwood.Sim
         public List<int> Units = new List<int>();          // ground dug / filled per tile
         public List<int> Marks = new List<int>();          // 1 dig, 2 dump, per tile
         public List<SavedVehicle> Vehicles = new List<SavedVehicle>();
+        public int RailHauled;
 
         [Serializable]
         public class SavedVehicle
@@ -35,7 +36,7 @@ namespace Kilnwood.Sim
 
         public static SaveData From(World w)
         {
-            var s = new SaveData { Time = w.Time };
+            var s = new SaveData { Time = w.Time, RailHauled = w.RailHauled };
             foreach (var b in w.Buildings.Values)
             {
                 if (b.Type == BuildingType.Lodge) continue;
@@ -70,13 +71,14 @@ namespace Kilnwood.Sim
             foreach (var sv in Vehicles)
             {
                 var g = w.At(sv.GarageX, sv.GarageY);
-                if (g != null && g.Type == BuildingType.Garage) w.RestoreVehicle((VehicleType)sv.Type, g.Id, sv.X, sv.Y, sv.Tank);
+                if (g != null && (g.Type == BuildingType.Garage || g.Type == BuildingType.Station)) w.RestoreVehicle((VehicleType)sv.Type, g.Id, sv.X, sv.Y, sv.Tank);
             }
             var items = (Item[])Enum.GetValues(typeof(Item));
             for (int i = 0; i < items.Length && i < StorageCounts.Count; i++) w.Storage[items[i]] = StorageCounts[i];
             for (int i = 0; i < items.Length && i < DeliveredCounts.Count; i++) w.Delivered[items[i]] = DeliveredCounts[i];
             if (Logs.Count == w.Logs.Length) w.RestoreLogs(Logs);
             w.RestoreTime(Time);
+            w.RestoreRailHauled(RailHauled);
             w.UpdateTier();
             return w;
         }

@@ -28,10 +28,14 @@ namespace Kilnwood.Sim
 
         readonly bool _tier3;
 
-        public DemoFactory(bool people = false, bool pit = false, bool tier2 = false, bool tier3 = false)
+        readonly bool _tier4;
+        public const int FieldStationX = 54, FieldStationY = 7, YardStationX = 35, YardStationY = 26;
+
+        public DemoFactory(bool people = false, bool pit = false, bool tier2 = false, bool tier3 = false, bool tier4 = false)
         {
             _pit = pit;
             _tier3 = tier3;
+            _tier4 = tier4;
             const int N = 0, E = 1, S = 2, W = 3;
             const int Charcoal = 0, Brick = 1;
             // Phase 1: wood into the lodge (pays for everything else).
@@ -120,6 +124,31 @@ namespace Kilnwood.Sim
                 Add(BuildingType.Furnace, 39, 29, W);
                 for (int x = 38; x >= 34; x--) Add(BuildingType.Belt, x, 30, W);
             }
+
+            // Phase 8 (0.8 Tier 4 "Rails"): three mines on the far north-east ore field tip straight into a station;
+            // a railway runs west along y = 14 and south down x = 35 to a yard station beside the lodge. Trains bring
+            // the ore home and take coal out for the mines.
+            if (tier4)
+            {
+                Add(BuildingType.Station, FieldStationX, FieldStationY, N);
+                Add(BuildingType.Mine, 52, 7, E);
+                Add(BuildingType.Mine, 56, 7, W);
+                Add(BuildingType.Mine, 54, 5, N);
+                for (int y = 9; y <= 14; y++) Add(BuildingType.Rail, 55, y, N);
+                for (int x = 54; x >= 35; x--) Add(BuildingType.Rail, x, 14, W);
+                for (int y = 15; y <= 25; y++) Add(BuildingType.Rail, 35, y, S);
+                Add(BuildingType.Station, YardStationX, YardStationY, N);
+            }
+        }
+
+        /// <summary>Rails phase: buy trains at the yard once the line is finished.</summary>
+        public void RailActions(World w)
+        {
+            if (!_tier4 || !Done) return;
+            var yard = w.At(YardStationX, YardStationY);
+            if (yard == null || yard.Type != BuildingType.Station) return;
+            int want = w.Storage[Item.Steel] >= 40 ? 2 : 1;
+            if (w.CountTrains() < want) w.Buy(yard.Id, VehicleType.Train);
         }
 
         /// <summary>Screenshot run: once the garage stands, buy vehicles as iron allows and mark the pit.</summary>

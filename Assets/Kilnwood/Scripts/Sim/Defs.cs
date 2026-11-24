@@ -6,9 +6,9 @@ namespace Kilnwood.Sim
 
     public enum Item { None, Wood, Ore, Stone, Charcoal, Iron, Brick, Gear, Fish, Dirt, Plank, Plate, Coal, Steel }
 
-    public enum BuildingType { Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Lodge, Fisher, Cabin, Splitter, Garage, Hopper, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace }
+    public enum BuildingType { Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Lodge, Fisher, Cabin, Splitter, Garage, Hopper, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station }
 
-    public enum VehicleType { Excavator, Truck }
+    public enum VehicleType { Excavator, Truck, Train }
 
     /// <summary>0 = north (+y), 1 = east (+x), 2 = south (-y), 3 = west (-x).</summary>
     public static class Dir
@@ -176,7 +176,17 @@ namespace Kilnwood.Sim
         public int GoalSteel = 100;
         public int GoalCoal = 100;
 
-        public (Item item, int count)[] VehicleCost(VehicleType t) => t == VehicleType.Excavator ? ExcavatorCost : TruckCost;
+        // 0.8 Tier 4 "Rails".
+        public int StationCap = 60;              // items waiting to be loaded, and items unloaded waiting to go out
+        public int TrainCap = 24;                // a locomotive and two wagons
+        public float TrainSpeed = 5f;            // tiles per second on the rails
+        public float TrainStopSeconds = 3f;      // loading / unloading at a station
+        public int TrainFuelLoad = 12;           // fuel a train takes from the lodge for the far station's machines
+        public int YardRange = 6;                // a station this close to the lodge unloads straight into it
+        public int GoalRail = 400;               // items hauled to the lodge by train
+        public (Item item, int count)[] TrainCost = { (Item.Steel, 20), (Item.Plate, 10), (Item.Gear, 8) };
+
+        public (Item item, int count)[] VehicleCost(VehicleType t) => t == VehicleType.Excavator ? ExcavatorCost : t == VehicleType.Train ? TrainCost : TruckCost;
 
         public readonly Dictionary<BuildingType, BuildingDef> Defs = new Dictionary<BuildingType, BuildingDef>();
 
@@ -255,6 +265,8 @@ namespace Kilnwood.Sim
                 Cost = new[] { (Item.Brick, 20), (Item.Plate, 10) },
                 Recipes = new[] { new Recipe { Name = "Steel", InItems = new[] { Item.Ore, Item.Coal }, InCounts = new[] { 2, 1 }, Out = Item.Steel, Seconds = 4f } },
             });
+            Add(new BuildingDef { Type = BuildingType.Rail, Name = "Rail", Size = 1, Key = '1', Tier = 4, Cost = new[] { (Item.Steel, 1), (Item.Wood, 1) } });
+            Add(new BuildingDef { Type = BuildingType.Station, Name = "Station", Size = 2, Key = '2', Tier = 4, Cost = new[] { (Item.Plank, 12), (Item.Brick, 10), (Item.Steel, 6) } });
             Add(new BuildingDef { Type = BuildingType.Hopper, Name = "Hopper", Size = 2, Cost = new[] { (Item.Wood, 10), (Item.Stone, 6) }, Key = '8' });
         }
 

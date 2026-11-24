@@ -18,6 +18,7 @@ namespace Kilnwood.Sim
 
         // Machine state
         public readonly Dictionary<Item, int> Input = new Dictionary<Item, int>();
+        public readonly Dictionary<Item, int> Output = new Dictionary<Item, int>();   // stations: unloaded goods waiting to go out
         public Item OutItem;
         public int OutCount;
         public float Work;        // seconds of progress on the current craft
@@ -76,6 +77,7 @@ namespace Kilnwood.Sim
         public int Tier { get; private set; } = 1;
         public float Tier2GoalAt { get; private set; } = -1f;
         public float Tier3GoalAt { get; private set; } = -1f;
+        public float Tier4GoalAt { get; private set; } = -1f;
 
         public World(Balance b)
         {
@@ -183,13 +185,13 @@ namespace Kilnwood.Sim
                     {
                         // Overhead: fine above a belt or splitter, not through a machine or another shaft.
                         if (_shaftOcc[oi] >= 0) return "A line shaft is already there";
-                        if (_occ[oi] >= 0 && Buildings[_occ[oi]].Type != BuildingType.Belt && Buildings[_occ[oi]].Type != BuildingType.Splitter)
+                        if (_occ[oi] >= 0 && Buildings[_occ[oi]].Type != BuildingType.Belt && Buildings[_occ[oi]].Type != BuildingType.Splitter && Buildings[_occ[oi]].Type != BuildingType.Rail)
                             return "Something is already there";
                     }
                     else
                     {
                         if (_occ[oi] >= 0) return "Something is already there";
-                        if (_shaftOcc[oi] >= 0 && type != BuildingType.Belt && type != BuildingType.Splitter) return "A line shaft is in the way";
+                        if (_shaftOcc[oi] >= 0 && type != BuildingType.Belt && type != BuildingType.Splitter && type != BuildingType.Rail) return "A line shaft is in the way";
                     }
                 }
             for (int dy = 0; dy < s; dy++)
@@ -377,6 +379,11 @@ namespace Kilnwood.Sim
                 Tier = 4;
                 Tier3GoalAt = Time;
             }
+            if (Tier == 4 && RailHauled >= B.GoalRail)
+            {
+                Tier = 5;
+                Tier4GoalAt = Time;
+            }
         }
 
         /// <summary>Homes, who works where (in build order), and eating fish from the lodge.</summary>
@@ -505,6 +512,12 @@ namespace Kilnwood.Sim
                     Storage[item]++;
                     Delivered[item]++;
                     return true;
+                case BuildingType.Station:
+                    if (StationStored(m.Input) >= B.StationCap) return false;
+                    m.Input.TryGetValue(item, out int waiting);
+                    m.Input[item] = waiting + 1;
+                    return true;
+                case BuildingType.Rail:
                 case BuildingType.Belt:
                 case BuildingType.Hopper:   // only trucks fill hoppers
                 case BuildingType.Shaft:
@@ -579,6 +592,8 @@ namespace Kilnwood.Sim
                     return;
                 }
                 case BuildingType.Hopper: StepHopper(m, dt); break;
+                case BuildingType.Rail: m.Status = ""; return;
+                case BuildingType.Station: StepStation(m, dt); return;
             }
             PushOutput(m);
         }

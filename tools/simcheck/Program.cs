@@ -51,26 +51,27 @@ public static class Program
             var rng = new Random(seed);
             var b = new Balance();
             var w = MapGen.NewTier1(b);
-            var demo = new DemoFactory(false, true, tier2: true, tier3: true);
+            var demo = new DemoFactory(false, true, tier2: true, tier3: true, tier4: true);
             bool gift = false, gift3 = false;
-            while (w.Time < 3600f && w.Tier < 4)
+            while (w.Time < 4800f && w.Tier < 5)
             {
                 demo.BuildWhatYouCan(w);
                 demo.PitActions(w);
+                demo.RailActions(w);
                 if (!gift && w.Time >= 200f) { w.Storage[Item.Iron] += 60; gift = true; }
                 if (!gift3 && w.Tier >= 3) { w.Storage[Item.Iron] += 40; gift3 = true; }
                 w.Tick((float)(0.02 + rng.NextDouble() * 0.5));
                 if (seeds == 1 && w.Tier >= 3 && w.Time >= _trace) { _trace = w.Time + 60f; Trace(w); }
             }
-            if (w.Tier < 4) fails++;
-            Console.Write($"seed {seed}: T1 {w.GoalReachedAt:0}  T2 {w.Tier2GoalAt:0}  T3 {w.Tier3GoalAt:0}  steel {w.Delivered[Item.Steel]} coal {w.Delivered[Item.Coal]} ore {w.Delivered[Item.Ore]} |");
+            if (w.Tier < 5) fails++;
+            Console.Write($"seed {seed}: T1 {w.GoalReachedAt:0}  T2 {w.Tier2GoalAt:0}  T3 {w.Tier3GoalAt:0}  T4 {w.Tier4GoalAt:0} rail {w.RailHauled}  steel {w.Delivered[Item.Steel]} coal {w.Delivered[Item.Coal]} ore {w.Delivered[Item.Ore]} |");
             foreach (var v in w.Vehicles) Console.Write($" {v.Type} '{v.Status}';");
             Console.WriteLine();
             foreach (var bd in w.Buildings.Values)
                 if (w.Tier < 4 && (bd.Type == BuildingType.Furnace || bd.Type == BuildingType.Hopper || bd.Type == BuildingType.Smelter || bd.Type == BuildingType.TripHammer))
                     Console.WriteLine($"    {bd.Type} {bd.X},{bd.Y} f{bd.Facing}: {bd.Status}  in [{string.Join(",", System.Linq.Enumerable.Select(bd.Input, kv => kv.Key + "=" + kv.Value))}]" + (bd.Type == BuildingType.Hopper ? $" wantsOre {w.HopperWants(bd, Item.Ore)} wantsCoal {w.HopperWants(bd, Item.Coal)}" : ""));
         }
-        Console.WriteLine(fails == 0 ? "all seeds reached Tier 4" : fails + " seeds did NOT reach Tier 4");
+        Console.WriteLine(fails == 0 ? "all seeds reached Tier 5" : fails + " seeds did NOT reach Tier 5");
         return fails == 0 ? 0 : 1;
     }
 
@@ -79,14 +80,15 @@ public static class Program
     {
         var b = new Balance();
         var w = MapGen.NewTier1(b);
-        var demo = new DemoFactory(false, true, tier2: true, tier3: true);
+        var demo = new DemoFactory(false, true, tier2: true, tier3: true, tier4: true);
         bool gift3 = false;
         bool gift = false;
         float next = 0f;
-        while (w.Time < 3600f && w.Tier < 4)
+        while (w.Time < 4800f && w.Tier < 5)
         {
             demo.BuildWhatYouCan(w);
             demo.PitActions(w);
+            demo.RailActions(w);
             if (!gift && w.Time >= 300f) { w.Storage[Item.Iron] += 60; gift = true; }
             if (!gift3 && w.Tier >= 3) { w.Storage[Item.Iron] += 40; gift3 = true; }
             w.Tick(1f);
@@ -102,6 +104,7 @@ public static class Program
         Console.WriteLine(w.GoalReached ? $"Goal at {w.GoalReachedAt:0}s" : "no goal");
         Console.WriteLine(w.Tier >= 3 ? $"Tier 2 goal at {w.Tier2GoalAt:0}s" : "no tier 2 goal");
         Console.WriteLine(w.Tier >= 4 ? $"Tier 3 goal at {w.Tier3GoalAt:0}s" : "no tier 3 goal");
+        Console.WriteLine(w.Tier >= 5 ? $"Tier 4 goal at {w.Tier4GoalAt:0}s" : $"no tier 4 goal (hauled {w.RailHauled})");
         foreach (var bd in w.Buildings.Values)
             if (bd.Type == BuildingType.Waterwheel || bd.Type == BuildingType.Sawmill || bd.Type == BuildingType.TripHammer || bd.Type == BuildingType.SteamEngine || bd.Type == BuildingType.Furnace || bd.Type == BuildingType.Hopper)
                 Console.WriteLine($"  {bd.Type} at {bd.X},{bd.Y}: {bd.Status} power {bd.Power:0.00}");
