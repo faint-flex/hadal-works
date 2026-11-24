@@ -359,7 +359,7 @@ namespace Kilnwood.Game
                 if (_shotIndex == 1) Rig.Frame(lodge + new Vector3(-36f, 0f, -6f), 20f, 42f, 50f);      // river fisher, cabins, west woodcutter line
                 else if (_shotIndex == 2) Rig.Frame(lodge + new Vector3(-1f, 0f, 32f), 160f, 38f, 32f);  // brick chain
                 else if (_shotIndex == 3) Rig.Frame(lodge + new Vector3(24f, 0f, 2f), 290f, 32f, 34f);   // iron + gear chain
-                else if (_shotIndex == 4) Rig.Frame(lodge + new Vector3(-1f, 0f, 30f), 200f, 12f, 26f);  // low angle: kilns, smoke, sky
+                else if (_shotIndex == 4) Rig.Frame(lodge + new Vector3(0f, 0f, 24f), 0f, 18f, 48f);  // low angle: kilns, smoke, sky
                 else Rig.Frame(lodge + new Vector3(0f, 0f, 8f), 0f, 55f, 80f);
                 StartCoroutine(ShotNextFrame((_shotIndex + 1).ToString("00") + "-t" + Mathf.RoundToInt(W.Time) + "s"));
                 _shotIndex++;

@@ -139,6 +139,19 @@ namespace Kilnwood.Game
                 if (x0 >= 0) rows.Add((y * T + T / 2f, x0 * T - 0.25f, x1 * T + T + 0.25f));
             }
             if (rows.Count == 0) return;
+            // Soften the wobble: average each row's banks with two rows either side.
+            var smooth = new List<(float z, float l, float r)>();
+            for (int i = 0; i < rows.Count; i++)
+            {
+                float l = 0f, rr = 0f; int n = 0;
+                for (int d = -2; d <= 2; d++)
+                {
+                    int q = Mathf.Clamp(i + d, 0, rows.Count - 1);
+                    l += rows[q].l; rr += rows[q].r; n++;
+                }
+                smooth.Add((rows[i].z, l / n, rr / n));
+            }
+            rows = smooth;
             var first = rows[0];
             var last = rows[rows.Count - 1];
             Strip(-size * 1.2f, first.l, first.r, first.z, first.l, first.r);   // out of the valley to the south
@@ -253,7 +266,7 @@ namespace Kilnwood.Game
             int logs = _w.Logs[key];
             bool showTree = !clear && logs > 0;
             if (tree.gameObject.activeSelf != showTree) tree.gameObject.SetActive(showTree);
-            if (showTree) tree.localScale = Vector3.one * ((0.3f + 0.7f * logs / _w.B.LogsPerTile) * (NextToMachine(x, y) ? 0.6f : 1f));
+            if (showTree) tree.localScale = Vector3.one * ((0.3f + 0.7f * logs / _w.B.LogsPerTile) * (NextToMachine(x, y) ? 0.42f : 1f));
             bool showStump = !clear && logs == 0;
             if (stump.activeSelf != showStump) stump.SetActive(showStump);
         }
@@ -662,6 +675,7 @@ namespace Kilnwood.Game
 
         readonly List<(BView v, Rect r, float pxPerUp, int prio)> _lab = new List<(BView, Rect, float, int)>();
         readonly List<Rect> _placed = new List<Rect>();
+        static readonly System.Text.RegularExpressions.Regex RichTags = new System.Text.RegularExpressions.Regex("<[^>]+>");
 
         /// <summary>Raises labels that would cover each other on screen, so every machine name stays readable.
         /// Problems and the lodge keep their place first; nearer labels win over far ones.</summary>
@@ -672,23 +686,26 @@ namespace Kilnwood.Game
             {
                 if (v.Title == null || v.Post == null) continue;
                 SetLabelHeight(v, v.BaseTop);
-                var rend = v.Title.GetComponent<Renderer>();
-                if (rend == null || string.IsNullOrEmpty(v.Title.text)) continue;
-                var bnd = rend.bounds;
-                var a = cam.WorldToScreenPoint(v.Title.transform.position);
+                if (string.IsNullOrEmpty(v.Shown)) continue;
+                var pos = v.Title.transform.position;
+                var a = cam.WorldToScreenPoint(pos);
                 if (a.z <= 0f) continue;
-                var up = cam.WorldToScreenPoint(v.Title.transform.position + Vector3.up);
+                var up = cam.WorldToScreenPoint(pos + Vector3.up);
                 float pxPerUp = Mathf.Max(1f, up.y - a.y);
-                float xMin = float.MaxValue, xMax = float.MinValue, yMin = float.MaxValue, yMax = float.MinValue;
-                for (int i = 0; i < 8; i++)
+                // Size from the text itself (renderer bounds lag a frame behind moves): pixels per metre
+                // facing the camera, times line height and character count.
+                float pxPerM = Screen.height / (2f * a.z * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad));
+                float k = v.Title.transform.localScale.y;
+                float lineM = v.Title.characterSize * v.Title.fontSize * 0.1f * k;
+                var lines = RichTags.Replace(v.Shown, "").Split('\n');
+                float w = 0f, h = 0f;
+                for (int li = 0; li < lines.Length; li++)
                 {
-                    var c = new Vector3((i & 1) == 0 ? bnd.min.x : bnd.max.x, (i & 2) == 0 ? bnd.min.y : bnd.max.y, (i & 4) == 0 ? bnd.min.z : bnd.max.z);
-                    var sp = cam.WorldToScreenPoint(c);
-                    xMin = Mathf.Min(xMin, sp.x); xMax = Mathf.Max(xMax, sp.x); yMin = Mathf.Min(yMin, sp.y); yMax = Mathf.Max(yMax, sp.y);
+                    float sz = li == 0 ? 1f : 0.875f;
+                    w = Mathf.Max(w, lines[li].Length * 0.55f * lineM * sz * pxPerM);
+                    h += lineM * sz * pxPerM;
                 }
-                // Bounds of a camera-facing label overstate its size a little; trim so labels can sit close.
-                float w = (xMax - xMin) * 0.9f, h = (yMax - yMin) * 0.85f;
-                var r = new Rect((xMin + xMax - w) / 2f, (yMin + yMax - h) / 2f, w, h);
+                var r = new Rect(a.x - w / 2f, a.y, w, h);
                 int prio = v.Shown != null && v.Shown.Contains("! ") ? 0 : 1;
                 _lab.Add((v, r, pxPerUp, prio));
             }
@@ -762,6 +779,20 @@ namespace Kilnwood.Game
             return tr;
         }
 
+        static Material _itemTextMat;
+
+        /// <summary>Font material that hides behind trees and buildings (the default text draws on top of everything).</summary>
+        static Material ItemTextMat
+        {
+            get
+            {
+                if (_itemTextMat != null) return _itemTextMat;
+                _itemTextMat = new Material(Look.Font.material);
+                _itemTextMat.SetInt("unity_GUIZTestMode", (int)UnityEngine.Rendering.CompareFunction.LessEqual);
+                return _itemTextMat;
+            }
+        }
+
         Transform MakeItem(Item kind)
         {
             var go = new GameObject("Item " + kind);
@@ -817,6 +848,7 @@ namespace Kilnwood.Game
             Art.Cyl("Badge", t, new Vector3(0f, top, 0f), 0.46f, 0.04f, new Color(0.1f, 0.1f, 0.1f));
             var label = Look.Label(Items.Letter(kind), t, new Vector3(0f, top + 0.05f, 0f), 0.55f, Color.white);
             label.fontStyle = FontStyle.Bold;
+            label.GetComponent<MeshRenderer>().sharedMaterial = ItemTextMat;
             return t;
         }
 
