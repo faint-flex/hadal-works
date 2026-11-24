@@ -266,7 +266,7 @@ namespace Kilnwood.Game
             Art.Cube("Cab window", r, new Vector3(0f, 1.75f, -0.57f), new Vector3(0.9f, 0.4f, 0.03f), Glass);
             Art.Cube("Buffer beam", r, new Vector3(0f, 0.6f, 1.55f), new Vector3(1.35f, 0.3f, 0.12f), LocoRed);
             Art.Cube("Lamp", r, new Vector3(0f, 0.95f, 1.6f), new Vector3(0.22f, 0.22f, 0.12f), new Color(1f, 0.9f, 0.6f));
-            tv.Smoke = Art.Smoke(r, new Vector3(0f, 2.5f, 1.15f), 1.1f);
+            tv.Smoke = Art.Smoke(r, new Vector3(0f, 2.5f, 1.15f), 1.6f);
             foreach (float z in new[] { 0.9f, 0f, -0.9f }) AddWheelPair(r, z, 0.8f, wheels);
             // Two open wagons with a heap of cargo and a letter badge.
             tv.Wagons = new Transform[2];

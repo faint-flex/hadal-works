@@ -480,7 +480,9 @@ namespace Kilnwood.Game
             }
             if (W.Tier >= 3 && W.Tier2GoalAt > 0f && !_tier2Shot) { _tier2Shot = true; StartCoroutine(TierShot("19-tier2-goal-t" + Mathf.RoundToInt(W.Time) + "s")); }
             if (W.Tier >= 4 && _railAt <= 0f) _railAt = W.Time + 150f;
-            if (_railAt > 0f && _railShot < 3 && W.Time >= _railAt)
+            bool trainOut = false;
+            foreach (var tv in W.Vehicles) if (tv.Type == VehicleType.Train && tv.State == VehicleState.Driving && tv.PathStep > 4 && tv.PathStep < tv.Path.Count - 4) trainOut = true;
+            if (_railAt > 0f && _railShot < 3 && W.Time >= _railAt && (_railShot != 1 || trainOut || W.Time >= _railAt + 60f))
             {
                 // Tier 4 shots: the far station and its mines, a train on the line, the lodge yard.
                 string[] names = { "field-station", "train", "yard" };
@@ -498,6 +500,8 @@ namespace Kilnwood.Game
 
         Vector3 TrainFocus()
         {
+            // A train out on the line if there is one, else any train.
+            foreach (var v in W.Vehicles) if (v.Type == VehicleType.Train && v.State == VehicleState.Driving && v.PathStep > 4 && v.PathStep < v.Path.Count - 4) return new Vector3(v.X * WorldView.T, 0f, v.Y * WorldView.T);
             foreach (var v in W.Vehicles) if (v.Type == VehicleType.Train) return new Vector3(v.X * WorldView.T, 0f, v.Y * WorldView.T);
             return WorldView.FootCenter(45, 14, 1);
         }
