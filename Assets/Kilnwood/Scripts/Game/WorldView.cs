@@ -761,10 +761,23 @@ namespace Kilnwood.Game
                 {
                     float sz = li == 0 ? 1f : 0.875f;
                     w = Mathf.Max(w, lines[li].Length * 0.7f * lineM * sz * pxPerM);
-                    h += lineM * sz * pxPerM;
+                    h += 1.2f * lineM * sz * pxPerM;
                 }
                 w += 12f; h += 6f;
                 var r = v.Title.anchor == TextAnchor.UpperCenter ? new Rect(a.x - w / 2f, a.y - h, w, h) : new Rect(a.x - w / 2f, a.y, w, h);
+                // The text mesh's own size (local bounds don't depend on where the label is this frame). The label
+                // faces the camera, so local x/y are screen right/up. Use whichever box is bigger.
+                var tr = v.Title.GetComponent<MeshRenderer>();
+                if (tr != null)
+                {
+                    var lb = tr.localBounds;
+                    if (lb.size.x > 0f)
+                    {
+                        float s2 = k * pxPerM;
+                        var rb = Rect.MinMaxRect(a.x + lb.min.x * s2 - 6f, a.y + lb.min.y * s2 - 3f, a.x + lb.max.x * s2 + 6f, a.y + lb.max.y * s2 + 3f);
+                        r = Rect.MinMaxRect(Mathf.Min(r.xMin, rb.xMin), Mathf.Min(r.yMin, rb.yMin), Mathf.Max(r.xMax, rb.xMax), Mathf.Max(r.yMax, rb.yMax));
+                    }
+                }
                 // The lodge label doesn't move; it just keeps others off it.
                 if (v.Post == null) { _placed.Add(r); continue; }
                 int prio = v.Shown.Contains("! ") ? 0 : 1;
@@ -789,13 +802,21 @@ namespace Kilnwood.Game
                 }
                 // Can't find a clear spot nearby, or it would sit under the top bar: hide it (click the building
                 // to see its details). Warnings always stay.
-                if (prio != 0 && (!clear || shift > maxShift || r.yMax > hudTop))
+                bool offScreen = r.xMin < 2f || r.xMax > Screen.width - 2f || r.yMax > hudTop;
+                if (prio != 0 && (!clear || shift > maxShift || offScreen))
                 {
                     ShowLabel(v, false);
                     continue;
                 }
+                // Warnings stay, nudged back onto the screen and below the top bar.
+                float side = 0f;
+                if (r.xMin < 2f) side = 2f - r.xMin;
+                else if (r.xMax > Screen.width - 2f) side = Screen.width - 2f - r.xMax;
+                float down = r.yMax > hudTop ? hudTop - r.yMax : 0f;
+                r.x += side; r.y += down; shift += down;
                 // Lift along the camera's up so a top-down view separates labels as well as a low one.
-                if (shift > 0.01f) SetLabelOffset(v, cam.transform.up * (shift / pxPerM));
+                if (Mathf.Abs(shift) > 0.01f || Mathf.Abs(side) > 0.01f)
+                    SetLabelOffset(v, (cam.transform.up * shift + cam.transform.right * side) / pxPerM);
                 _placed.Add(r);
             }
         }

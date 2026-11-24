@@ -70,7 +70,7 @@ namespace Kilnwood.Game
 
             var args = System.Environment.GetCommandLineArgs();
             for (int i = 0; i < args.Length - 1; i++)
-                if (args[i] == "-kwshots") _shotsDir = args[i + 1];
+                if (args[i] == "-kwshots") _shotsDir = Path.GetFullPath(args[i + 1]);   // screenshots resolve relative paths elsewhere
 
             if (_shotsDir != null)
             {
