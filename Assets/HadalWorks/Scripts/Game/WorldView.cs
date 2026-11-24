@@ -25,6 +25,7 @@ namespace HadalWorks.Game
         }
 
         readonly Dictionary<int, BView> _views = new Dictionary<int, BView>();
+        readonly List<(int x, int y, GameObject go)> _ventLabels = new List<(int x, int y, GameObject go)>();
         readonly List<Transform> _itemPool = new List<Transform>();
         readonly List<TextMesh> _itemLabels = new List<TextMesh>();
         readonly List<Item> _itemKinds = new List<Item>();
@@ -119,7 +120,7 @@ namespace HadalWorks.Game
                     Look.Box("Vent", root, c + new Vector3(0f, 0.5f, 0f), new Vector3(1.6f, 1f, 1.6f), Look.Vent);
                     Look.Box("VentGlow", root, c + new Vector3(0f, 1.02f, 0f), new Vector3(0.7f, 0.05f, 0.7f), Look.VentGlow);
                     PointLight(root, c + new Vector3(0f, 2.5f, 0f), Look.VentGlow, 2.5f, 12f);
-                    Look.Billboard("VENT\n<size=44>build power here</size>", root, c + new Vector3(0f, 1.6f, 0f), 1.1f, Color.white);
+                    _ventLabels.Add((x, y, Look.Billboard("VENT\n<size=44>build power here</size>", root, c + new Vector3(0f, 1.6f, 0f), 1.1f, Color.white).gameObject));
                     break;
             }
         }
@@ -142,7 +143,7 @@ namespace HadalWorks.Game
             RenderSettings.fogDensity = 0.0065f;
 
             var hub = FootCenter(MapGen.HubX, MapGen.HubY, 4);
-            PointLight(root, hub + new Vector3(0f, 10f, 0f), new Color(0.9f, 0.95f, 1f), 2.5f, 40f);
+            PointLight(root, hub + new Vector3(0f, 10f, 0f), new Color(0.9f, 0.95f, 1f), 1.4f, 40f);
         }
 
         static void PointLight(Transform root, Vector3 pos, Color c, float intensity, float range)
@@ -194,7 +195,7 @@ namespace HadalWorks.Game
                     break;
                 case BuildingType.Hub:
                     Look.Box("Dome", v.Body, new Vector3(0f, 1.6f, 0f), new Vector3(s - 0.6f, 3.2f, s - 0.6f), Look.Hub);
-                    Look.Box("Top", v.Body, new Vector3(0f, 3.8f, 0f), new Vector3(s * 0.55f, 1.2f, s * 0.55f), new Color(0.6f, 0.75f, 0.9f));
+                    Look.Box("Top", v.Body, new Vector3(0f, 3.8f, 0f), new Vector3(s * 0.55f, 1.2f, s * 0.55f), new Color(0.32f, 0.42f, 0.52f));
                     Look.Box("Mast", v.Body, new Vector3(0f, 6f, 0f), new Vector3(0.3f, 3.5f, 0.3f), Look.MachineDark);
                     break;
             }
@@ -202,7 +203,13 @@ namespace HadalWorks.Game
             {
                 // One upright label per machine: name on top, status underneath (only when it is not just "Working").
                 float top = b.Type == BuildingType.Hub ? 8.2f : b.Type == BuildingType.Fabricator ? 3.8f : b.Type == BuildingType.Extractor ? 3.8f : b.Type == BuildingType.VentTap ? 3.2f : 3.4f;
-                v.Title = Look.Billboard("", v.Root.transform, new Vector3(0f, top, 0f), b.Type == BuildingType.Hub ? 2.4f : 1.0f, Color.white);
+                if (b.Type == BuildingType.Hub)
+                {
+                    // Hub name sits in front of the dome (south side), clear of the mast and the fabricators behind it.
+                    v.Title = Look.Billboard("", v.Root.transform, new Vector3(0f, 0.5f, -s / 2f - 0.6f), 2.0f, Color.white);
+                    v.Title.anchor = TextAnchor.UpperCenter;
+                }
+                else v.Title = Look.Billboard("", v.Root.transform, new Vector3(0f, top, 0f), 1.0f, Color.white);
             }
             return v;
         }
@@ -242,13 +249,21 @@ namespace HadalWorks.Game
                 if (v.Facing != b.Facing) { v.Body.localRotation = FacingRot(b.Facing); v.Facing = b.Facing; }
                 if (v.Title != null)
                 {
-                    string status = b.Type == BuildingType.Hub || string.IsNullOrEmpty(b.Status) || b.Status == "Working" ? "" : b.Status;
-                    string text = TitleFor(b) + (status.Length > 0 ? "\n<size=48><color=#BFD8FF>" + status + "</color></size>" : "");
+                    string status = b.Type == BuildingType.Hub || string.IsNullOrEmpty(b.Status) ? "" : b.Status;
+                    string text = TitleFor(b) + (status.Length > 0 ? "\n<size=60><color=#BFD8FF>" + status + "</color></size>" : "");
                     if (v.Shown != text) { v.Title.text = text; v.Shown = text; v.Recipe = b.Recipe; }
                 }
             }
 
             UpdateItems();
+
+            // A tapped vent shows the tap's own label, so hide the "VENT" sign under it.
+            foreach (var vl in _ventLabels)
+            {
+                var on = _w.At(vl.x, vl.y);
+                bool show = on == null || on.Type != BuildingType.VentTap;
+                if (vl.go.activeSelf != show) vl.go.SetActive(show);
+            }
 
             var cam = Camera.main;
             if (cam != null) { Look.TurnFlatLabels(cam.transform.eulerAngles.y); Look.TurnBillboards(cam.transform.rotation); }
