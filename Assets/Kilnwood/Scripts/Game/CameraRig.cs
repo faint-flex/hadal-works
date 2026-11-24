@@ -37,7 +37,8 @@ namespace Kilnwood.Game
                 rig.Cam.clearFlags = CameraClearFlags.Skybox;
             }
             rig.Cam.allowMSAA = true;
-            rig.Cam.allowHDR = false;
+            rig.Cam.allowHDR = true;                 // the finishing pass tone-maps it (PostFX)
+            camGo.AddComponent<PostFX>();
             rig.Cam.fieldOfView = 45f;
             rig.Cam.nearClipPlane = 0.3f;
             rig.Cam.farClipPlane = 600f;

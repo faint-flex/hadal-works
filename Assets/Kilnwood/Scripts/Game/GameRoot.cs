@@ -772,7 +772,7 @@ namespace Kilnwood.Game
 
         void DrawMenu(float Wd, float Ht)
         {
-            var r = Panel(new Rect(Wd / 2f - 220f, Ht / 2f - 220f, 440f, 440f));
+            var r = Panel(new Rect(Wd / 2f - 220f, Ht / 2f - 245f, 440f, 490f));
             GUILayout.BeginArea(new Rect(r.x + 24f, r.y + 18f, r.width - 48f, r.height - 36f));
             GUILayout.Label("Menu", _h2);
             if (GUILayout.Button("Resume", _btn, GUILayout.Height(46f))) _menu = false;
@@ -781,6 +781,7 @@ namespace Kilnwood.Game
             var names = QualitySettings.names;
             int q = QualitySettings.GetQualityLevel();
             if (names.Length > 0 && GUILayout.Button("Graphics: " + names[q], _btn, GUILayout.Height(40f))) QualitySettings.SetQualityLevel((q + 1) % names.Length, true);
+            if (GUILayout.Button("Film look (shading, glow): " + (PostFX.Enabled ? "on" : "off"), _btn, GUILayout.Height(40f))) PostFX.Enabled = !PostFX.Enabled;
             GUILayout.Label("The game also saves every 2 minutes and when you quit.", _small);
             if (GUILayout.Button("Save and quit", _btn, GUILayout.Height(40f))) { SaveSystem.Save(W); Application.Quit(); }
             GUILayout.EndArea();

@@ -80,6 +80,7 @@ namespace Kilnwood.Game
         }
 
         Material _beltMat, _waterMat;
+        GrassView _grass;
         HillHeight _hills;
 
         public void Build(World w)
@@ -89,6 +90,8 @@ namespace Kilnwood.Game
             float size = w.W * T;
 
             _ground = new GroundView(root, w);
+            _grass = new GrassView(w);
+            _grass.Rebuild();
             float riverX = (MapGen.RiverX0 + MapGen.RiverX1) / 2f * T + T / 2f;
             _hills = Art.Hills(root, size, riverX).GetComponent<HillHeight>();
             BuildRiver(root, size);
@@ -661,7 +664,7 @@ namespace Kilnwood.Game
                 if (v.Title != null)
                 {
                     // Calm machines show only their name (fire glow shows they're busy); problems get a "!" line.
-                    string status = b.Type == BuildingType.Lodge || b.Type == BuildingType.Cabin || string.IsNullOrEmpty(b.Status) || b.Status == "Working" || b.Status.StartsWith("Full") || b.Status.StartsWith("Empty") ? "" : b.Status;
+                    string status = b.Type == BuildingType.Lodge || b.Type == BuildingType.Cabin || string.IsNullOrEmpty(b.Status) || b.Status == "Working" || b.Status.StartsWith("Full") || b.Status.StartsWith("Empty") || b.Status.StartsWith("Turning") ? "" : b.Status;
                     string text = TitleFor(b) + (status.Length > 0 ? "\n<size=56><color=#FFB070>! " + status + "</color></size>" : "");
                     if (v.Shown != text) { Look.SetText(v.Title, text); v.Shown = text; v.Recipe = b.Recipe; }
                 }
@@ -700,7 +703,8 @@ namespace Kilnwood.Game
                 UpdateMarks();
             }
             _ground.Upload();
-            if (_w.Buildings.Count != _decoBuildingCount || gone != null || groundChanged) UpdateDeco();
+            if (_w.Buildings.Count != _decoBuildingCount || gone != null || groundChanged) { UpdateDeco(); _grass.Rebuild(); }
+            _grass.Draw();
             UpdateVehicles();
             UpdatePowerViews(_w.Buildings.Count != _shaftArmsCount || gone != null);
             foreach (var b in _w.Buildings.Values)
@@ -751,19 +755,19 @@ namespace Kilnwood.Game
             _lab.Clear();
             _placed.Clear();
             float hudTop = Screen.height * (1f - 0.075f);   // the resource bar across the top of the screen
+            float hudBottom = Screen.height * 0.135f;        // build bar and help line along the bottom
             float pxPerMAt(float z) => Screen.height / (2f * z * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad));
             foreach (var v in _views.Values)
             {
                 if (v.Title == null) continue;
-                if (v.Post != null)
-                {
-                    SetLabelOffset(v, Vector3.zero);
-                    ShowLabel(v, true);
-                }
+                if (v.Post != null) SetLabelOffset(v, Vector3.zero);
+                ShowLabel(v, true);
                 if (string.IsNullOrEmpty(v.Shown)) continue;
                 var pos = v.Title.transform.position;
                 var a = cam.WorldToScreenPoint(pos);
-                if (a.z <= 0f) continue;
+                // Building off screen (or behind the camera): no label, even for a warning, so nothing gets pinned
+                // at the screen edge on top of nearer labels or the HUD.
+                if (a.z <= 0f || a.x < 0f || a.x > Screen.width || a.y < hudBottom || a.y > hudTop) { ShowLabel(v, false); continue; }
                 // Size from the text itself (renderer bounds lag a frame behind moves): pixels per metre
                 // facing the camera, times line height and character count. Capitals run wide, so be generous.
                 float pxPerM = pxPerMAt(a.z);
@@ -793,7 +797,12 @@ namespace Kilnwood.Game
                     }
                 }
                 // The lodge label doesn't move; it just keeps others off it.
-                if (v.Post == null) { _placed.Add(r); continue; }
+                if (v.Post == null)
+                {
+                    if (r.yMin < hudBottom || r.yMax > hudTop || r.xMin < 0f || r.xMax > Screen.width) ShowLabel(v, false);
+                    else _placed.Add(r);
+                    continue;
+                }
                 int prio = v.Shown.Contains("! ") ? 0 : 1;
                 _lab.Add((v, r, pxPerM, prio));
             }
@@ -816,7 +825,7 @@ namespace Kilnwood.Game
                 }
                 // Can't find a clear spot nearby, or it would sit under the top bar: hide it (click the building
                 // to see its details). Warnings always stay.
-                bool offScreen = r.xMin < 2f || r.xMax > Screen.width - 2f || r.yMax > hudTop;
+                bool offScreen = r.xMin < 2f || r.xMax > Screen.width - 2f || r.yMax > hudTop || r.yMin < hudBottom;
                 if (prio != 0 && (!clear || shift > maxShift || offScreen))
                 {
                     ShowLabel(v, false);
@@ -826,7 +835,7 @@ namespace Kilnwood.Game
                 float side = 0f;
                 if (r.xMin < 2f) side = 2f - r.xMin;
                 else if (r.xMax > Screen.width - 2f) side = Screen.width - 2f - r.xMax;
-                float down = r.yMax > hudTop ? hudTop - r.yMax : 0f;
+                float down = r.yMax > hudTop ? hudTop - r.yMax : r.yMin < hudBottom ? hudBottom - r.yMin : 0f;
                 r.x += side; r.y += down; shift += down;
                 // Lift along the camera's up so a top-down view separates labels as well as a low one.
                 if (Mathf.Abs(shift) > 0.01f || Mathf.Abs(side) > 0.01f)
@@ -964,9 +973,10 @@ namespace Kilnwood.Game
                     top = 0.28f;
                     break;
                 case Item.Plate:
-                    Art.Cube("Plate", t, new Vector3(0f, 0.04f, 0f), new Vector3(0.66f, 0.06f, 0.66f), col);
-                    Art.Cube("Plate", t, new Vector3(0.03f, 0.1f, -0.02f), new Vector3(0.62f, 0.06f, 0.62f), col * 1.1f);
-                    top = 0.14f;
+                    // A stack of three square sheets, a little skewed, with a bright edge so it reads at a distance.
+                    for (int k = 0; k < 3; k++)
+                        Art.Cube("Plate", t, new Vector3(0.02f * k, 0.05f + k * 0.08f, -0.02f * k), new Vector3(0.85f, 0.07f, 0.85f), col * (1f + 0.15f * k), new Vector3(0f, k * 8f, 0f));
+                    top = 0.3f;
                     break;
                 case Item.Fish:
                     Art.Ball("Body", t, new Vector3(0f, 0.13f, 0f), new Vector3(0.28f, 0.24f, 0.62f), col);

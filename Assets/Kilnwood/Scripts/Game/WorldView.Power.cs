@@ -145,8 +145,8 @@ namespace Kilnwood.Game
             pivot.localPosition = new Vector3(0f, 0.95f, 0.25f);
             pivot.localRotation = Quaternion.Euler(0f, 0f, 90f);
             v.Anim = Art.Gear("Blade", pivot, Vector3.zero, 1.15f, 0.04f, Look.Iron * 1.5f, 24);
-            for (int k = 0; k < 5; k++)
-                Art.Cube("Plank stack", B, new Vector3(1.25f, 0.24f + k * 0.1f, 0.5f), new Vector3(0.6f, 0.09f, 2.0f), planks * (k % 2 == 0 ? 1f : 0.93f));
+            for (int k = 0; k < 8; k++)
+                Art.Cube("Plank stack", B, new Vector3(1.2f, 0.22f + k * 0.11f, 0.4f), new Vector3(0.85f, 0.1f, 2.4f), planks * (k % 2 == 0 ? 1.05f : 0.95f));
             Art.Cube("Sawdust", B, new Vector3(-0.85f, 0.2f, 0.6f), new Vector3(0.7f, 0.1f, 0.7f), planks * 1.1f);
             // Belt pulley up under the roof: the drive comes in from the shaft.
             var pp = new GameObject("Pulley pivot").transform;
@@ -161,28 +161,34 @@ namespace Kilnwood.Game
 
         void MakeTripHammer(Transform B, float s, BView v)
         {
+            // Open-sided: a low roof on four posts, so the big helve hammer and anvil read from any angle.
             Color timber = Look.Timber, stone = Look.StoneWall, dark = Look.MineDark;
             float h = s / 2f;
             Art.Cube("Floor", B, new Vector3(0f, 0.08f, 0f), new Vector3(s - 0.3f, 0.16f, s - 0.3f), stone * 0.85f);
-            Art.Cube("Back shed", B, new Vector3(0f, 1.1f, -1.25f), new Vector3(s - 0.5f, 2.0f, 1.0f), timber);
-            Art.RoofAt("Shed roof", B, new Vector3(0f, 2.1f, -1.25f), s - 0.3f, 1.5f, 0.7f, Look.Roof, 90f);
-            Art.Cube("Anvil block", B, new Vector3(1.05f, 0.4f, 0.5f), new Vector3(0.7f, 0.6f, 0.7f), stone * 0.7f);
-            Art.Cube("Anvil", B, new Vector3(1.05f, 0.8f, 0.5f), new Vector3(0.5f, 0.2f, 0.4f), dark);
+            for (int i = 0; i < 4; i++)
+                Art.Cube("Post", B, new Vector3(i % 2 == 0 ? -1.65f : 1.65f, 1.5f, i < 2 ? -1.65f : 1.65f), new Vector3(0.2f, 2.9f, 0.2f), timber * 0.9f);
+            Art.RoofAt("Roof", B, new Vector3(0f, 2.95f, 0f), s - 0.1f, s - 0.1f, 0.9f, Look.Roof, 90f);
+            // Anvil on a stone block at the front right.
+            Art.Cube("Anvil block", B, new Vector3(0.9f, 0.45f, 0.3f), new Vector3(0.9f, 0.7f, 0.9f), stone * 0.7f);
+            Art.Cube("Anvil", B, new Vector3(0.9f, 0.95f, 0.3f), new Vector3(0.75f, 0.3f, 0.55f), dark);
+            Art.Cube("Anvil horn", B, new Vector3(1.4f, 0.98f, 0.3f), new Vector3(0.3f, 0.18f, 0.25f), dark);
+            // Helve: a heavy beam on a pivot frame, hammer head over the anvil, tail over the cam.
             for (int side = -1; side <= 1; side += 2)
-                Art.Cube("Helve post", B, new Vector3(-0.35f, 0.75f, 0.5f + side * 0.3f), new Vector3(0.22f, 1.3f, 0.18f), timber * 0.85f);
+                Art.Cube("Helve post", B, new Vector3(-0.55f, 0.95f, 0.3f + side * 0.32f), new Vector3(0.26f, 1.6f, 0.2f), timber * 0.8f);
             var helve = new GameObject("Helve").transform;
             helve.SetParent(B, false);
-            helve.localPosition = new Vector3(-0.35f, 1.35f, 0.5f);
-            Art.Cube("Beam", helve, new Vector3(0.45f, 0f, 0f), new Vector3(2.2f, 0.24f, 0.24f), timber * 0.8f);
-            Art.Cube("Hammer head", helve, new Vector3(1.4f, -0.2f, 0f), new Vector3(0.42f, 0.42f, 0.42f), dark);
+            helve.localPosition = new Vector3(-0.55f, 1.65f, 0.3f);
+            Art.Cube("Beam", helve, new Vector3(0.55f, 0f, 0f), new Vector3(3.1f, 0.32f, 0.3f), timber * 0.75f);
+            Art.Cube("Band", helve, new Vector3(1.2f, 0f, 0f), new Vector3(0.12f, 0.36f, 0.34f), Look.Iron);
+            Art.Cube("Hammer head", helve, new Vector3(1.45f, -0.3f, 0f), new Vector3(0.6f, 0.62f, 0.55f), dark);
             v.Anim = helve;
             var cam = new GameObject("Cam pivot").transform;
             cam.SetParent(B, false);
-            cam.localPosition = new Vector3(-1.2f, 1.05f, 0.5f);
+            cam.localPosition = new Vector3(-1.35f, 1.15f, 0.3f);
             cam.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            v.Anim2 = Art.Gear("Cam wheel", cam, Vector3.zero, 0.9f, 0.2f, timber * 1.05f, 4);
-            for (int k = 0; k < 4; k++)
-                Art.Cube("Plate stack", B, new Vector3(-1.2f, 0.22f + k * 0.07f, 1.3f), new Vector3(0.7f, 0.06f, 0.7f), Look.Iron * (k % 2 == 0 ? 1.4f : 1.3f));
+            v.Anim2 = Art.Gear("Cam wheel", cam, Vector3.zero, 1.1f, 0.24f, timber * 1.05f, 4);
+            for (int k = 0; k < 5; k++)
+                Art.Cube("Plate stack", B, new Vector3(-0.9f, 0.24f + k * 0.09f, 1.35f), new Vector3(0.9f, 0.08f, 0.9f), Look.Iron * (k % 2 == 0 ? 1.5f : 1.35f));
             Front(B, h);
         }
 

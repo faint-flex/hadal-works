@@ -51,6 +51,10 @@ namespace Kilnwood.EditorTools
             MakeMaterial("Assets/Kilnwood/Resources/KW_Smoke.mat", "Legacy Shaders/Particles/Alpha Blended", m => { });
             // World-space pattern shader for building surfaces (Assets/Kilnwood/Shaders/KW_Triplanar.shader).
             MakeMaterial("Assets/Kilnwood/Resources/KW_Tri.mat", "Kilnwood/Triplanar", m => { m.enableInstancing = true; });
+            // Camera finishing pass: occlusion, bloom, filmic tone map (Assets/Kilnwood/Shaders/KW_Post.shader).
+            MakeMaterial("Assets/Kilnwood/Resources/KW_Post.mat", "Kilnwood/Post", m => { });
+            // Instanced grass tufts (Assets/Kilnwood/Shaders/KW_Grass.shader).
+            MakeMaterial("Assets/Kilnwood/Resources/KW_Grass.mat", "Kilnwood/Grass", m => { m.enableInstancing = true; });
 
             // Linear colour space: softer, more natural lighting falloff.
             PlayerSettings.colorSpace = ColorSpace.Linear;
