@@ -356,7 +356,7 @@ namespace Kilnwood.Game
             if (_shotIndex < _shotTimes.Length && W.Time >= _shotTimes[_shotIndex])
             {
                 var lodge = WorldView.FootCenter(MapGen.LodgeX, MapGen.LodgeY, 4);
-                if (_shotIndex == 1) Rig.Frame(lodge + new Vector3(-30f, 0f, -6f), 20f, 42f, 46f);      // river fisher, cabins, west woodcutter line
+                if (_shotIndex == 1) Rig.Frame(lodge + new Vector3(-36f, 0f, -6f), 20f, 42f, 50f);      // river fisher, cabins, west woodcutter line
                 else if (_shotIndex == 2) Rig.Frame(lodge + new Vector3(-1f, 0f, 32f), 160f, 38f, 32f);  // brick chain
                 else if (_shotIndex == 3) Rig.Frame(lodge + new Vector3(24f, 0f, 2f), 290f, 32f, 34f);   // iron + gear chain
                 else Rig.Frame(lodge + new Vector3(0f, 0f, 8f), 0f, 55f, 80f);

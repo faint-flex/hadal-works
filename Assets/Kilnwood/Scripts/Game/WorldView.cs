@@ -152,7 +152,7 @@ namespace Kilnwood.Game
             // Trees and rocks clear on built tiles and one tile around them, so belts stay visible in forests.
             foreach (var kv in _deco)
             {
-                bool show = !BuiltNear(kv.Key % _w.W, kv.Key / _w.W, 1);
+                bool show = !NeedsClearing(kv.Key % _w.W, kv.Key / _w.W);
                 foreach (var go in kv.Value) if (go.activeSelf != show) go.SetActive(show);
             }
             foreach (var key in _trees.Keys) UpdateTree(key);
@@ -167,13 +167,26 @@ namespace Kilnwood.Game
         {
             var (tree, stump) = _trees[key];
             int x = key % _w.W, y = key / _w.W;
-            bool clear = BuiltNear(x, y, 1);
+            bool clear = NeedsClearing(x, y);
             int logs = _w.Logs[key];
             bool showTree = !clear && logs > 0;
             if (tree.gameObject.activeSelf != showTree) tree.gameObject.SetActive(showTree);
             if (showTree) tree.localScale = Vector3.one * (0.3f + 0.7f * logs / _w.B.LogsPerTile);
             bool showStump = !clear && logs == 0;
             if (stump.activeSelf != showStump) stump.SetActive(showStump);
+        }
+
+        /// <summary>Trees and rocks go on built tiles, and next to belts and splitters so those stay visible.
+        /// Not around woodcutters: you should see the forest they're cutting thin out.</summary>
+        bool NeedsClearing(int x, int y)
+        {
+            if (_w.At(x, y) != null) return true;
+            for (int d = 0; d < 4; d++)
+            {
+                var n = _w.At(x + Dir.DX[d], y + Dir.DY[d]);
+                if (n != null && (n.Type == BuildingType.Belt || n.Type == BuildingType.Splitter)) return true;
+            }
+            return false;
         }
 
         bool BuiltNear(int x, int y, int r)
@@ -319,11 +332,13 @@ namespace Kilnwood.Game
                 glow.range = 5f;
                 v.Fire.SetActive(false);
             }
-            if (b.Type != BuildingType.Belt && b.Type != BuildingType.Splitter)
+            // Belts, splitters and cabins have no floating label: their shapes say what they are (click for details).
+            if (b.Type != BuildingType.Belt && b.Type != BuildingType.Splitter && b.Type != BuildingType.Cabin)
             {
                 // One upright label per machine: name on top, status (and fuel) underneath.
                 // Neighbouring machines alternate label heights so their names don't stack on each other.
-                float top = (b.Type == BuildingType.Mine || b.Type == BuildingType.Smelter ? 5.2f : 4.2f) + ((b.X / 2 + b.Y / 2) % 2) * 2f;
+                // Three label heights in a pattern, so any two neighbouring 2x2 machines get different heights.
+                float top = (b.Type == BuildingType.Mine || b.Type == BuildingType.Smelter ? 5.2f : 4.2f) + ((b.X / 2 + 2 * (b.Y / 2)) % 3) * 1.8f;
                 if (b.Type == BuildingType.Lodge)
                 {
                     // Lodge name sits in front (south side), clear of the machines behind it.
