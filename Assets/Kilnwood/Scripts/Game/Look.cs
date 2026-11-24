@@ -117,6 +117,36 @@ namespace Kilnwood.Game
             return m;
         }
 
+        /// <summary>Surface patterns for building parts (projected in world space by the KW_Tri material).</summary>
+        public enum Surface { Plain, Wood, Brick, Stone, Shingle }
+
+        static readonly Dictionary<(Color, Surface), Material> _surf = new Dictionary<(Color, Surface), Material>();
+        static Material _triBase;
+        static bool _triLoaded;
+
+        public static Material SurfMat(Color c, Surface s)
+        {
+            if (s == Surface.Plain) return Mat(c);
+            if (_surf.TryGetValue((c, s), out var m)) return m;
+            if (!_triLoaded) { _triBase = Resources.Load<Material>("KW_Tri"); _triLoaded = true; }
+            if (_triBase != null && _triBase.shader != null && _triBase.shader.isSupported)
+            {
+                m = new Material(_triBase);
+                m.SetFloat("_Scale", Art.PatternRepeats(s));
+            }
+            else
+            {
+                m = new Material(Mat(c));
+                m.mainTextureScale = new Vector2(2f, 2f);
+            }
+            m.mainTexture = Art.PatternTexture(s);
+            m.color = c * 1.2f;   // patterns average about 0.83, so lift the tint to keep the same overall colour
+            m.enableInstancing = true;
+            if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", s == Surface.Shingle ? 0.15f : 0.08f);
+            _surf[(c, s)] = m;
+            return m;
+        }
+
         static readonly Dictionary<Color, Material> _glow = new Dictionary<Color, Material>();
 
         /// <summary>A self-lit material (fire, embers) that glows even in shade.</summary>

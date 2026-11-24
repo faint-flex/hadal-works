@@ -49,6 +49,8 @@ namespace Kilnwood.EditorTools
                 m.SetFloat("_Exposure", 1.15f);
             });
             MakeMaterial("Assets/Kilnwood/Resources/KW_Smoke.mat", "Legacy Shaders/Particles/Alpha Blended", m => { });
+            // World-space pattern shader for building surfaces (Assets/Kilnwood/Shaders/KW_Triplanar.shader).
+            MakeMaterial("Assets/Kilnwood/Resources/KW_Tri.mat", "Kilnwood/Triplanar", m => { m.enableInstancing = true; });
 
             // Linear colour space: softer, more natural lighting falloff.
             PlayerSettings.colorSpace = ColorSpace.Linear;

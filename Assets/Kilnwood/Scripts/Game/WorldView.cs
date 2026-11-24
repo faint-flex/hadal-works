@@ -9,7 +9,7 @@ namespace Kilnwood.Game
     /// 3D view of the valley factory (low-poly models built in code by Art). Mirrors the World every frame; never changes it.
     /// One tile = 2 m. Tile (x, y) sits at world (x*2+1, 0, y*2+1).
     /// </summary>
-    public class WorldView : MonoBehaviour
+    public partial class WorldView : MonoBehaviour
     {
         public const float T = 2f;
         World _w;
@@ -28,6 +28,7 @@ namespace Kilnwood.Game
             public Transform Spin;      // wheel or gear that turns while working (around its local y)
             public float SpinSpeed, SpinAngle;
             public float Seed;
+            public GameObject Extra;    // hopper: the heap inside
             public Transform Post;      // thin stick from the roof up to the label
             public float BaseTop;       // label height before decluttering
             public float Raise;         // extra height this frame so it clears other labels
@@ -81,7 +82,7 @@ namespace Kilnwood.Game
             var root = transform;
             float size = w.W * T;
 
-            Art.GroundPlane(root, w, T);
+            _ground = new GroundView(root, w);
             float riverX = (MapGen.RiverX0 + MapGen.RiverX1) / 2f * T + T / 2f;
             _hills = Art.Hills(root, size, riverX).GetComponent<HillHeight>();
             BuildRiver(root, size);
@@ -276,6 +277,7 @@ namespace Kilnwood.Game
         bool NeedsClearing(int x, int y)
         {
             if (_w.At(x, y) != null) return true;
+            if (_w.Units[y * _w.W + x] != 0) return true;
             for (int d = 0; d < 4; d++)
             {
                 var n = _w.At(x + Dir.DX[d], y + Dir.DY[d]);
@@ -492,6 +494,8 @@ namespace Kilnwood.Game
                     v.Smoke = Art.Smoke(B, new Vector3(1f, 3.4f, -0.5f), 0.5f);
                     Art.Cube("Door", B, new Vector3(0f, 0.65f, (s - 1.4f) / 2f + 0.02f), new Vector3(0.7f, 1.2f, 0.05f), Look.Roof);
                     break;
+                case BuildingType.Garage: MakeGarage(B, s, v); break;
+                case BuildingType.Hopper: MakeHopper(B, s, v); break;
                 case BuildingType.Lodge:
                 {
                     float fz = (s - 2.2f) / 2f;   // front wall
@@ -532,6 +536,7 @@ namespace Kilnwood.Game
                 v.FireLight.enabled = false;
                 v.Fire.SetActive(false);
             }
+            Texturize(v.Root.transform);
             // Machines only smoke while they burn; the lodge (and cabins) always have a hearth going.
             if (v.Smoke != null && b.Type != BuildingType.Lodge && b.Type != BuildingType.Cabin) SetSmoke(v.Smoke, false);
             // Belts, splitters and cabins have no floating label: their shapes say what they are (click for details).
@@ -557,6 +562,36 @@ namespace Kilnwood.Game
                 }
             }
             return v;
+        }
+
+        static readonly (Color c, Look.Surface s)[] SurfaceRefs =
+        {
+            (Look.Timber, Look.Surface.Wood), (Look.Planks, Look.Surface.Wood), (Look.Roof, Look.Surface.Shingle),
+            (Look.Brickwork, Look.Surface.Brick), (Look.StoneWall, Look.Surface.Stone),
+        };
+
+        /// <summary>Gives wooden, brick, stone and roof parts their world-space pattern, matched by colour family
+        /// (a darker or lighter shade of Timber is still timber).</summary>
+        static void Texturize(Transform root)
+        {
+            foreach (var r in root.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                if (r.GetComponent<TextMesh>() != null) continue;
+                var m = r.sharedMaterial;
+                if (m == null || m.IsKeywordEnabled("_EMISSION")) continue;
+                var c = m.color;
+                float lum = c.r * 0.3f + c.g * 0.59f + c.b * 0.11f;
+                foreach (var (rc, surf) in SurfaceRefs)
+                {
+                    float rl = rc.r * 0.3f + rc.g * 0.59f + rc.b * 0.11f;
+                    float k = lum / Mathf.Max(rl, 1e-4f);
+                    if (k < 0.65f || k > 1.4f) continue;
+                    float dr = c.r / k - rc.r, dg = c.g / k - rc.g, db = c.b / k - rc.b;
+                    if (dr * dr + dg * dg + db * db > 0.03f * 0.03f) continue;
+                    r.sharedMaterial = Look.SurfMat(c, surf);
+                    break;
+                }
+            }
         }
 
         void BeltDeck(Transform parent, Vector3 pos, Vector3 scale)
@@ -588,6 +623,8 @@ namespace Kilnwood.Game
                 case BuildingType.Fisher: return "FISHER F";
                 case BuildingType.Cabin: return "CABIN +" + _w.B.Defs[b.Type].Homes;
                 case BuildingType.Lodge: return "LODGE\n<size=40>deliver here</size>";
+                case BuildingType.Garage: return "GARAGE";
+                case BuildingType.Hopper: return "HOPPER";
                 default: return "";
             }
         }
@@ -611,7 +648,7 @@ namespace Kilnwood.Game
                 if (v.Title != null)
                 {
                     // Calm machines show only their name (fire glow shows they're busy); problems get a "!" line.
-                    string status = b.Type == BuildingType.Lodge || b.Type == BuildingType.Cabin || string.IsNullOrEmpty(b.Status) || b.Status == "Working" || b.Status.StartsWith("Full") ? "" : b.Status;
+                    string status = b.Type == BuildingType.Lodge || b.Type == BuildingType.Cabin || string.IsNullOrEmpty(b.Status) || b.Status == "Working" || b.Status.StartsWith("Full") || b.Status.StartsWith("Empty") ? "" : b.Status;
                     string text = TitleFor(b) + (status.Length > 0 ? "\n<size=56><color=#FFB070>! " + status + "</color></size>" : "");
                     if (v.Shown != text) { Look.SetText(v.Title, text); v.Shown = text; v.Recipe = b.Recipe; }
                 }
@@ -642,7 +679,23 @@ namespace Kilnwood.Game
             if (_beltMat != null) _beltMat.mainTextureOffset = new Vector2(0f, -((_w.Time * _w.B.BeltSpeed) % 1f));
             if (_waterMat != null) _waterMat.mainTextureOffset = new Vector2(Mathf.Sin(now * 0.3f) * 0.02f, (now * 0.05f) % 1f);
 
-            if (_w.Buildings.Count != _decoBuildingCount || gone != null) UpdateDeco();
+            bool groundChanged = _w.ChangedGround.Count > 0;
+            if (groundChanged)
+            {
+                _ground.Refresh(_w.ChangedGround);
+                _w.ChangedGround.Clear();
+                UpdateMarks();
+            }
+            _ground.Upload();
+            if (_w.Buildings.Count != _decoBuildingCount || gone != null || groundChanged) UpdateDeco();
+            UpdateVehicles();
+            foreach (var b in _w.Buildings.Values)
+                if (b.Type == BuildingType.Hopper)
+                {
+                    var hv = _views[b.Id];
+                    bool full = _w.HopperStored(b) > 0;
+                    if (hv.Extra != null && hv.Extra.activeSelf != full) hv.Extra.SetActive(full);
+                }
             if (_w.ChangedLogs.Count > 0)
             {
                 foreach (int key in _w.ChangedLogs) if (_trees.ContainsKey(key)) UpdateTree(key);
@@ -857,12 +910,14 @@ namespace Kilnwood.Game
 
         public void HideGhost()
         {
+            HideArea();
             _ghost.SetActive(false);
             foreach (var g in _beltGhosts) g.SetActive(false);
         }
 
         public void ShowGhost(BuildingType type, int x, int y, int facing, string reason)
         {
+            HideArea();
             foreach (var g in _beltGhosts) g.SetActive(false);
             int size = _w.B.Defs[type].Size;
             _ghost.SetActive(true);
@@ -878,6 +933,7 @@ namespace Kilnwood.Game
 
         public void ShowBeltGhosts(List<(int x, int y, int d)> path, int okCount, string reason)
         {
+            HideArea();
             _ghost.SetActive(true);
             _ghostBox.localScale = Vector3.zero;
             _ghostArrow.gameObject.SetActive(false);

@@ -494,7 +494,13 @@ namespace Kilnwood.Sim
                 case BuildingType.Fisher: StepFisher(m, dt); break;
                 case BuildingType.Cabin: m.Status = "Home for " + B.Defs[m.Type].Homes; return;
                 case BuildingType.Lodge: m.Status = "Storing"; return;
-                case BuildingType.Garage: m.Status = "Fuel " + m.FuelCount + " / " + B.GarageFuelCap; return;
+                case BuildingType.Garage:
+                {
+                    bool hasVehicles = false;
+                    foreach (var v in Vehicles) if (v.GarageId == m.Id) { hasVehicles = true; break; }
+                    m.Status = m.FuelCount > 0 || !hasVehicles ? "Working" : "No fuel for vehicles";
+                    return;
+                }
                 case BuildingType.Hopper: StepHopper(m, dt); break;
             }
             PushOutput(m);

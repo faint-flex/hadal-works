@@ -339,6 +339,93 @@ namespace Kilnwood.Game
             return m;
         }
 
+        // ------------------------------------------------------------------ surface patterns (planks, bricks, stone, shingles)
+
+        static readonly Dictionary<Look.Surface, Texture2D> _patterns = new Dictionary<Look.Surface, Texture2D>();
+
+        /// <summary>How many times a pattern repeats per metre (planks ~0.15 m boards, bricks ~0.12 m courses).</summary>
+        public static float PatternRepeats(Look.Surface s)
+        {
+            switch (s)
+            {
+                case Look.Surface.Wood: return 1f / 1.2f;
+                case Look.Surface.Brick: return 1f / 1.0f;
+                case Look.Surface.Stone: return 1f / 1.6f;
+                case Look.Surface.Shingle: return 1f / 1.0f;
+                default: return 1f;
+            }
+        }
+
+        /// <summary>Grey-scale patterns (about 0.83 on average) that tint the material colour. Linear, tiling, 128 px.</summary>
+        public static Texture2D PatternTexture(Look.Surface s)
+        {
+            if (_patterns.TryGetValue(s, out var t)) return t;
+            const int n = 128;
+            t = new Texture2D(n, n, TextureFormat.RGBA32, true, true) { wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Trilinear, anisoLevel = 4, name = "Pattern " + s };
+            var px = new Color[n * n];
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    float v;
+                    switch (s)
+                    {
+                        case Look.Surface.Wood:
+                        {
+                            // 8 boards; each board its own shade, long grain, a dark gap between boards, staggered joints.
+                            int row = y / 16, ry = y % 16;
+                            int joint = (row * 47) % n;
+                            float shade = 0.78f + 0.14f * Hash(row, 3);
+                            float grain = Mathf.PerlinNoise(x * 0.06f + row * 9f, y * 0.9f) * 0.16f;
+                            v = shade + grain - 0.06f;
+                            if (ry < 1) v = 0.42f;
+                            else if (ry < 2) v *= 0.8f;
+                            if (Mathf.Abs(((x - joint) % n + n) % n) < 1) v = 0.45f;
+                            break;
+                        }
+                        case Look.Surface.Brick:
+                        {
+                            int row = y / 16, ry = y % 16;
+                            int off = (row % 2) * 16;
+                            int col = ((x + off) % n) / 32, rx = (x + off) % 32;
+                            bool mortar = ry < 2 || rx < 2;
+                            float shade = 0.72f + 0.2f * Hash(col, row, 5);
+                            v = mortar ? 0.98f : shade + (Mathf.PerlinNoise(x * 0.3f, y * 0.3f) - 0.5f) * 0.08f;
+                            break;
+                        }
+                        case Look.Surface.Stone:
+                        {
+                            // Three courses of uneven blocks.
+                            int row = y * 3 / n, ry = y - row * n / 3;
+                            int off = (int)(Hash(row, 9) * 40f);
+                            int bw = 34 + (int)(Hash(row, 10) * 16f);
+                            int col = ((x + off) % n) / bw, rx = ((x + off) % n) % bw;
+                            bool mortar = ry < 3 || rx < 3;
+                            float shade = 0.74f + 0.2f * Hash(col, row, 11);
+                            float rough = (Mathf.PerlinNoise(x * 0.12f, y * 0.12f) - 0.5f) * 0.14f;
+                            v = mortar ? 0.5f : shade + rough;
+                            if (!mortar && (ry < 5 || rx < 5)) v *= 0.9f;   // soft edge shading
+                            break;
+                        }
+                        case Look.Surface.Shingle:
+                        {
+                            int row = y / 12, ry = y % 12;
+                            int off = (row % 2) * 8;
+                            int col = ((x + off) % n) / 16, rx = (x + off) % 16;
+                            float shade = 0.72f + 0.2f * Hash(col, row, 13);
+                            v = shade * (0.82f + 0.18f * ry / 11f);   // each row darker at its lower edge
+                            if (rx < 1) v *= 0.7f;
+                            break;
+                        }
+                        default: v = 0.83f; break;
+                    }
+                    px[y * n + x] = new Color(v, v, v, 1f);
+                }
+            t.SetPixels(px);
+            t.Apply(true);
+            _patterns[s] = t;
+            return t;
+        }
+
         // ------------------------------------------------------------------ the valley floor
 
         static Color GroundColor(Terrain t)
@@ -361,43 +448,44 @@ namespace Kilnwood.Game
             int size = w.W * ppt;
             var tex = new Texture2D(size, size, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear, anisoLevel = 8, name = "ValleyFloor" };
             var px = new Color32[size * size];
-            var cols = new Color[w.W * w.H];
-            for (int i = 0; i < cols.Length; i++) cols[i] = GroundColor(w.Ground[i]);
             for (int py = 0; py < size; py++)
-            {
-                float fy = (py + 0.5f) / ppt - 0.5f;
-                int ty = Mathf.FloorToInt(fy);
-                float wy = fy - ty;
                 for (int pxl = 0; pxl < size; pxl++)
-                {
-                    float fx = (pxl + 0.5f) / ppt - 0.5f;
-                    int tx = Mathf.FloorToInt(fx);
-                    float wx = fx - tx;
-                    // Bilinear blend between the 4 nearest tile colours, warped by noise so edges look natural.
-                    float warp = (Mathf.PerlinNoise(pxl * 0.05f, py * 0.05f) - 0.5f) * 0.7f;
-                    float bx = Mathf.Clamp01(Smooth(wx + warp)), by = Mathf.Clamp01(Smooth(wy - warp));
-                    var c00 = TileCol(cols, w, tx, ty); var c10 = TileCol(cols, w, tx + 1, ty);
-                    var c01 = TileCol(cols, w, tx, ty + 1); var c11 = TileCol(cols, w, tx + 1, ty + 1);
-                    var c = Color.Lerp(Color.Lerp(c00, c10, bx), Color.Lerp(c01, c11, bx), by);
-                    float n1 = Mathf.PerlinNoise(pxl * 0.012f + 7f, py * 0.012f + 3f);
-                    float n2 = Mathf.PerlinNoise(pxl * 0.21f, py * 0.21f);
-                    c *= 0.86f + 0.22f * n1;
-                    c *= 0.94f + 0.1f * n2;
-                    c.a = 1f;
-                    px[py * size + pxl] = c;
-                }
-            }
+                    px[py * size + pxl] = GroundPixel(w, pxl, py);
             tex.SetPixels32(px);
             tex.Apply(true);
             return tex;
         }
 
+        /// <summary>One pixel of the untouched valley floor (16 pixels per tile).</summary>
+        public static Color32 GroundPixel(World w, int pxl, int py)
+        {
+            const int ppt = 16;
+            float fy = (py + 0.5f) / ppt - 0.5f;
+            int ty = Mathf.FloorToInt(fy);
+            float wy = fy - ty;
+            float fx = (pxl + 0.5f) / ppt - 0.5f;
+            int tx = Mathf.FloorToInt(fx);
+            float wx = fx - tx;
+            // Bilinear blend between the 4 nearest tile colours, warped by noise so edges look natural.
+            float warp = (Mathf.PerlinNoise(pxl * 0.05f, py * 0.05f) - 0.5f) * 0.7f;
+            float bx = Mathf.Clamp01(Smooth(wx + warp)), by = Mathf.Clamp01(Smooth(wy - warp));
+            var c00 = TileCol(w, tx, ty); var c10 = TileCol(w, tx + 1, ty);
+            var c01 = TileCol(w, tx, ty + 1); var c11 = TileCol(w, tx + 1, ty + 1);
+            var c = Color.Lerp(Color.Lerp(c00, c10, bx), Color.Lerp(c01, c11, bx), by);
+            float n1 = Mathf.PerlinNoise(pxl * 0.012f + 7f, py * 0.012f + 3f);
+            float n2 = Mathf.PerlinNoise(pxl * 0.21f, py * 0.21f);
+            c *= 0.86f + 0.22f * n1;
+            c *= 0.94f + 0.1f * n2;
+            c.a = 1f;
+            return c;
+        }
+
         static float Smooth(float t) => t * t * (3f - 2f * t);
 
-        static Color TileCol(Color[] cols, World w, int x, int y)
+        static Color TileCol(World w, int x, int y)
         {
             x = Mathf.Clamp(x, 0, w.W - 1); y = Mathf.Clamp(y, 0, w.H - 1);
-            return cols[y * w.W + x];
+            return GroundColor(w.Ground[y * w.W + x]);
         }
 
         /// <summary>A flat plane the size of the map, with the painted texture on it.</summary>
