@@ -31,11 +31,15 @@ namespace Kilnwood.Game
             }
         }
 
+        // Broadleaf greens: deeper and less yellow than the old toy palette, so sunlit crowns stay natural.
+        static readonly Color[] Leaf = { new Color(0.17f, 0.3f, 0.12f), new Color(0.2f, 0.33f, 0.13f), new Color(0.15f, 0.27f, 0.12f), new Color(0.22f, 0.32f, 0.14f) };
+
         static Material Mat(Color c)
         {
             if (_mats.TryGetValue(c, out var m)) return m;
             m = new Material(_src) { enableInstancing = true };
             m.SetColor("_Color", c);
+            m.SetFloat("_Translucency", 0.2f);
             _mats[c] = m;
             return m;
         }
@@ -62,15 +66,15 @@ namespace Kilnwood.Game
                 _pines ??= MakeAll(Pine);
                 var g = Art.PineGreens[(int)(r2 * 2.99f)];
                 if (!far) Art.Part("Trunk", parent, Art.Frustum, Vector3.zero, new Vector3(0.34f * s, 1.6f * s, 0.34f * s), Look.Bark);
-                Add("Pine", parent, _pines[v], Mat(g * 1.25f), Vector3.zero, Vector3.one * s, !far);
+                Add("Pine", parent, _pines[v], Mat(g * 1.15f), Vector3.zero, Vector3.one * s * (far ? 1.35f : 1f), !far);
             }
             else
             {
                 _leafy ??= MakeAll(i => Broadleaf(i, 2));
                 _leafyFar ??= MakeAll(i => Broadleaf(i, 1));     // far hills: same shapes, fewer triangles
-                var g = Art.LeafGreens[(int)(r2 * 3.99f)];
+                var g = Leaf[(int)(r2 * 3.99f)];
                 if (!far) Art.Part("Trunk", parent, Art.Frustum, Vector3.zero, new Vector3(0.38f * s, 2.6f * s, 0.38f * s), Look.Bark);
-                Add("Crown", parent, far ? _leafyFar[v] : _leafy[v], Mat(g * 1.2f), Vector3.zero, Vector3.one * s, !far);
+                Add("Crown", parent, far ? _leafyFar[v] : _leafy[v], Mat(g), Vector3.zero, Vector3.one * s * (far ? 1.35f : 1f), !far);
             }
         }
 
@@ -179,7 +183,7 @@ namespace Kilnwood.Game
                 float outside = Mathf.Clamp01(fromCrown.magnitude / 2.2f);
                 float top = d.y * 0.5f + 0.5f;
                 float ex = Mathf.Clamp01(0.25f + 0.45f * outside + 0.4f * top);
-                cs.Add(new Color(0.9f + 0.1f * top, 1f, 0.85f + 0.1f * top, ex));
+                cs.Add(new Color(0.92f, 1f, 0.9f, ex));
             }
             foreach (int t in _icoTris[detail]) ts.Add(o + t);
         }

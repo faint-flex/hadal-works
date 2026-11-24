@@ -451,11 +451,18 @@ namespace Kilnwood.Game
             if (W.Tier >= 3 && !_tier3Shots && _t3Shot < 4 && _t3At > 0f && W.Time >= _t3At)
             {
                 // Tier 3 shots: coal pit, steam engine, furnace, then the whole valley.
-                if (_t3Shot == 0) Rig.Frame(WorldView.FootCenter(56, 29, 2), 300f, 38f, 26f);
+                if (_t3Shot == 0)
+                {
+                    // Frame the pit where the excavators actually are (coal seam or iron pit).
+                    var at = WorldView.FootCenter(56, 29, 2); int nEx = 0; var sum = Vector3.zero;
+                    foreach (var veh in W.Vehicles) if (veh.Type == VehicleType.Excavator) { sum += new Vector3(veh.X * WorldView.T, 0f, veh.Y * WorldView.T); nEx++; }
+                    if (nEx > 0) at = sum / nEx;
+                    Rig.Frame(at, 300f, 38f, 26f);
+                }
                 else if (_t3Shot == 1) Rig.Frame(WorldView.FootCenter(25, 26, 2), 210f, 32f, 20f);
                 else if (_t3Shot == 2) Rig.Frame(WorldView.FootCenter(39, 29, 2), 150f, 34f, 22f);
                 else Rig.Frame(WorldView.FootCenter(40, 28, 2), 20f, 45f, 75f);
-                string[] t3Names = { "coal-pit", "steam-engine", "steel-furnace", "valley" };
+                string[] t3Names = { "pit", "steam-engine", "steel-furnace", "valley" };
                 StartCoroutine(ShotNextFrame((20 + _t3Shot) + "-tier3-" + t3Names[_t3Shot] + "-t" + Mathf.RoundToInt(W.Time) + "s"));
                 _t3Shot++;
                 _t3At = W.Time + 130f;
@@ -547,6 +554,18 @@ namespace Kilnwood.Game
             sb.AppendLine("fps average " + (_frames / Mathf.Max(_frameTime, 1e-4f)).ToString("0") + ", worst frame " + (_worstFrame * 1000f).ToString("0.0") + " ms (frame " + _worstFrameNo + ", game time " + _worstAt.ToString("0") + " s), frames over 50 ms: " + _spikes);
             foreach (var b in W.Buildings.Values)
                 if (b.Type != BuildingType.Belt && b.Type != BuildingType.Shaft && b.Type != BuildingType.Rail) sb.AppendLine("  " + b.Type + " at " + b.X + "," + b.Y + ": " + b.Status + " (fuel " + b.FuelCount + ", power " + b.Power.ToString("0.00") + ")");
+            // What stands tall over tile 25,30 (QA asked about a blank board there): name path, height, colour.
+            var probeAt = WorldView.FootCenter(25, 30, 1);
+            sb.AppendLine("objects above 2 m within 3 m of tile 25,30:");
+            foreach (var mr in View.GetComponentsInChildren<MeshRenderer>())
+            {
+                var bb = mr.bounds;
+                if (bb.max.y < 2f || Mathf.Abs(bb.center.x - probeAt.x) > 3f || Mathf.Abs(bb.center.z - probeAt.z) > 3f) continue;
+                string path = mr.name; var tr = mr.transform.parent;
+                for (int d = 0; d < 3 && tr != null; d++, tr = tr.parent) path = tr.name + "/" + path;
+                var col = mr.sharedMaterial != null && mr.sharedMaterial.HasProperty("_Color") ? mr.sharedMaterial.color : Color.clear;
+                sb.AppendLine("  " + path + "  top " + bb.max.y.ToString("0.0") + " m  size " + bb.size.ToString("0.0") + "  colour " + col.ToString("0.00"));
+            }
             File.AppendAllText(Path.Combine(_shotsDir, "shots-result.txt"), sb.ToString());
             SaveSystem.Save(W);
             var reloaded = SaveSystem.Load(B);

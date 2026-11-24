@@ -7,7 +7,7 @@ Shader "Kilnwood/Foliage"
     {
         _Color ("Tint", Color) = (1,1,1,1)
         _Wind ("Sway (metres at the top)", Float) = 0.06
-        _Translucency ("Sun through leaves", Range(0,1)) = 0.35
+        _Translucency ("Sun through leaves", Range(0,1)) = 0.2
     }
     SubShader
     {
@@ -49,7 +49,7 @@ Shader "Kilnwood/Foliage"
             float3 L = normalize(_WorldSpaceLightPos0.xyz);
             float3 V = normalize(IN.viewDir);   // world space (surf doesn't write o.Normal), surface -> camera
             float back = pow(saturate(dot(-V, L)), 4.0);
-            o.Emission = o.Albedo * float3(1.0, 0.95, 0.7) * back * _Translucency * ao;
+            o.Emission = o.Albedo * float3(0.9, 1.0, 0.75) * back * _Translucency * ao;
         }
         ENDCG
     }
