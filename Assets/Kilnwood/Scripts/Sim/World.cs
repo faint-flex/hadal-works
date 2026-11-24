@@ -36,7 +36,7 @@ namespace Kilnwood.Sim
     /// <summary>
     /// The valley factory, simulated in seconds. Pure C# (no Unity) so the rules are unit-testable.
     /// </summary>
-    public class World
+    public partial class World
     {
         public readonly Balance B;
         public readonly int W, H;
@@ -83,6 +83,9 @@ namespace Kilnwood.Sim
             Storage[Item.Stone] = b.StartStone;
             Storage[Item.Iron] = b.StartIron;
             Storage[Item.Fish] = b.StartFish;
+            Units = new int[W * H];
+            DigMark = new bool[W * H];
+            DumpMark = new bool[W * H];
         }
 
         public void RestoreTime(float t) => Time = t;
@@ -155,7 +158,13 @@ namespace Kilnwood.Sim
                 }
             for (int dy = 0; dy < s; dy++)
                 for (int dx = 0; dx < s; dx++)
+                {
                     if (GroundAt(x + dx, y + dy) == Terrain.Water) return "Can't build on the river";
+                    int ti = (y + dy) * W + x + dx;
+                    if (Units[ti] != 0) return "Ground isn't level (dug or filled)";
+                    if (DigMark[ti] || DumpMark[ti]) return "Marked for digging or dumping";
+                    if (VehicleOn(x + dx, y + dy)) return "A vehicle is in the way";
+                }
             if (def.SitsOn != null && ExtractorResource(type, x, y, out _) == Item.None)
                 return type == BuildingType.Woodcutter ? "Woodcutters must sit on forest" : "Mines must sit on iron ore or stone";
             if (type == BuildingType.Fisher && !TouchesWater(x, y, s)) return "Fishers must touch the river";
@@ -191,6 +200,7 @@ namespace Kilnwood.Sim
                 for (int dx = 0; dx < b.Size; dx++)
                     _occ[(b.Y + dy) * W + b.X + dx] = -1;
             Buildings.Remove(id);
+            if (b.Type == BuildingType.Garage) RemoveVehiclesOf(b.Id);
             _belts.Remove(b);
             _splitters.Remove(b);
             _machines.Remove(b);
@@ -297,6 +307,7 @@ namespace Kilnwood.Sim
                 if (!m.Staffed) { m.Status = "No workers"; continue; }
                 StepMachine(m, dt * speed);
             }
+            StepVehicles(dt);
             if (!GoalReached && Delivered[Item.Gear] >= B.GoalGear && Delivered[Item.Brick] >= B.GoalBrick)
             {
                 GoalReached = true;
@@ -431,7 +442,12 @@ namespace Kilnwood.Sim
                     Delivered[item]++;
                     return true;
                 case BuildingType.Belt:
+                case BuildingType.Hopper:   // only trucks fill hoppers
                     return false;
+                case BuildingType.Garage:
+                    if (!Balance.IsFuel(item) || m.FuelCount >= B.GarageFuelCap) return false;
+                    if (item == Item.Charcoal) m.FuelCharcoal++; else m.FuelWood++;
+                    return true;
             }
             // Recipe first (up to 2 crafts' worth), then the fuel slot.
             var r = RecipeOf(m);
@@ -478,6 +494,8 @@ namespace Kilnwood.Sim
                 case BuildingType.Fisher: StepFisher(m, dt); break;
                 case BuildingType.Cabin: m.Status = "Home for " + B.Defs[m.Type].Homes; return;
                 case BuildingType.Lodge: m.Status = "Storing"; return;
+                case BuildingType.Garage: m.Status = "Fuel " + m.FuelCount + " / " + B.GarageFuelCap; return;
+                case BuildingType.Hopper: StepHopper(m, dt); break;
             }
             PushOutput(m);
         }

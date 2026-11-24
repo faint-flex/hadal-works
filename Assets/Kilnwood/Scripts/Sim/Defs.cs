@@ -4,9 +4,11 @@ namespace Kilnwood.Sim
 {
     public enum Terrain { Grass, Forest, IronOre, Stone, Water }
 
-    public enum Item { None, Wood, Ore, Stone, Charcoal, Iron, Brick, Gear, Fish }
+    public enum Item { None, Wood, Ore, Stone, Charcoal, Iron, Brick, Gear, Fish, Dirt }
 
-    public enum BuildingType { Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Lodge, Fisher, Cabin, Splitter }
+    public enum BuildingType { Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Lodge, Fisher, Cabin, Splitter, Garage, Hopper }
+
+    public enum VehicleType { Excavator, Truck }
 
     /// <summary>0 = north (+y), 1 = east (+x), 2 = south (-y), 3 = west (-x).</summary>
     public static class Dir
@@ -68,6 +70,7 @@ namespace Kilnwood.Sim
                 case Item.Brick: return "Brick";
                 case Item.Gear: return "Gear";
                 case Item.Fish: return "Fish";
+                case Item.Dirt: return "Dirt";
                 default: return "-";
             }
         }
@@ -85,6 +88,7 @@ namespace Kilnwood.Sim
                 case Item.Brick: return "B";
                 case Item.Gear: return "G";
                 case Item.Fish: return "F";
+                case Item.Dirt: return "D";
                 default: return "";
             }
         }
@@ -127,6 +131,26 @@ namespace Kilnwood.Sim
         public int StartIron = 12;
         public int GoalGear = 100;
         public int GoalBrick = 120;
+
+        // 0.5 "Open Pit": digging, excavators and trucks.
+        public int MaxDigDepth = 4;              // levels below the surface (1 level = 1 m)
+        public int MaxDumpHeight = 2;            // levels above the surface
+        public int UnitsPerLevel = 8;            // items in one level of one tile
+        public float DigSeconds = 1.5f;          // excavator: one unit every 1.5 s
+        public int BucketCap = 2;
+        public float ExcavatorSpeed = 2f;        // tiles per second
+        public float TruckSpeed = 4f;
+        public int TruckCap = 8;
+        public float TipSeconds = 2f;            // truck tipping its load
+        public float TankSeconds = 90f;          // vehicle fuel tank, used while driving or digging
+        public float RefuelBelow = 15f;
+        public int GarageFuelCap = 12;
+        public int HopperCap = 40;
+        public float HopperOutPerSecond = 2f;
+        public (Item item, int count)[] ExcavatorCost = { (Item.Iron, 20), (Item.Wood, 10) };
+        public (Item item, int count)[] TruckCost = { (Item.Iron, 12), (Item.Wood, 8) };
+
+        public (Item item, int count)[] VehicleCost(VehicleType t) => t == VehicleType.Excavator ? ExcavatorCost : TruckCost;
 
         public readonly Dictionary<BuildingType, BuildingDef> Defs = new Dictionary<BuildingType, BuildingDef>();
 
@@ -175,6 +199,8 @@ namespace Kilnwood.Sim
                 }
             });
             Add(new BuildingDef { Type = BuildingType.Lodge, Name = "Lodge", Size = 4, Homes = 6 });
+            Add(new BuildingDef { Type = BuildingType.Garage, Name = "Garage", Size = 2, Cost = new[] { (Item.Wood, 12), (Item.Stone, 8), (Item.Iron, 4) }, Key = '7' });
+            Add(new BuildingDef { Type = BuildingType.Hopper, Name = "Hopper", Size = 2, Cost = new[] { (Item.Wood, 10), (Item.Stone, 6) }, Key = '8' });
         }
 
         void Add(BuildingDef d) => Defs[d.Type] = d;

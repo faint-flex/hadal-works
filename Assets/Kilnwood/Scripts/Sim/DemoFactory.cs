@@ -21,8 +21,12 @@ namespace Kilnwood.Sim
         public int Total => _steps.Count;
         public int Placed => _next;
 
-        public DemoFactory(bool people = false)
+        readonly bool _pit;
+        bool _marked;
+
+        public DemoFactory(bool people = false, bool pit = false)
         {
+            _pit = pit;
             const int N = 0, E = 1, S = 2, W = 3;
             const int Charcoal = 0, Brick = 1;
             // Phase 1: wood into the lodge (pays for everything else).
@@ -66,6 +70,26 @@ namespace Kilnwood.Sim
             Add(BuildingType.Workshop, 42, 34, W);
             for (int x = 41; x >= 34; x--) Add(BuildingType.Belt, x, 34, W);
             Add(BuildingType.Belt, 33, 34, S);
+
+            // Phase 5 (0.5, screenshot run only): an open pit in the ore field. A woodcutter fuels a garage;
+            // one excavator and two trucks dig ore and tip it into a hopper beside the lodge.
+            if (pit)
+            {
+                Add(BuildingType.Woodcutter, 47, 19, N);
+                Add(BuildingType.Garage, 47, 21, N);
+                Add(BuildingType.Hopper, 34, 31, W);   // tips straight into the lodge beside it
+            }
+        }
+
+        /// <summary>Screenshot run: once the garage stands, buy vehicles as iron allows and mark the pit.</summary>
+        public void PitActions(World w)
+        {
+            if (!_pit) return;
+            var g = w.At(47, 21);
+            if (g == null || g.Type != BuildingType.Garage) return;
+            if (!_marked) { w.MarkDig(46, 28, 50, 31); _marked = true; }
+            if (w.CountVehicles(VehicleType.Excavator) < 1) w.Buy(g.Id, VehicleType.Excavator);
+            else if (w.CountVehicles(VehicleType.Truck) < 2) w.Buy(g.Id, VehicleType.Truck);
         }
 
         void Add(BuildingType t, int x, int y, int facing, int recipe = 0) =>
