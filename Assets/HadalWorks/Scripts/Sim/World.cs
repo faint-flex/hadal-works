@@ -298,8 +298,8 @@ namespace HadalWorks.Sim
         {
             var res = ExtractorResource(m.X, m.Y, m.Size, out int tiles);
             if (res == Item.None) { m.Status = "Nothing to extract"; return; }
-            if (m.OutCount > 0 && m.OutItem != res) { m.Status = "Output blocked"; return; }
-            if (m.OutCount >= B.OutputCap) { m.Status = "Output blocked"; return; }
+            if (m.OutCount > 0 && m.OutItem != res) { m.Status = "Full, waiting for space"; return; }
+            if (m.OutCount >= B.OutputCap) { m.Status = "Full, waiting for space"; return; }
             float perSecond = Math.Min(B.ExtractMaxPerSecond, tiles / B.ExtractSecondsPerTile);
             m.ExtractTimer += dt * perSecond;
             while (m.ExtractTimer >= 1f && m.OutCount < B.OutputCap)
@@ -316,7 +316,7 @@ namespace HadalWorks.Sim
             var r = RecipeOf(m);
             if (!m.Crafting)
             {
-                if (m.OutCount >= B.OutputCap) { m.Status = "Output blocked"; return; }
+                if (m.OutCount >= B.OutputCap) { m.Status = "Full, waiting for space"; return; }
                 for (int i = 0; i < r.InItems.Length; i++)
                 {
                     m.Input.TryGetValue(r.InItems[i], out int have);
@@ -330,7 +330,7 @@ namespace HadalWorks.Sim
             m.Status = PowerRatio < 0.999f ? "Low power" : "Working";
             if (m.Work >= r.Seconds)
             {
-                if (m.OutCount > 0 && m.OutItem != r.Out) { m.Status = "Output blocked"; m.Work = r.Seconds; return; }
+                if (m.OutCount > 0 && m.OutItem != r.Out) { m.Status = "Full, waiting for space"; m.Work = r.Seconds; return; }
                 m.Crafting = false;
                 m.Work = 0f;
                 m.OutItem = r.Out;
@@ -356,7 +356,7 @@ namespace HadalWorks.Sim
                     if (m.OutCount == 0) m.OutItem = Item.None;
                 }
             }
-            if (m.OutCount >= B.OutputCap && m.Status == "Working") m.Status = "Output blocked";
+            if (m.OutCount >= B.OutputCap && m.Status == "Working") m.Status = "Full, waiting for space";
         }
 
         /// <summary>The tiles just in front of a building's front edge.</summary>

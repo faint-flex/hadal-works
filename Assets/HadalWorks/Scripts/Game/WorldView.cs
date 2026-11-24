@@ -19,7 +19,7 @@ namespace HadalWorks.Game
             public GameObject Root;
             public Transform Body;      // rotated to face
             public TextMesh Title;
-            public TextMesh Status;
+            public string Shown;
             public int Facing = -1;
             public int Recipe = -1;
         }
@@ -119,7 +119,7 @@ namespace HadalWorks.Game
                     Look.Box("Vent", root, c + new Vector3(0f, 0.5f, 0f), new Vector3(1.6f, 1f, 1.6f), Look.Vent);
                     Look.Box("VentGlow", root, c + new Vector3(0f, 1.02f, 0f), new Vector3(0.7f, 0.05f, 0.7f), Look.VentGlow);
                     PointLight(root, c + new Vector3(0f, 2.5f, 0f), Look.VentGlow, 2.5f, 12f);
-                    Look.Label("VENT", root, c + new Vector3(0f, 0.1f, -1.4f), 0.9f, Look.VentGlow);
+                    Look.Billboard("VENT\n<size=44>build power here</size>", root, c + new Vector3(0f, 1.6f, 0f), 1.1f, Color.white);
                     break;
             }
         }
@@ -200,9 +200,9 @@ namespace HadalWorks.Game
             }
             if (b.Type != BuildingType.Tube)
             {
-                float top = b.Type == BuildingType.Hub ? 4.5f : b.Type == BuildingType.Fabricator ? 3.6f : b.Type == BuildingType.Extractor ? 3.6f : 3.4f;
-                v.Title = Look.Label("", v.Root.transform, new Vector3(0f, top, 0f), b.Type == BuildingType.Hub ? 2.2f : 1.3f, Color.white);
-                v.Status = Look.Label("", v.Root.transform, new Vector3(0f, top, -1.1f * b.Size / 2f - 0.4f), 0.9f, new Color(0.8f, 0.9f, 1f));
+                // One upright label per machine: name on top, status underneath (only when it is not just "Working").
+                float top = b.Type == BuildingType.Hub ? 8.2f : b.Type == BuildingType.Fabricator ? 3.8f : b.Type == BuildingType.Extractor ? 3.8f : b.Type == BuildingType.VentTap ? 3.2f : 3.4f;
+                v.Title = Look.Billboard("", v.Root.transform, new Vector3(0f, top, 0f), b.Type == BuildingType.Hub ? 2.4f : 1.0f, Color.white);
             }
             return v;
         }
@@ -217,9 +217,9 @@ namespace HadalWorks.Game
                 case BuildingType.Processor:
                 case BuildingType.Fabricator:
                     var r = _w.RecipeOf(b);
-                    return (b.Type == BuildingType.Processor ? "PROC " : "FAB ") + Items.Letter(r.Out) + "\n" + r.Name;
+                    return (b.Type == BuildingType.Processor ? "PROC " : "FAB ") + Items.Letter(r.Out);
                 case BuildingType.VentTap: return "POWER +" + _w.B.Defs[b.Type].Supply;
-                case BuildingType.Hub: return "HUB";
+                case BuildingType.Hub: return "HUB\n<size=40>deliver here</size>";
                 default: return "";
             }
         }
@@ -242,15 +242,16 @@ namespace HadalWorks.Game
                 if (v.Facing != b.Facing) { v.Body.localRotation = FacingRot(b.Facing); v.Facing = b.Facing; }
                 if (v.Title != null)
                 {
-                    if (v.Recipe != b.Recipe || v.Title.text.Length == 0) { v.Title.text = TitleFor(b); v.Recipe = b.Recipe; }
-                    if (b.Type != BuildingType.Hub) v.Status.text = b.Status;
+                    string status = b.Type == BuildingType.Hub || string.IsNullOrEmpty(b.Status) || b.Status == "Working" ? "" : b.Status;
+                    string text = TitleFor(b) + (status.Length > 0 ? "\n<size=48><color=#BFD8FF>" + status + "</color></size>" : "");
+                    if (v.Shown != text) { v.Title.text = text; v.Shown = text; v.Recipe = b.Recipe; }
                 }
             }
 
             UpdateItems();
 
             var cam = Camera.main;
-            if (cam != null) Look.TurnFlatLabels(cam.transform.eulerAngles.y);
+            if (cam != null) { Look.TurnFlatLabels(cam.transform.eulerAngles.y); Look.TurnBillboards(cam.transform.rotation); }
         }
 
         void UpdateItems()

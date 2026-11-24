@@ -104,7 +104,7 @@ namespace HadalWorks.Game
             _goalShown = w.GoalReached;
             _autosaveAt = Time.unscaledTime + 120f;
             Rig.InputEnabled = true;
-            Rig.Frame(WorldView.FootCenter(MapGen.HubX, MapGen.HubY, 4) + new Vector3(0f, 0f, -6f), 0f, 55f, 60f);
+            Rig.Frame(WorldView.FootCenter(MapGen.HubX, MapGen.HubY, 4) + new Vector3(0f, 0f, 8f), 0f, 55f, 66f);
         }
 
         void NewGame() => StartWorld(MapGen.NewTier1(B));
@@ -357,7 +357,7 @@ namespace HadalWorks.Game
                 if (_shotIndex == 1) Rig.Frame(hub + new Vector3(-26f, 0f, -2f), 30f, 40f, 28f);
                 else if (_shotIndex == 2) Rig.Frame(hub + new Vector3(4f, 0f, 14f), 200f, 38f, 30f);
                 else if (_shotIndex == 3) Rig.Frame(hub + new Vector3(20f, 0f, 6f), 290f, 30f, 26f);
-                else Rig.Frame(hub + new Vector3(0f, 0f, -6f), 0f, 55f, 70f);
+                else Rig.Frame(hub + new Vector3(0f, 0f, 8f), 0f, 55f, 74f);
                 StartCoroutine(ShotNextFrame((_shotIndex + 1).ToString("00") + "-t" + Mathf.RoundToInt(W.Time) + "s"));
                 _shotIndex++;
             }
@@ -379,7 +379,7 @@ namespace HadalWorks.Game
         System.Collections.IEnumerator ShotsFinish()
         {
             var hub = WorldView.FootCenter(MapGen.HubX, MapGen.HubY, 4);
-            Rig.Frame(hub + new Vector3(0f, 0f, -6f), 0f, 55f, 70f);
+            Rig.Frame(hub + new Vector3(0f, 0f, 8f), 0f, 55f, 74f);
             yield return null;
             yield return new WaitForEndOfFrame();
             ScreenCapture.CaptureScreenshot(Path.Combine(_shotsDir, "09-goal.png"));

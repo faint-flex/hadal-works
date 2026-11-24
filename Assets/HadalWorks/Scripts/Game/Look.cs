@@ -13,7 +13,7 @@ namespace HadalWorks.Game
         public static readonly Color KelpGlow = new Color(0.25f, 0.95f, 0.85f);
         public static readonly Color Vent = new Color(0.08f, 0.07f, 0.07f);
         public static readonly Color VentGlow = new Color(1f, 0.45f, 0.12f);
-        public static readonly Color Hub = new Color(0.78f, 0.82f, 0.86f);
+        public static readonly Color Hub = new Color(0.42f, 0.5f, 0.58f);
         public static readonly Color Machine = new Color(0.55f, 0.6f, 0.66f);
         public static readonly Color MachineDark = new Color(0.22f, 0.25f, 0.3f);
         public static readonly Color Accent = new Color(1f, 0.78f, 0.15f);
@@ -38,6 +38,29 @@ namespace HadalWorks.Game
                 if (t == null) { FlatLabels.RemoveAt(i); continue; }
                 t.rotation = rot;
             }
+        }
+
+        /// <summary>Upright text over machines; turned to face the camera fully so it never smears at low angles.</summary>
+        public static readonly List<Transform> Billboards = new List<Transform>();
+
+        public static void TurnBillboards(Quaternion camRot)
+        {
+            for (int i = Billboards.Count - 1; i >= 0; i--)
+            {
+                var t = Billboards[i];
+                if (t == null) { Billboards.RemoveAt(i); continue; }
+                t.rotation = camRot;
+            }
+        }
+
+        /// <summary>Text that floats upright and always faces the camera.</summary>
+        public static TextMesh Billboard(string text, Transform parent, Vector3 localPos, float size, Color c)
+        {
+            var tm = Label(text, parent, localPos, size, c, faceUp: false);
+            tm.anchor = TextAnchor.LowerCenter;
+            tm.richText = true;
+            Billboards.Add(tm.transform);
+            return tm;
         }
 
         public static Material Mat(Color c)
