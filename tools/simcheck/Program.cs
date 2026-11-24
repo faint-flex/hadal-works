@@ -7,6 +7,7 @@ public static class Program
     public static int Main(string[] args)
     {
         if (args.Length > 0 && args[0] == "pit") return Pit(args.Length > 1 && args[1] == "map");
+        if (args.Length > 0 && args[0] == "jitter") return Jitter(args.Length > 1 ? int.Parse(args[1]) : 8);
         var b = new Balance();
         var w = MapGen.NewTier1(b);
         var demo = new DemoFactory();
@@ -28,6 +29,49 @@ public static class Program
             if (bd.Type != BuildingType.Belt && bd.Type != BuildingType.Lodge)
                 Console.WriteLine($"  {bd.Type,-10} at {bd.X},{bd.Y}: {bd.Status}  fuel {bd.FuelWood}W {bd.FuelCharcoal}C");
         return 0;
+    }
+
+    /// <summary>The autopilot run as the game plays it: uneven frame times (seeded), iron gift at 200 s.
+    /// Prints each seed's goal times, so a run that stalls shows up here before a PC build.</summary>
+    static float _trace;
+    static void Trace(World w)
+    {
+        int dig = 0; foreach (var m in w.DigMark) if (m) dig++;
+        Console.Write($"{w.Time,5:0} steel {w.Delivered[Item.Steel]} digMarks {dig} |");
+        foreach (var bd in w.Buildings.Values) if (bd.Type == BuildingType.Furnace || (bd.Type == BuildingType.Hopper && bd.X == 39)) Console.Write($" {bd.Type}: {bd.Status} [{string.Join(",", System.Linq.Enumerable.Select(bd.Input, kv => kv.Key + "=" + kv.Value))}]");
+        foreach (var v in w.Vehicles) Console.Write($" | {v.Type} '{v.Status}' {v.Load}x{v.LoadCount}");
+        Console.WriteLine();
+    }
+
+    static int Jitter(int seeds)
+    {
+        int fails = 0;
+        for (int seed = 1; seed <= seeds; seed++)
+        {
+            var rng = new Random(seed);
+            var b = new Balance();
+            var w = MapGen.NewTier1(b);
+            var demo = new DemoFactory(false, true, tier2: true, tier3: true);
+            bool gift = false, gift3 = false;
+            while (w.Time < 3600f && w.Tier < 4)
+            {
+                demo.BuildWhatYouCan(w);
+                demo.PitActions(w);
+                if (!gift && w.Time >= 200f) { w.Storage[Item.Iron] += 60; gift = true; }
+                if (!gift3 && w.Tier >= 3) { w.Storage[Item.Iron] += 40; gift3 = true; }
+                w.Tick((float)(0.02 + rng.NextDouble() * 0.5));
+                if (seeds == 1 && w.Tier >= 3 && w.Time >= _trace) { _trace = w.Time + 60f; Trace(w); }
+            }
+            if (w.Tier < 4) fails++;
+            Console.Write($"seed {seed}: T1 {w.GoalReachedAt:0}  T2 {w.Tier2GoalAt:0}  T3 {w.Tier3GoalAt:0}  steel {w.Delivered[Item.Steel]} coal {w.Delivered[Item.Coal]} ore {w.Delivered[Item.Ore]} |");
+            foreach (var v in w.Vehicles) Console.Write($" {v.Type} '{v.Status}';");
+            Console.WriteLine();
+            foreach (var bd in w.Buildings.Values)
+                if (w.Tier < 4 && (bd.Type == BuildingType.Furnace || bd.Type == BuildingType.Hopper || bd.Type == BuildingType.Smelter || bd.Type == BuildingType.TripHammer))
+                    Console.WriteLine($"    {bd.Type} {bd.X},{bd.Y} f{bd.Facing}: {bd.Status}  in [{string.Join(",", System.Linq.Enumerable.Select(bd.Input, kv => kv.Key + "=" + kv.Value))}]" + (bd.Type == BuildingType.Hopper ? $" wantsOre {w.HopperWants(bd, Item.Ore)} wantsCoal {w.HopperWants(bd, Item.Coal)}" : ""));
+        }
+        Console.WriteLine(fails == 0 ? "all seeds reached Tier 4" : fails + " seeds did NOT reach Tier 4");
+        return fails == 0 ? 0 : 1;
     }
 
     /// <summary>The screenshot run's open pit: demo factory + pit phase, with the autopilot's iron gift at 300 s.</summary>

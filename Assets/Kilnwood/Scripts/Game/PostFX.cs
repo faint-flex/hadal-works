@@ -17,7 +17,7 @@ namespace Kilnwood.Game
         public float Exposure = 1.05f;
         public float BloomThreshold = 1.6f;
         public float BloomIntensity = 0.25f;
-        public float Saturation = 1.12f;
+        public float Saturation = 1.0f;
         public float Contrast = 1.1f;
         public float Vignette = 0.2f;
         public float AORadius = 1.1f;

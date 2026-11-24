@@ -417,7 +417,7 @@ namespace Kilnwood.Sim
                     if (v.DigTile >= 0) Face(v, v.DigTile);
                     // Is this still a good tile? (Layer by layer: leave it once it is deeper than the shallowest marked tile.)
                     bool tileDone = v.DigTile < 0 || !DigMark[v.DigTile] || MaterialAt(v.DigTile) == Item.None
-                                    || Layer(v.DigTile) < ShallowestMarked();
+                                    || Layer(v.DigTile) < ShallowestMarked(v.DigTile);
                     if (v.BucketCount >= B.BucketCap || (v.BucketCount > 0 && v.DigTile >= 0 && MaterialAt(v.DigTile) != v.Bucket))
                     {
                         v.Status = "Waiting for a truck";
@@ -451,19 +451,39 @@ namespace Kilnwood.Sim
             }
         }
 
-        int ShallowestMarked()
+        /// <summary>Shallowest marked tile of the same kind of ground (coal seam, ore field, or other), so each pit
+        /// goes down layer by layer on its own and an excavator sent to one pit isn't pulled back to another.</summary>
+        int ShallowestMarked(int like)
         {
+            int kind = DigKind(like);
             int best = int.MinValue;
             for (int i = 0; i < DigMark.Length; i++)
-                if (DigMark[i] && Layer(i) > best && MaterialAt(i) != Item.None) best = Layer(i);
+                if (DigMark[i] && Layer(i) > best && MaterialAt(i) != Item.None && DigKind(i) == kind) best = Layer(i);
             return best;
         }
+
+        int ShallowestOf(int i, int[] shallow) => shallow[DigKind(i)];
+
+        int DigKind(int i) => CoalSeam[i] ? 1 : Ground[i] == Terrain.IronOre ? 2 : 0;
 
         /// <summary>Shallowest marked tile first (layer by layer), nearest first; not one another excavator has.</summary>
         int PickDigTile(Vehicle v)
         {
             int me = TileOf(v);
-            int best = -1, bestH = int.MinValue, bestD = int.MaxValue;
+            // Dig toward what a machine is short of: if a hopper feeding a furnace has room for coal but not ore,
+            // work the coal seam first. Otherwise keep the pit level (highest layer first), nearest first.
+            bool wantOre = false, wantCoal = false;
+            foreach (var h in _machines)
+            {
+                if (h.Type != BuildingType.Hopper) continue;
+                if (!wantOre && HopperFeedsMachine(h, Item.Ore) && HopperRoomFor(h, Item.Ore) >= B.TruckCap) wantOre = true;
+                if (!wantCoal && HopperFeedsMachine(h, Item.Coal) && HopperRoomFor(h, Item.Coal) >= B.TruckCap) wantCoal = true;
+            }
+            var shallow = new int[3];
+            for (int k = 0; k < 3; k++) shallow[k] = int.MinValue;
+            for (int i = 0; i < DigMark.Length; i++)
+                if (DigMark[i] && MaterialAt(i) != Item.None) { int k = DigKind(i); if (Layer(i) > shallow[k]) shallow[k] = Layer(i); }
+            int best = -1, bestW = -1, bestH = int.MinValue, bestD = int.MaxValue;
             for (int i = 0; i < DigMark.Length; i++)
             {
                 if (!DigMark[i] || MaterialAt(i) == Item.None) continue;
@@ -471,8 +491,9 @@ namespace Kilnwood.Sim
                 foreach (var o in Vehicles) if (o != v && o.Type == VehicleType.Excavator && o.DigTile == i) { taken = true; break; }
                 if (taken) continue;
                 int d = Math.Abs(i % W - me % W) + Math.Abs(i / W - me / W);
-                int layer = Layer(i);
-                if (layer > bestH || (layer == bestH && d < bestD)) { best = i; bestH = layer; bestD = d; }
+                int layer = Layer(i) - ShallowestOf(i, shallow);
+                int wanted = wantCoal && CoalSeam[i] ? 1 : wantOre && Ground[i] == Terrain.IronOre ? 1 : 0;
+                if (wanted > bestW || (wanted == bestW && (layer > bestH || (layer == bestH && d < bestD)))) { best = i; bestW = wanted; bestH = layer; bestD = d; }
             }
             return best;
         }
@@ -585,11 +606,14 @@ namespace Kilnwood.Sim
             }
             // Hoppers with room, then the lodge.
             var drops = new Dictionary<int, int>();   // ring tile -> building id
-            foreach (var b in _machines)
-            {
-                if (b.Type == BuildingType.Hopper && HopperRoomFor(b, v.Load) >= v.LoadCount && HopperWants(b, v.Load))
+            // First choice: hoppers that feed a machine using this load (a furnace short of ore beats the lodge's store).
+            for (int pass = 0; pass < 2 && drops.Count == 0; pass++)
+                foreach (var b in _machines)
+                {
+                    if (b.Type != BuildingType.Hopper || HopperRoomFor(b, v.Load) < v.LoadCount || !HopperWants(b, v.Load)) continue;
+                    if (pass == 0 && !HopperFeedsMachine(b, v.Load)) continue;
                     foreach (int t in RingTiles(b)) if (!drops.ContainsKey(t)) drops[t] = b.Id;
-            }
+                }
             if (drops.Count == 0 && Lodge != null)
                 foreach (int t in RingTiles(Lodge)) drops[t] = Lodge.Id;
             if (drops.Count == 0) { v.Status = "Nowhere to tip"; v.State = VehicleState.Waiting; return; }
@@ -684,6 +708,20 @@ namespace Kilnwood.Sim
                 if (Balance.IsFuel(it) && (BurnsFuel(t) || t.Type == BuildingType.SteamEngine || t.Type == BuildingType.Garage)) return true;
             }
             return !anything;   // nothing in front yet: it just stores
+        }
+
+        /// <summary>True when the hopper tips into a machine whose recipe or fire uses this item (not a belt or the lodge).</summary>
+        bool HopperFeedsMachine(Building h, Item it)
+        {
+            foreach (var (x, y) in FrontTiles(h))
+            {
+                var t = At(x, y);
+                if (t == null || t == h) continue;
+                var r = RecipeOf(t);
+                if (r != null && r.Needs(it) > 0) return true;
+                if (Balance.IsFuel(it) && (BurnsFuel(t) || t.Type == BuildingType.SteamEngine)) return true;
+            }
+            return false;
         }
 
         static readonly Item[] HopperOrder = (Item[])Enum.GetValues(typeof(Item));

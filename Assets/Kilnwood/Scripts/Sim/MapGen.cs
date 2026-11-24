@@ -14,7 +14,7 @@ namespace Kilnwood.Sim
         {
             (14, 25, "FOREST  (W)"), (48, 29, "IRON ORE  (O)"), (34, 50, "STONE  (S)"),
             (51, 20, "FOREST  (W)"), (51, 44, "FOREST  (W)"), (35, 57, "FOREST  (W)"),
-            (54, 7, "IRON ORE  (O)"), (56, 30, "COAL  (K)  deep"), (13, 51, "STONE  (S)"), (12, 10, "FOREST  (W)"),
+            (54, 7, "IRON ORE  (O)"), (54, 30, "COAL  (K)"), (13, 51, "STONE  (S)"), (12, 10, "FOREST  (W)"),
         };
 
         public static World NewTier1(Balance b)

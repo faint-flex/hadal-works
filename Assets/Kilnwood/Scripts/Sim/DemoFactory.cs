@@ -123,6 +123,8 @@ namespace Kilnwood.Sim
         }
 
         /// <summary>Screenshot run: once the garage stands, buy vehicles as iron allows and mark the pit.</summary>
+        float _remarkAt;
+
         public void PitActions(World w)
         {
             if (!_pit) return;
@@ -135,6 +137,20 @@ namespace Kilnwood.Sim
                 w.MarkDig(MapGen.CoalX0 + 1, MapGen.CoalY0 + 1, MapGen.CoalX0 + 4, MapGen.CoalY0 + 4);   // 4 x 4 into the coal seam
                 w.MarkDig(47, 33, 50, 36);                                                               // more ore
                 w.MarkDump(57, 20, 61, 24);                                                              // the seam's dirt goes here
+            }
+            if (_tier3 && w.Tier >= 3 && w.Time >= _remarkAt)
+            {
+                // The first marks run out before the goal: keep the pit going by widening and deepening it.
+                _remarkAt = w.Time + 30f;
+                int left = 0; foreach (var m in w.DigMark) if (m) left++;
+                if (left < 6)
+                {
+                    w.MarkDig(45, 27, 51, 38);                                                               // ore field, next layer down
+                    w.MarkDig(MapGen.CoalX0, MapGen.CoalY0, MapGen.CoalX0 + 6, MapGen.CoalY0 + 6);           // the whole seam
+                }
+                int dumpLeft = 0;
+                for (int i = 0; i < w.DumpMark.Length; i++) if (w.DumpMark[i]) dumpLeft++;
+                if (dumpLeft < 4) w.MarkDump(56, 14, 62, 25);                                           // more room for the dirt
             }
             int wantEx = _tier3 && w.Tier >= 3 ? 2 : 1, wantTr = _tier3 && w.Tier >= 3 ? 3 : 2;
             if (w.CountVehicles(VehicleType.Excavator) < wantEx) w.Buy(g.Id, VehicleType.Excavator);
