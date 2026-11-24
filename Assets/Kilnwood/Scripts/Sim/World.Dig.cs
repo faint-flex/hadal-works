@@ -494,11 +494,17 @@ namespace Kilnwood.Sim
             for (int i = 0; i < DigMark.Length; i++)
                 if (DigMark[i] && MaterialAt(i) != Item.None) { int k = DigKind(i); if (Layer(i) > shallow[k]) shallow[k] = Layer(i); }
             int best = -1, bestW = -1, bestH = int.MinValue, bestD = int.MaxValue;
+            for (int pass = 0; pass < 2 && best < 0; pass++)
             for (int i = 0; i < DigMark.Length; i++)
             {
                 if (!DigMark[i] || MaterialAt(i) == Item.None) continue;
+                // Keep clear of other excavators' spots (2 tiles), so machines and their trucks don't pile up.
                 bool taken = false;
-                foreach (var o in Vehicles) if (o != v && o.Type == VehicleType.Excavator && o.DigTile == i) { taken = true; break; }
+                foreach (var o in Vehicles)
+                {
+                    int gap = pass == 0 ? 2 : 0;   // second pass: anything not already being dug
+                    if (o != v && o.Type == VehicleType.Excavator && o.DigTile >= 0 && Math.Abs(o.DigTile % W - i % W) <= gap && Math.Abs(o.DigTile / W - i / W) <= gap) { taken = true; break; }
+                }
                 if (taken) continue;
                 int d = Math.Abs(i % W - me % W) + Math.Abs(i / W - me / W);
                 int layer = Layer(i) - ShallowestOf(i, shallow);

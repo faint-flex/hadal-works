@@ -330,6 +330,114 @@ namespace Kilnwood.Game
             return Mathf.Lerp(Mathf.Lerp(a, b, u), Mathf.Lerp(c, d, u), v);
         }
 
+        // ------------------------------------------------------------------ realistic ground and water
+
+        static Texture2D _grain, _grainNormal, _ripples;
+
+        /// <summary>Tileable value noise on a `period` lattice (wraps at 1).</summary>
+        static float TileNoise(float u, float v, int period, int seed)
+        {
+            float x = u * period, y = v * period;
+            int x0 = Mathf.FloorToInt(x), y0 = Mathf.FloorToInt(y);
+            float fx = x - x0, fy = y - y0;
+            fx = fx * fx * (3f - 2f * fx); fy = fy * fy * (3f - 2f * fy);
+            float H(int i, int j) => Hash(((i % period) + period) % period, ((j % period) + period) % period, seed);
+            float a = Mathf.Lerp(H(x0, y0), H(x0 + 1, y0), fx), b = Mathf.Lerp(H(x0, y0 + 1), H(x0 + 1, y0 + 1), fx);
+            return Mathf.Lerp(a, b, fy);
+        }
+
+        static float Fbm(float u, float v, int seed)
+        {
+            float sum = 0f, amp = 0.5f, norm = 0f;
+            int period = 4;
+            for (int o = 0; o < 5; o++) { sum += amp * TileNoise(u, v, period, seed + o * 17); norm += amp; amp *= 0.55f; period *= 2; }
+            return sum / norm;
+        }
+
+        static Texture2D NormalFrom(float[] h, int n, float strength, string name)
+        {
+            var nt = new Texture2D(n, n, TextureFormat.RGBA32, true, true) { name = name, wrapMode = TextureWrapMode.Repeat, anisoLevel = 4 };
+            var px = new Color32[n * n];
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    float dx = h[y * n + (x + 1) % n] - h[y * n + (x - 1 + n) % n];
+                    float dy = h[((y + 1) % n) * n + x] - h[((y - 1 + n) % n) * n + x];
+                    var v = new Vector3(-dx * strength, -dy * strength, 1f).normalized;
+                    px[y * n + x] = new Color32((byte)(v.x * 127.5f + 127.5f), (byte)(v.y * 127.5f + 127.5f), (byte)(v.z * 127.5f + 127.5f), 255);
+                }
+            nt.SetPixels32(px);
+            nt.Apply(true);
+            return nt;
+        }
+
+        /// <summary>Soil grain: fbm with small pebble speckles, mean about 0.5 (so it brightens and darkens evenly).</summary>
+        static void MakeGrain()
+        {
+            const int n = 256;
+            var h = new float[n * n];
+            var px = new Color32[n * n];
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    float u = x / (float)n, v = y / (float)n;
+                    float f = Fbm(u, v, 11);
+                    float peb = TileNoise(u, v, 64, 5);
+                    float pebble = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((peb - 0.78f) * 6f));
+                    float val = Mathf.Clamp01(0.5f + (f - 0.5f) * 0.9f + pebble * 0.18f - Mathf.Clamp01((0.25f - f) * 2f) * 0.1f);
+                    h[y * n + x] = f + pebble * 0.6f;
+                    byte b = (byte)(val * 255f);
+                    px[y * n + x] = new Color32(b, b, b, 255);
+                }
+            _grain = new Texture2D(n, n, TextureFormat.RGBA32, true, true) { name = "Grain", wrapMode = TextureWrapMode.Repeat, anisoLevel = 4 };
+            _grain.SetPixels32(px);
+            _grain.Apply(true);
+            _grainNormal = NormalFrom(h, n, 6f, "GrainNormal");
+        }
+
+        static Texture2D Ripples
+        {
+            get
+            {
+                if (_ripples != null) return _ripples;
+                const int n = 256;
+                var h = new float[n * n];
+                for (int y = 0; y < n; y++)
+                    for (int x = 0; x < n; x++)
+                    {
+                        float u = x / (float)n, v = y / (float)n;
+                        // Stretched across the flow a little, like wind ripples on a moving river.
+                        h[y * n + x] = Fbm(u, v, 31) * 0.7f + TileNoise(u, v, 16, 9) * 0.3f;
+                    }
+                _ripples = NormalFrom(h, n, 3.5f, "Ripples");
+                return _ripples;
+            }
+        }
+
+        /// <summary>The valley floor material: painted map plus close-up grain (KW_Ground), or plain if missing.</summary>
+        public static Material GroundMat(Texture2D painted)
+        {
+            var src = Resources.Load<Material>("KW_Ground");
+            if (src == null || src.shader == null || !src.shader.isSupported) return TexturedMat(painted, Color.white, 0.05f);
+            if (_grain == null) MakeGrain();
+            var m = new Material(src);
+            m.SetTexture("_MainTex", painted);
+            m.SetTexture("_Detail", _grain);
+            m.SetTexture("_DetailNormal", _grainNormal);
+            return m;
+        }
+
+        /// <summary>River material with moving ripples and sky reflections (KW_Water), or the old one if missing.</summary>
+        public static Material WaterMat()
+        {
+            var src = Resources.Load<Material>("KW_Water");
+            if (src == null || src.shader == null || !src.shader.isSupported) return TexturedMat(WaterTexture, Color.white, 0.85f);
+            var m = new Material(src);
+            m.SetTexture("_MainTex", WaterTexture);
+            m.SetTexture("_Waves", Ripples);
+            return m;
+        }
+
         public static Material TexturedMat(Texture2D tex, Color tint, float gloss = 0.08f)
         {
             var m = new Material(Look.Mat(tint));
@@ -503,10 +611,11 @@ namespace Kilnwood.Game
             m.uv = new[] { new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(0f, 1f) };
             m.triangles = new[] { 0, 2, 1, 0, 3, 2 };
             m.RecalculateNormals();
+            m.RecalculateTangents();
             m.RecalculateBounds();
             go.AddComponent<MeshFilter>().sharedMesh = m;
             var r = go.AddComponent<MeshRenderer>();
-            r.sharedMaterial = TexturedMat(PaintGround(w), Color.white, 0.05f);
+            r.sharedMaterial = GroundMat(PaintGround(w));
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             return go;
         }

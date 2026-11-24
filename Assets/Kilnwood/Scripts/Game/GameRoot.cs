@@ -437,8 +437,8 @@ namespace Kilnwood.Game
             if (!_ironGift3 && W.Tier >= 3)
             {
                 _ironGift3 = true;
-                W.Storage[Item.Iron] += 40;
-                File.AppendAllText(Path.Combine(_shotsDir, "shots-result.txt"), "autopilot: +40 iron at Tier 3 (" + W.Time.ToString("0") + " s) for the extra pit vehicles\n");
+                W.Storage[Item.Iron] += 80;
+                File.AppendAllText(Path.Combine(_shotsDir, "shots-result.txt"), "autopilot: +80 iron at Tier 3 (" + W.Time.ToString("0") + " s) for the extra pit vehicles\n");
             }
             W.Tick(Mathf.Min(Time.unscaledDeltaTime, 0.1f) * _speed);
             if (W.Tier >= 3 && _t3At <= 0f) _t3At = W.Time + 330f;   // give the coal pit time to open

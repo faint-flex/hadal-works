@@ -55,6 +55,7 @@ namespace Kilnwood.Game
             _mesh.uv = uv;
             _mesh.triangles = tris;
             _mesh.RecalculateNormals();
+            _mesh.RecalculateTangents();
             _mesh.RecalculateBounds();
 
             _tex = Art.PaintGround(w);
@@ -63,7 +64,7 @@ namespace Kilnwood.Game
             Go.transform.SetParent(parent, false);
             Go.AddComponent<MeshFilter>().sharedMesh = _mesh;
             var r = Go.AddComponent<MeshRenderer>();
-            r.sharedMaterial = Art.TexturedMat(_tex, Color.white, 0.05f);
+            r.sharedMaterial = Art.GroundMat(_tex);
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
             r.receiveShadows = true;
 
@@ -123,6 +124,7 @@ namespace Kilnwood.Game
             }
             _mesh.vertices = _verts;
             _mesh.RecalculateNormals();
+            _mesh.RecalculateTangents();
             _mesh.RecalculateBounds();
             _texDirty = true;
         }

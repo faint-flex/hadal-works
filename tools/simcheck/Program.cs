@@ -59,7 +59,7 @@ public static class Program
                 demo.PitActions(w);
                 demo.RailActions(w);
                 if (!gift && w.Time >= 200f) { w.Storage[Item.Iron] += 60; gift = true; }
-                if (!gift3 && w.Tier >= 3) { w.Storage[Item.Iron] += 40; gift3 = true; }
+                if (!gift3 && w.Tier >= 3) { w.Storage[Item.Iron] += 80; gift3 = true; }
                 w.Tick((float)(0.02 + rng.NextDouble() * 0.5));
                 if (seeds == 1 && w.Tier >= 3 && w.Time >= _trace) { _trace = w.Time + 60f; Trace(w); }
             }
@@ -90,7 +90,7 @@ public static class Program
             demo.PitActions(w);
             demo.RailActions(w);
             if (!gift && w.Time >= 300f) { w.Storage[Item.Iron] += 60; gift = true; }
-            if (!gift3 && w.Tier >= 3) { w.Storage[Item.Iron] += 40; gift3 = true; }
+            if (!gift3 && w.Tier >= 3) { w.Storage[Item.Iron] += 80; gift3 = true; }
             w.Tick(1f);
             if (w.Time >= next)
             {

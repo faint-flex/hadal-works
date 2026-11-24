@@ -83,6 +83,8 @@ namespace Kilnwood.Game
         }
 
         Material _beltMat, _waterMat;
+        ReflectionProbe _skyProbe;
+        bool _skyProbeDone;
         GrassView _grass;
         HillHeight _hills;
 
@@ -173,12 +175,12 @@ namespace Kilnwood.Game
             Strip(last.z, last.l, last.r, size * 2.2f, last.l, last.r);          // and on to the north
             var m = new Mesh { name = "River" };
             m.SetVertices(v); m.SetUVs(0, uv); m.SetTriangles(tri, 0);
-            m.RecalculateNormals(); m.RecalculateBounds();
+            m.RecalculateNormals(); m.RecalculateTangents(); m.RecalculateBounds();
             var go = new GameObject("River");
             go.transform.SetParent(root, false);
             go.AddComponent<MeshFilter>().sharedMesh = m;
             var r = go.AddComponent<MeshRenderer>();
-            _waterMat = Art.TexturedMat(Art.WaterTexture, Color.white, 0.85f);
+            _waterMat = Art.WaterMat();
             r.sharedMaterial = _waterMat;
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
@@ -349,6 +351,18 @@ namespace Kilnwood.Game
             RenderSettings.fogMode = FogMode.ExponentialSquared;
             RenderSettings.fogColor = CameraRig.Horizon;
             RenderSettings.fogDensity = 0.0032f;
+
+            // A sky-only reflection probe so the river and wet surfaces reflect the sky (rendered once, first frame).
+            _skyProbe = new GameObject("Sky reflection").AddComponent<ReflectionProbe>();
+            _skyProbe.transform.SetParent(root, false);
+            _skyProbe.transform.position = new Vector3(_w.W * 0.5f * T, 20f, _w.H * 0.5f * T);
+            _skyProbe.mode = UnityEngine.Rendering.ReflectionProbeMode.Realtime;
+            _skyProbe.refreshMode = UnityEngine.Rendering.ReflectionProbeRefreshMode.ViaScripting;
+            _skyProbe.timeSlicingMode = UnityEngine.Rendering.ReflectionProbeTimeSlicingMode.NoTimeSlicing;
+            _skyProbe.cullingMask = 0;
+            _skyProbe.resolution = 128;
+            _skyProbe.size = new Vector3(4000f, 600f, 4000f);
+            _skyProbe.importance = 0;
         }
 
         static void PointLight(Transform root, Vector3 pos, Color c, float intensity, float range)
@@ -704,6 +718,7 @@ namespace Kilnwood.Game
 
             // Belts move with the game clock (they stop when paused); the river drifts south.
             if (_beltMat != null) _beltMat.mainTextureOffset = new Vector2(0f, -((_w.Time * _w.B.BeltSpeed) % 1f));
+            if (!_skyProbeDone && _skyProbe != null) { _skyProbe.RenderProbe(); _skyProbeDone = true; }
             if (_waterMat != null) _waterMat.mainTextureOffset = new Vector2(Mathf.Sin(now * 0.3f) * 0.02f, (now * 0.05f) % 1f);
 
             bool groundChanged = _w.ChangedGround.Count > 0;

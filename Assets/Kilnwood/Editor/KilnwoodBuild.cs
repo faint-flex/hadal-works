@@ -55,6 +55,9 @@ namespace Kilnwood.EditorTools
             MakeMaterial("Assets/Kilnwood/Resources/KW_Post.mat", "Kilnwood/Post", m => { });
             // Instanced grass tufts (Assets/Kilnwood/Shaders/KW_Grass.shader).
             MakeMaterial("Assets/Kilnwood/Resources/KW_Grass.mat", "Kilnwood/Grass", m => { m.enableInstancing = true; });
+            // Valley floor with close-up grain, and the river with moving ripples (Shaders/KW_Ground, KW_Water).
+            MakeMaterial("Assets/Kilnwood/Resources/KW_Ground.mat", "Kilnwood/Ground", m => { });
+            MakeMaterial("Assets/Kilnwood/Resources/KW_Water.mat", "Kilnwood/Water", m => { });
 
             // Linear colour space: softer, more natural lighting falloff.
             PlayerSettings.colorSpace = ColorSpace.Linear;
