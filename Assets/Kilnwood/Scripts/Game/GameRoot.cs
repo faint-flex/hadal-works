@@ -536,16 +536,13 @@ namespace Kilnwood.Game
                 File.AppendAllText(Path.Combine(_shotsDir, "shots-result.txt"), "tier 1 goal at " + W.GoalReachedAt.ToString("0") + " s game time\n");
             }
             if (W.Tier >= 3 && W.Tier2GoalAt > 0f && !_tier2Shot) { _tier2Shot = true; StartCoroutine(TierShot("19-tier2-goal-t" + Mathf.RoundToInt(W.Time) + "s")); }
-            // 0.22: the bulldozer pushing down the woods north of the pit (from Tier 6 in the demo).
-            if (!_dozerShot && W.TreesCleared >= 45)   // 0.22.1: half the strip is bare by then, so the dozer stands in the open
-                foreach (var dz in W.Vehicles)
-                    if (dz.Type == VehicleType.Dozer && dz.State == VehicleState.Digging)
-                    {
-                        _dozerShot = true;
-                        Rig.Frame(WorldView.FootCenter(dz.TileX, dz.TileY, 1), 0f, 55f, 24f);   // from the open south side (it clears from the south edge)
-                        StartCoroutine(ShotNextFrame("49-dozer-clearing-t" + Mathf.RoundToInt(W.Time) + "s"));
-                        break;
-                    }
+            // 0.22: the cleared woods north of the pit, with the bulldozer parked in them (once the Level marks are done).
+            if (!_dozerShot && W.TreesCleared >= 40 && W.CountLevelMarks() == 0 && W.CountVehicles(VehicleType.Dozer) > 0)
+            {
+                _dozerShot = true;
+                Rig.Frame(WorldView.FootCenter((DemoFactory.ClearX0 + DemoFactory.ClearX1) / 2 - 2, (DemoFactory.ClearY0 + DemoFactory.ClearY1) / 2 - 2, 5), 0f, 58f, 34f);
+                StartCoroutine(ShotOnly(BuildingType.Garage, "49-dozer-cleared-t" + Mathf.RoundToInt(W.Time) + "s"));
+            }
             if (W.Tier >= 6 && W.Era == 1 && !_dieselShot) { _dieselShot = true; StartCoroutine(PitShot("46-era-diesel-t" + Mathf.RoundToInt(W.Time) + "s")); }
             if (W.Tier >= 4 && _railAt <= 0f) _railAt = W.Time + 150f;
             bool trainOut = false;
