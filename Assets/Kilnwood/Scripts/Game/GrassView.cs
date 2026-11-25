@@ -39,7 +39,7 @@ namespace Kilnwood.Game
                 _cardMat.SetFloat("_Cutoff", 0.45f);
                 _cardMat.SetFloat("_Wind", 0.35f);
                 _cardMat.SetFloat("_Translucency", 0.35f);
-                _cardMat.color = new Color(1.05f, 1.05f, 0.95f);
+                _cardMat.color = new Color(1.18f, 1.16f, 1.0f);   // 0.18.2: a touch lighter (QA: close shots darker than 0.17)
                 _root = new GameObject("Grass").transform;
                 _root.SetParent(parent, false);
                 int cw = (w.W + Chunk - 1) / Chunk, ch = (w.H + Chunk - 1) / Chunk;

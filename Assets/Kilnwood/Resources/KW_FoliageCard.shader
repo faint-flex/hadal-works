@@ -19,7 +19,7 @@ Shader "Kilnwood/FoliageCard"
         LOD 200
 
         CGPROGRAM
-        #pragma surface surf Standard vertex:vert alphatest:_Cutoff addshadow fullforwardshadows
+        #pragma surface surf Lambert vertex:vert alphatest:_Cutoff addshadow fullforwardshadows
         #pragma multi_compile_instancing
         #pragma target 3.0
 
@@ -43,16 +43,17 @@ Shader "Kilnwood/FoliageCard"
             v.vertex.xyz += mul((float3x3)unity_WorldToObject, push);
         }
 
-        void surf(Input IN, inout SurfaceOutputStandard o)
+        // 0.18.2: diffuse only. With the Standard model, cards seen edge-on mirrored the bright dusk horizon
+        // (Fresnel) and showed as rows of white dashes down the pines.
+        void surf(Input IN, inout SurfaceOutput o)
         {
             fixed4 tex = tex2D(_MainTex, IN.uv_MainTex);
             fixed4 tint = UNITY_ACCESS_INSTANCED_PROP(Props, _Color);
             float ao = IN.color.a;
-            o.Albedo = tex.rgb * tint.rgb * IN.color.rgb;
+            o.Albedo = tex.rgb * tint.rgb * IN.color.rgb * lerp(0.55, 1.0, ao);
             o.Alpha = tex.a;
-            o.Occlusion = lerp(0.4, 1.0, ao);
-            o.Smoothness = 0.18;
-            o.Metallic = 0;
+            o.Specular = 0;
+            o.Gloss = 0;
             float3 L = normalize(_WorldSpaceLightPos0.xyz);
             float3 V = normalize(IN.viewDir);
             float back = pow(saturate(dot(-V, L)), 4.0);

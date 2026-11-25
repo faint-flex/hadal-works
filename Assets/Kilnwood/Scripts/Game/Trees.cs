@@ -12,7 +12,7 @@ namespace Kilnwood.Game
     public static class Trees
     {
         const int Variants = 4;
-        static Mesh[] _pines, _leafy, _leafyFar, _pineCards;
+        static Mesh[] _pines, _leafy, _leafyFar, _pineCards, _leafCards;
         static Material _src;
         static bool _checked;
         static readonly Dictionary<Color, Material> _mats = new Dictionary<Color, Material>();
@@ -80,7 +80,12 @@ namespace Kilnwood.Game
                 var g = Leaf[(int)(r2 * 3.99f)];
                 if (!far) Art.Part("Trunk", parent, Art.Frustum, Vector3.zero, new Vector3(0.38f * s, 2.6f * s, 0.38f * s), Look.Bark);
                 Add("Crown", parent, far ? _leafyFar[v] : _leafy[v], Mat(g), Vector3.zero, Vector3.one * s * (far ? 1.35f : 1f), !far);
-                // 0.18.1: the scanned leaf cards read as smeared shards (QA), so broadleaf crowns keep their own leafy mesh.
+                if (!far && CardsAvailable)
+                {
+                    // 0.18.2: leaf clusters from a generated atlas (the 0.18.0 cut-out left streaks that read as shards).
+                    _leafCards ??= MakeAll(LeafCards);
+                    Add("Leaves", parent, _leafCards[v], CardMat(_leafTex, g), Vector3.zero, Vector3.one * s, true);
+                }
             }
         }
 
@@ -201,7 +206,7 @@ namespace Kilnwood.Game
                     var p = c + Vector3.Scale(d, new Vector3(r * 1.1f, r * 0.85f, r * 1.1f)) * 0.95f;
                     var side = Vector3.Cross(d, Vector3.up); if (side.sqrMagnitude < 1e-3f) side = Vector3.right; side.Normalize();
                     var along = Vector3.Cross(side, d).normalized;
-                    float sz = 0.75f + N(seed * 7 + b, k) * 0.35f;
+                    float sz = 1.05f + N(seed * 7 + b, k) * 0.45f;   // round clusters: big enough to break the crown outline
                     var fromCrown = (p - centre);
                     var nrm = (fromCrown.normalized * 0.7f + d * 0.3f).normalized;
                     float ex = Mathf.Clamp01(0.3f + 0.45f * Mathf.Clamp01(fromCrown.magnitude / 2.2f) + 0.35f * (d.y * 0.5f + 0.5f));
