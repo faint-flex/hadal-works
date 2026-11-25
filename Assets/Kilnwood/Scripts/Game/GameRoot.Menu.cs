@@ -14,8 +14,8 @@ namespace Kilnwood.Game
     public partial class GameRoot
     {
         bool _research;
-        static readonly string[] TierNames = { "", "First Fire", "Water Power", "Steam", "Rails", "Electricity", "Machine Age", "Assembly Line", "Flight", "Airwaves", "Next era" };
-        static readonly string[] PageNames = { "", "BASICS", "WATER POWER", "STEAM", "RAILS", "ELECTRICITY", "MACHINES", "ASSEMBLY", "FLIGHT", "AIRWAVES" };
+        static readonly string[] TierNames = { "", "First Fire", "Water Power", "Steam", "Rails", "Electricity", "Machine Age", "Assembly Line", "Flight", "Airwaves", "Drones", "Next era" };
+        static readonly string[] PageNames = { "", "BASICS", "WATER POWER", "STEAM", "RAILS", "ELECTRICITY", "MACHINES", "ASSEMBLY", "FLIGHT", "AIRWAVES", "DRONES" };
         List<BuildingType> _iconTypes;
         GUIStyle _tile, _tileOn, _tileLocked, _tiny, _tinyDim, _tab, _tabOn, _tabLocked, _cardTitle;
         Texture2D _barBack, _barFill, _barDone, _line;
@@ -24,7 +24,7 @@ namespace Kilnwood.Game
         {
             if (_iconTypes != null) return _iconTypes;
             _iconTypes = new List<BuildingType>();
-            for (int p = 1; p <= 9; p++)
+            for (int p = 1; p <= 10; p++)
                 foreach (var t in PageTools(p)) _iconTypes.Add(TypeOf(t));
             _iconTypes.Add(BuildingType.Splitter);
             return _iconTypes;
@@ -88,7 +88,7 @@ namespace Kilnwood.Game
         {
             MenuStyles();
             const float tileW = 104f, tileH = 112f, gap = 5f;
-            int pages = 9;
+            int pages = 10;
             float bw = Mathf.Min(1800f, Wd - 40f);
             var bar = Panel(new Rect(Wd / 2f - bw / 2f, Ht - 162f, bw, 152f));
 
@@ -248,6 +248,8 @@ namespace Kilnwood.Game
                 case BuildingType.Hangar: return "Electric. Builds aeroplanes from motors and plates. They fly off its front.";
                 case BuildingType.HydroDam: return "Sits on the river bank. Electricity all day and night, no fuel.";
                 case BuildingType.Glassworks: return "Electric. Melts stone into glass.";
+                case BuildingType.DroneWorks: return "Electric. Builds radio drones from 2 radio sets; each flies itself home to the lodge.";
+                case BuildingType.DronePort: return "Flies belted goods to the lodge by drone, 4 a trip. Keeps 4 drones from the lodge store.";
                 case BuildingType.RadioWorks: return "Electric. Builds radio sets from glass valves and a wooden cabinet.";
                 default: return null;
             }
@@ -268,6 +270,7 @@ namespace Kilnwood.Game
                 case 7: return new[] { ("tractors", Item.Tractor, W.Delivered[Item.Tractor], B.GoalTractor) };
                 case 8: return new[] { ("planes flown", Item.Plane, W.Delivered[Item.Plane], B.GoalPlane) };
                 case 9: return new[] { ("radio sets", Item.Radio, W.Delivered[Item.Radio], B.GoalRadio) };
+                case 10: return new[] { ("drones", Item.Drone, W.Delivered[Item.Drone], B.GoalDrone) };
                 default: return new (string, Item, int, int)[0];
             }
         }
@@ -298,6 +301,7 @@ namespace Kilnwood.Game
             "A steam turbine, an electric furnace, and an assembly plant that builds tractors. Hydraulic diggers, dump trucks, diesel trains.",
             "A rolling mill and a hangar whose aeroplanes fly. Deeper pit.",
             "A hydro dam on the river, a glassworks and a radio works.",
+            "Radio drones: a drone works, and drone ports that fly goods home.",
             "Coming in a later build.",
         };
 
@@ -309,8 +313,8 @@ namespace Kilnwood.Game
             GUI.Label(new Rect(p.x + 20f, p.y + 10f, 700f, 34f), "<b>Research</b>   reach each tier's goal to unlock the next", _h2);
             if (GUI.Button(new Rect(p.xMax - 130f, p.y + 10f, 116f, 34f), "Close (T)", _btn)) _research = false;
 
-            const int tiers = 10;
-            float gapX = 12f, nodeW = Mathf.Floor((pw - 40f - (tiers - 1) * gapX) / tiers), top = p.y + 60f, nodeH = p.height - 76f;
+            const int tiers = 11;
+            float gapX = 10f, nodeW = Mathf.Floor((pw - 40f - (tiers - 1) * gapX) / tiers), top = p.y + 60f, nodeH = p.height - 76f;
             for (int n = 1; n <= tiers; n++)
             {
                 float nx = p.x + 20f + (n - 1) * (nodeW + gapX);

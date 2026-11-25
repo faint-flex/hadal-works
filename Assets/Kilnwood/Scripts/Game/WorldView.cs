@@ -84,6 +84,7 @@ namespace Kilnwood.Game
                 case Item.Plane: return new Color(0.72f, 0.74f, 0.76f);
                 case Item.Glass: return new Color(0.66f, 0.84f, 0.86f);
                 case Item.Radio: return new Color(0.5f, 0.32f, 0.18f);
+                case Item.Drone: return new Color(0.86f, 0.84f, 0.78f);
                 default: return Color.white;
             }
         }
@@ -554,6 +555,8 @@ namespace Kilnwood.Game
                 case BuildingType.HydroDam: MakeHydroDam(B, s, v); break;
                 case BuildingType.Glassworks: MakeGlassworks(B, s, v); break;
                 case BuildingType.RadioWorks: MakeRadioWorks(B, s, v); break;
+                case BuildingType.DroneWorks: MakeDroneWorks(B, s, v); break;
+                case BuildingType.DronePort: MakeDronePort(B, s, v); break;
                 case BuildingType.Lodge:
                 {
                     float fz = (s - 2.2f) / 2f;   // front wall
@@ -617,7 +620,7 @@ namespace Kilnwood.Game
                 // Neighbouring machines alternate label heights so their names don't stack on each other.
                 // Three label heights in a pattern, so any two neighbouring 2x2 machines get different heights.
                 float top = b.Type == BuildingType.Assembly ? 9.6f : b.Type == BuildingType.Glassworks ? 9.0f : b.Type == BuildingType.HydroDam ? 4.6f   // big hall: one height just over the roof lantern, so the label stays on it
-                    : (b.Type == BuildingType.SteamEngine || b.Type == BuildingType.Furnace || b.Type == BuildingType.ArcFurnace || b.Type == BuildingType.Turbine || b.Type == BuildingType.RadioWorks ? 7.4f : b.Type == BuildingType.Mine || b.Type == BuildingType.ElectricMine || b.Type == BuildingType.Smelter ? 6.0f : 4.4f) + ((b.X / 2 + 2 * (b.Y / 2)) % 3) * 1.8f;
+                    : (b.Type == BuildingType.SteamEngine || b.Type == BuildingType.Furnace || b.Type == BuildingType.ArcFurnace || b.Type == BuildingType.Turbine || b.Type == BuildingType.RadioWorks ? 7.4f : b.Type == BuildingType.DroneWorks ? 6.4f : b.Type == BuildingType.Mine || b.Type == BuildingType.ElectricMine || b.Type == BuildingType.Smelter ? 6.0f : 4.4f) + ((b.X / 2 + 2 * (b.Y / 2)) % 3) * 1.8f;
                 if (b.Type == BuildingType.Lodge)
                 {
                     // Lodge name sits in front (south side), clear of the machines behind it.
@@ -719,6 +722,8 @@ namespace Kilnwood.Game
                 case BuildingType.HydroDam: return "HYDRO DAM";
                 case BuildingType.Glassworks: return "GLASSWORKS Y";
                 case BuildingType.RadioWorks: return "RADIO WORKS V";
+                case BuildingType.DroneWorks: return "DRONE WORKS N";
+                case BuildingType.DronePort: return "DRONE PORT";
                 default: return "";
             }
         }
@@ -795,6 +800,7 @@ namespace Kilnwood.Game
             UpdateElectricViews(_w.GridVersion != _gridCount);
             UpdateFlights();
             UpdateAirwavesViews();
+            UpdateDroneViews();
             if (_w.Buildings.Count != _railCount || gone != null) { RefreshRails(); _railCount = _w.Buildings.Count; }
             foreach (var b in _w.Buildings.Values)
                 if (b.Type == BuildingType.Hopper)

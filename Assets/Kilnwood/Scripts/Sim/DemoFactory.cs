@@ -36,11 +36,11 @@ namespace Kilnwood.Sim
         readonly bool _tier3;
 
         readonly bool _tier4;
-        readonly bool _tier5, _tier6, _tier7, _tier8, _tier9;
+        readonly bool _tier5, _tier6, _tier7, _tier8, _tier9, _tier10;
         readonly int _railsEnd;
-        public const int FieldStationX = 54, FieldStationY = 7, YardStationX = 35, YardStationY = 26, DynamoX = 42, DynamoY = 20, ShopX = 36, ShopY = 32, TurbineX = 48, TurbineY = 20, AssemblyX = 31, AssemblyY = 35, HangarX = 37, HangarY = 39, DamX = 6, DamY = 46, GlassX = 10, GlassY = 46, RadioX = 10, RadioY = 44;
+        public const int FieldStationX = 54, FieldStationY = 7, YardStationX = 35, YardStationY = 26, DynamoX = 42, DynamoY = 20, ShopX = 36, ShopY = 32, TurbineX = 48, TurbineY = 20, AssemblyX = 31, AssemblyY = 35, HangarX = 37, HangarY = 39, DamX = 6, DamY = 46, GlassX = 10, GlassY = 46, RadioX = 10, RadioY = 44, DroneWorksX = 13, DroneWorksY = 44, PortX = 24, PortY = 54;
 
-        public DemoFactory(bool people = false, bool pit = false, bool tier2 = false, bool tier3 = false, bool tier4 = false, bool tier5 = false, bool tier6 = false, bool tier7 = false, bool tier8 = false, bool tier9 = false)
+        public DemoFactory(bool people = false, bool pit = false, bool tier2 = false, bool tier3 = false, bool tier4 = false, bool tier5 = false, bool tier6 = false, bool tier7 = false, bool tier8 = false, bool tier9 = false, bool tier10 = false)
         {
             _pit = pit;
             _tier3 = tier3;
@@ -50,6 +50,7 @@ namespace Kilnwood.Sim
             _tier7 = tier7;
             _tier8 = tier8;
             _tier9 = tier9;
+            _tier10 = tier10;
             const int N = 0, E = 1, S = 2, W = 3;
             const int Charcoal = 0, Brick = 1;
             // Phase 1: wood into the lodge (pays for everything else).
@@ -253,6 +254,17 @@ namespace Kilnwood.Sim
                 Add(BuildingType.Pole, 12, 47, N);
                 Add(BuildingType.Pole, 19, 46, N);
                 Add(BuildingType.Pole, 26, 46, N);
+            }
+
+            // Phase 14 (0.21 Tier 10 "Drones"): the radio line now feeds a drone works right after the radio works (each
+            // finished drone flies itself home), and a forest camp in the north woods sends its timber home by drone port.
+            if (tier10)
+            {
+                _steps.Add(new Step { Type = BuildingType.Belt, X = 13, Y = 44, Remove = true, MinTier = 10 });
+                _steps.Add(new Step { Type = BuildingType.Belt, X = 14, Y = 44, Remove = true, MinTier = 10 });
+                Add(BuildingType.DroneWorks, DroneWorksX, DroneWorksY, E);
+                Add(BuildingType.DronePort, PortX, PortY, N);
+                Add(BuildingType.Woodcutter, PortX, PortY + 2, S);   // drops its logs straight into the port
             }
         }
 

@@ -246,6 +246,7 @@ namespace Kilnwood.Game
                 case BuildingType.HydroDam: return v.Body.TransformPoint(new Vector3(0.75f, 2.52f, -0.55f) * T);
                 case BuildingType.Glassworks: return v.Body.TransformPoint(new Vector3(0.75f, 2.27f, -0.7f) * T);
                 case BuildingType.RadioWorks: return v.Body.TransformPoint(new Vector3(-0.85f, 2.42f, -0.7f) * T);
+                case BuildingType.DroneWorks: return v.Body.TransformPoint(new Vector3(0.85f, 2.07f, -0.7f) * T);
                 case BuildingType.Assembly: return v.Body.TransformPoint(new Vector3(-1.4f, 4.52f, -1.42f) * T);
                 default: return v.Body.TransformPoint(new Vector3(-2.0f, 4.1f, -0.75f));
             }

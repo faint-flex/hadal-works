@@ -13,7 +13,7 @@ namespace Kilnwood.Game
     public partial class GameRoot : MonoBehaviour
     {
         enum State { Title, Playing }
-        enum Tool { Select, Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Fisher, Cabin, Splitter, Garage, Hopper, Dig, Dump, Demolish, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station, Dynamo, Pole, WireMill, ElectricMine, MachineShop, Turbine, ArcFurnace, Assembly, RollingMill, Hangar, HydroDam, Glassworks, RadioWorks }
+        enum Tool { Select, Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Fisher, Cabin, Splitter, Garage, Hopper, Dig, Dump, Demolish, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station, Dynamo, Pole, WireMill, ElectricMine, MachineShop, Turbine, ArcFurnace, Assembly, RollingMill, Hangar, HydroDam, Glassworks, RadioWorks, DroneWorks, DronePort }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
@@ -182,7 +182,9 @@ namespace Kilnwood.Game
         }
 
         /// <summary>Numbered tools on each build page (key 1 = first). Page 1 also has 9 = splitter.</summary>
-        Tool[] PageTools(int page) => page == 9
+        Tool[] PageTools(int page) => page == 10
+            ? new[] { Tool.DroneWorks, Tool.DronePort }
+            : page == 9
             ? new[] { Tool.HydroDam, Tool.Glassworks, Tool.RadioWorks }
             : page == 8
             ? new[] { Tool.RollingMill, Tool.Hangar }
@@ -205,7 +207,7 @@ namespace Kilnwood.Game
         void SwitchPage()
         {
             if (W.Tier < 2) { Toast("Page 2 (water power) opens at Tier 2: deliver the waterwheel parts first"); return; }
-            int pages = Mathf.Min(W.Tier, 9);
+            int pages = Mathf.Min(W.Tier, 10);
             _page = _page % pages + 1;
             SetTool(Tool.Select);
         }
@@ -252,6 +254,8 @@ namespace Kilnwood.Game
                 case Tool.HydroDam: return BuildingType.HydroDam;
                 case Tool.Glassworks: return BuildingType.Glassworks;
                 case Tool.RadioWorks: return BuildingType.RadioWorks;
+                case Tool.DroneWorks: return BuildingType.DroneWorks;
+                case Tool.DronePort: return BuildingType.DronePort;
                 default: return BuildingType.Workshop;
             }
         }
@@ -451,7 +455,7 @@ namespace Kilnwood.Game
 
         void UpdateShots()
         {
-            _page = Mathf.Clamp(W.Tier, 1, 9);   // shots show the newest build page
+            _page = Mathf.Clamp(W.Tier, 1, 10);   // shots show the newest build page
             _frames++;
             _frameTime += Time.unscaledDeltaTime;
             if (_frames > 30 && !_goalPanel)   // stop timing once the end-of-run save/load and final shots start
@@ -595,7 +599,18 @@ namespace Kilnwood.Game
                 _airShot++;
                 _airAt = W.Time + 40f;
             }
-            if ((W.Tier >= 10 || W.Time > 9000f) && !_goalPanel) { _goalPanel = true; StartCoroutine(ShotsFinish()); }
+            if (W.Tier >= 10 && _droneAt <= 0f) _droneAt = W.Time + 120f;
+            if (_droneAt > 0f && _droneShot < 2 && W.Time >= _droneAt && (W.Time >= _droneAt + 120f || (_droneShot == 0 ? View.DroneInFlight : View.PortDroneOut)))
+            {
+                // Tier 10 shots: a drone lifting off the drone works, then the forest camp's port with drones flying timber home.
+                string[] names = { "drone-works", "drone-port" };
+                if (_droneShot == 0) Rig.Frame(WorldView.FootCenter(DemoFactory.DroneWorksX, DemoFactory.DroneWorksY, 2), 140f, 34f, 26f);
+                else Rig.Frame(WorldView.FootCenter(DemoFactory.PortX, DemoFactory.PortY, 2), 160f, 30f, 30f);
+                StartCoroutine(ShotNextFrame((47 + _droneShot) + "-tier10-" + names[_droneShot] + "-t" + Mathf.RoundToInt(W.Time) + "s"));
+                _droneShot++;
+                _droneAt = W.Time + 40f;
+            }
+            if ((W.Tier >= 11 || W.Time > 10500f) && !_goalPanel) { _goalPanel = true; StartCoroutine(ShotsFinish()); }
         }
 
         float _railAt; int _railShot;
@@ -604,6 +619,7 @@ namespace Kilnwood.Game
         float _asmAt; int _asmShot;
         float _flyAt; int _flyShot;
         float _airAt; int _airShot;
+        float _droneAt; int _droneShot;
 
         /// <summary>True while a radio set rides the belt east of the radio works (so the shot shows one).</summary>
         bool RadioOnBelt()
@@ -742,6 +758,7 @@ namespace Kilnwood.Game
             sb.AppendLine(W.Tier >= 8 ? "tier 7 goal at " + W.Tier7GoalAt.ToString("0") + " s, tractors " + W.Delivered[Item.Tractor] : "tier 7 goal NOT reached, tractors " + W.Delivered[Item.Tractor]);
             sb.AppendLine(W.Tier >= 9 ? "tier 8 goal at " + W.Tier8GoalAt.ToString("0") + " s, aeroplanes " + W.Delivered[Item.Plane] : "tier 8 goal NOT reached, aeroplanes " + W.Delivered[Item.Plane]);
             sb.AppendLine(W.Tier >= 10 ? "tier 9 goal at " + W.Tier9GoalAt.ToString("0") + " s, radio sets " + W.Delivered[Item.Radio] : "tier 9 goal NOT reached, radio sets " + W.Delivered[Item.Radio]);
+            sb.AppendLine((W.Tier >= 11 ? "tier 10 goal at " + W.Tier10GoalAt.ToString("0") + " s" : "tier 10 goal NOT reached") + ", drones " + W.Delivered[Item.Drone] + ", flown by drone port " + W.DroneFlown);
             int dugTiles = 0; foreach (var u in W.Units) if (u < 0) dugTiles++;
             sb.AppendLine("vehicles " + W.Vehicles.Count + ", dug tiles " + dugTiles + ", ore delivered " + W.Delivered[Item.Ore]);
             sb.AppendLine("buildings " + W.Buildings.Count + ", gears " + W.Delivered[Item.Gear] + ", bricks " + W.Delivered[Item.Brick] + ", wood in lodge " + W.Storage[Item.Wood]);
@@ -851,6 +868,7 @@ namespace Kilnwood.Game
                 (W.Tier >= 5 ? "   E wire " + W.Storage[Item.Wire] : "") +
                 (W.Tier >= 6 ? "   M motor " + W.Storage[Item.Motor] : "") +
                 (W.Tier >= 7 ? "   R tractor " + W.Storage[Item.Tractor] : "") + (W.Tier >= 8 ? "   A flown " + W.Delivered[Item.Plane] : "") + (W.Tier >= 9 ? "   Y glass " + W.Storage[Item.Glass] + "   V radio " + W.Storage[Item.Radio] : "") +
+                (W.Tier >= 10 ? "   N drones " + W.Storage[Item.Drone] + "   flown by drone " + W.DroneFlown : "") +
                 (!B.PeopleEnabled ? "" : "   F fish " + W.Storage[Item.Fish] + "   People: " + W.WorkersUsed + " working, " + W.Population + " living" +
                 (W.WorkersNeeded > W.Population ? "   ! NEED " + (W.WorkersNeeded - W.Population) + " MORE (build cabins)" : "") +
                 (W.Hungry ? "   ! HUNGRY: machines at half speed, send fish to the lodge" : "")),
@@ -877,7 +895,9 @@ namespace Kilnwood.Game
                 ? "<b>Tier 8 goal: flight</b>   A aeroplanes flown " + Mathf.Min(W.Delivered[Item.Plane], B.GoalPlane) + "/" + B.GoalPlane
                 : W.Tier == 9
                 ? "<b>Tier 9 goal: airwaves</b>   V radio sets " + Mathf.Min(W.Delivered[Item.Radio], B.GoalRadio) + "/" + B.GoalRadio
-                : "<b>Tier 10 unlocked</b>   (the next tier comes in a later build)";
+                : W.Tier == 10
+                ? "<b>Tier 10 goal: drones</b>   N drones flown home " + Mathf.Min(W.Delivered[Item.Drone], B.GoalDrone) + "/" + B.GoalDrone
+                : "<b>Tier 11 unlocked</b>   (the next tier comes in a later build)";
             GUI.Label(goal, goalText, _body);
             if (_shotsDir == null)
             {
@@ -906,6 +926,8 @@ namespace Kilnwood.Game
                 : _tool == Tool.RollingMill ? "ROLLING MILL: electric (" + B.RollingMillKw + " kW). Rolls 1 T steel into 2 L iron plates."
                 : _tool == Tool.HydroDam ? "HYDRO DAM: must touch the river. Makes " + B.HydroKw + " kW of electricity all the time, no fuel. Link it to poles like a dynamo."
                 : _tool == Tool.Glassworks ? "GLASSWORKS: electric (" + B.GlassworksKw + " kW). Melts 2 S stone into 1 Y glass."
+                : _tool == Tool.DroneWorks ? "DRONE WORKS: electric (" + B.DroneWorksKw + " kW). Builds an N radio drone from 2 V radio sets; each one flies itself home to the lodge."
+                : _tool == Tool.DronePort ? "DRONE PORT: belt goods in and its drones fly them to the lodge, " + B.DroneLoad + " a trip, up to " + B.DroneRange + " tiles away. Takes " + B.DronePortDrones + " N drones from the lodge store."
                 : _tool == Tool.RadioWorks ? "RADIO WORKS: electric (" + B.RadioWorksKw + " kW). Builds a V radio set from 2 Y glass and 1 W wood."
                 : _tool == Tool.Hangar ? "HANGAR: 3x3, electric (" + B.HangarKw + " kW). Feed it 2 M motors and 4 L plates for each A aeroplane; it flies off the front."
                 : _tool == Tool.Assembly ? "ASSEMBLY PLANT: 3x3, electric (" + B.AssemblyKw + " kW). Feed it 2 M motors and 2 T steel for each R tractor."
@@ -1090,11 +1112,17 @@ namespace Kilnwood.Game
         {
             var r = Panel(new Rect(Wd / 2f - 330f, Ht / 2f - 170f, 660f, 340f));
             GUILayout.BeginArea(new Rect(r.x + 28f, r.y + 20f, r.width - 56f, r.height - 40f));
-            if (W.Tier >= 10)
+            if (W.Tier >= 11)
+            {
+                GUILayout.Label("TIER 11 UNLOCKED", _h1, GUILayout.Height(80f));
+                GUILayout.Label("Drones hum over Kilnwood, flying timber home from the far woods. The next tier arrives in a later build.", _body);
+                GUILayout.Label("You can keep building here as long as you like.", _small);
+            }
+            else if (W.Tier == 10)
             {
                 GUILayout.Label("TIER 10 UNLOCKED", _h1, GUILayout.Height(80f));
-                GUILayout.Label("Radios play in every cabin in Kilnwood. The next tier arrives in a later build.", _body);
-                GUILayout.Label("You can keep building here as long as you like.", _small);
+                GUILayout.Label("Drones. Page 10 has the drone works (a radio drone from 2 radio sets; each one flies itself home) and the drone port, which flies whatever you belt into it to the lodge using drones from the lodge store.", _body);
+                GUILayout.Label("Next goal: " + B.GoalDrone + " drones flown home to the lodge.", _small);
             }
             else if (W.Tier == 9)
             {

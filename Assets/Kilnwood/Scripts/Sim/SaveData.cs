@@ -20,6 +20,7 @@ namespace Kilnwood.Sim
         public List<int> Marks = new List<int>();          // 1 dig, 2 dump, per tile
         public List<SavedVehicle> Vehicles = new List<SavedVehicle>();
         public int RailHauled;
+        public int DroneFlown;
 
         [Serializable]
         public class SavedVehicle
@@ -36,7 +37,7 @@ namespace Kilnwood.Sim
 
         public static SaveData From(World w)
         {
-            var s = new SaveData { Time = w.Time, RailHauled = w.RailHauled };
+            var s = new SaveData { Time = w.Time, RailHauled = w.RailHauled, DroneFlown = w.DroneFlown };
             foreach (var b in w.Buildings.Values)
             {
                 if (b.Type == BuildingType.Lodge) continue;
@@ -44,7 +45,9 @@ namespace Kilnwood.Sim
             }
             foreach (Item it in Enum.GetValues(typeof(Item)))
             {
-                s.StorageCounts.Add(w.Storage[it]);
+                int held = 0;   // drones kept at ports go back into the store (ports refill from it on load)
+                if (it == Item.Drone) foreach (var b in w.Buildings.Values) held += b.Drones;
+                s.StorageCounts.Add(w.Storage[it] + held);
                 s.DeliveredCounts.Add(w.Delivered[it]);
             }
             s.Logs.AddRange(w.Logs);
@@ -79,6 +82,7 @@ namespace Kilnwood.Sim
             if (Logs.Count == w.Logs.Length) w.RestoreLogs(Logs);
             w.RestoreTime(Time);
             w.RestoreRailHauled(RailHauled);
+            w.RestoreDroneFlown(DroneFlown);
             w.UpdateTier();
             return w;
         }

@@ -3,9 +3,20 @@ using System.Collections.Generic;
 
 namespace Kilnwood.Sim
 {
+    /// <summary>0.21: one drone's round trip from a drone port to the lodge (delivers at the halfway point).</summary>
+    public class DroneTrip
+    {
+        public float T, Duration;
+        public Item Item;
+        public int Count;
+        public bool Delivered;
+    }
+
     public class Building
     {
         public int Id;
+        public readonly List<DroneTrip> Trips = new List<DroneTrip>();   // drone ports: drones in the air
+        public int Drones;                                                 // drone ports: drones kept here (busy or not)
         public BuildingType Type;
         public int X, Y;          // bottom-left tile
         public int Size;
@@ -106,6 +117,9 @@ namespace Kilnwood.Sim
         public float Tier7GoalAt { get; private set; } = -1f;
         public float Tier8GoalAt { get; private set; } = -1f;
         public float Tier9GoalAt { get; private set; } = -1f;
+        public float Tier10GoalAt { get; private set; } = -1f;
+        public int DroneFlown { get; private set; }            // items flown home by drone ports
+        public void RestoreDroneFlown(int n) => DroneFlown = n;
 
         public World(Balance b)
         {
@@ -267,6 +281,7 @@ namespace Kilnwood.Sim
         {
             if (!Buildings.TryGetValue(id, out var b) || b.Type == BuildingType.Lodge) return false;
             foreach (var c in B.Defs[b.Type].Cost) Storage[c.item] += c.count;
+            Storage[Item.Drone] += b.Drones;   // a removed drone port sends its drones home (in-flight ones too)
             var layer = b.Type == BuildingType.Shaft ? _shaftOcc : _occ;
             for (int dy = 0; dy < b.Size; dy++)
                 for (int dx = 0; dx < b.Size; dx++)
@@ -440,6 +455,11 @@ namespace Kilnwood.Sim
                 Tier = 10;
                 Tier9GoalAt = Time;
             }
+            if (Tier == 10 && Delivered[Item.Drone] >= B.GoalDrone)
+            {
+                Tier = 11;
+                Tier10GoalAt = Time;
+            }
         }
 
         /// <summary>Homes, who works where (in build order), and eating fish from the lodge.</summary>
@@ -584,6 +604,15 @@ namespace Kilnwood.Sim
                 case BuildingType.Pole:
                 case BuildingType.HydroDam:
                     return false;
+                case BuildingType.DronePort:
+                {
+                    if (item == Item.Drone) return false;   // drones come from the lodge store, not belts
+                    int held = 0; foreach (var kv in m.Input) held += kv.Value;
+                    if (held >= B.DronePortBuffer) return false;
+                    m.Input.TryGetValue(item, out int have);
+                    m.Input[item] = have + 1;
+                    return true;
+                }
                 case BuildingType.Garage:
                     if (!Balance.IsFuel(item) || m.FuelCount >= B.GarageFuelCap) return false;
                     m.AddFuel(item);
@@ -648,6 +677,12 @@ namespace Kilnwood.Sim
                 case BuildingType.RollingMill:
                 case BuildingType.Glassworks:
                 case BuildingType.RadioWorks: StepCrafter(m, dt); break;
+                case BuildingType.DroneWorks:
+                    StepCrafter(m, dt);
+                    // A finished drone flies itself home to the lodge (that is the delivery); ports draw on that store.
+                    if (m.OutCount > 0) { Delivered[m.OutItem] += m.OutCount; Storage[m.OutItem] += m.OutCount; m.Launched += m.OutCount; m.OutCount = 0; m.OutItem = Item.None; }
+                    return;
+                case BuildingType.DronePort: StepDronePort(m, dt); return;
                 case BuildingType.Hangar:
                     StepCrafter(m, dt);
                     // A finished aeroplane doesn't go on a belt: it taxis out and flies away (that is the delivery).
@@ -675,6 +710,42 @@ namespace Kilnwood.Sim
                 case BuildingType.Station: StepStation(m, dt); return;
             }
             PushOutput(m);
+        }
+
+        /// <summary>
+        /// 0.21 drone port: keeps up to DronePortDrones drones (taken from the lodge store) and flies whatever is belted in
+        /// home to the lodge, DroneLoad items a trip. Delivery happens at the halfway point of the round trip.
+        /// </summary>
+        void StepDronePort(Building m, float dt)
+        {
+            for (int i = m.Trips.Count - 1; i >= 0; i--)
+            {
+                var t = m.Trips[i];
+                t.T += dt;
+                if (!t.Delivered && t.T >= t.Duration * 0.5f)
+                {
+                    t.Delivered = true;
+                    Storage[t.Item] += t.Count; Delivered[t.Item] += t.Count; DroneFlown += t.Count;
+                }
+                if (t.T >= t.Duration) m.Trips.RemoveAt(i);
+            }
+            if (Lodge == null) { m.Status = "No lodge to fly to"; return; }
+            float dx = (m.X + m.Size / 2f) - (Lodge.X + Lodge.Size / 2f), dy = (m.Y + m.Size / 2f) - (Lodge.Y + Lodge.Size / 2f);
+            float dist = (float)Math.Sqrt(dx * dx + dy * dy);
+            if (dist > B.DroneRange) { m.Status = "Lodge too far (" + (int)dist + " tiles; drones reach " + B.DroneRange + ")"; return; }
+            while (m.Drones < B.DronePortDrones && Storage[Item.Drone] > 0) { Storage[Item.Drone]--; m.Drones++; }
+            if (m.Drones == 0) { m.Status = "No drones: the drone works sends them to the lodge, the port takes them from there"; return; }
+            while (m.Trips.Count < m.Drones)
+            {
+                Item best = Item.None; int most = 0;
+                foreach (var kv in m.Input) if (kv.Value > most) { most = kv.Value; best = kv.Key; }
+                if (best == Item.None) break;
+                int n = Math.Min(most, B.DroneLoad);
+                m.Input[best] = most - n;
+                if (m.Input[best] == 0) m.Input.Remove(best);
+                m.Trips.Add(new DroneTrip { Item = best, Count = n, Duration = 2f * dist / B.DroneSpeed + 1f });
+            }
+            m.Status = m.Trips.Count > 0 ? "Flying: " + m.Trips.Count + " of " + m.Drones + " drones out" : "Waiting for goods (" + m.Drones + " drones ready)";
         }
 
         void StepFisher(Building m, float dt)

@@ -90,6 +90,8 @@ public static class Program
             case BuildingType.HydroDam: return "D";
             case BuildingType.Glassworks: return "g";
             case BuildingType.RadioWorks: return "r";
+            case BuildingType.DroneWorks: return "n";
+            case BuildingType.DronePort: return "p";
             default: return t.ToString().Substring(0, 1);
         }
     }
@@ -104,10 +106,10 @@ public static class Program
             var rng = new Random(seed);
             var b = new Balance();
             var w = MapGen.NewTier1(b);
-            var demo = new DemoFactory(false, true, tier2: true, tier3: true, tier4: true, tier5: true, tier6: true, tier7: true, tier8: true, tier9: true);
+            var demo = new DemoFactory(false, true, tier2: true, tier3: true, tier4: true, tier5: true, tier6: true, tier7: true, tier8: true, tier9: true, tier10: true);
             bool gift = false, gift3 = false;
             int samples = 0, crowded = 0, onBelt = 0; float nextCrowd = 0f;
-            while (w.Time < 9000f && w.Tier < 10)
+            while (w.Time < 10500f && w.Tier < 11)
             {
                 demo.BuildWhatYouCan(w);
                 demo.PitActions(w);
@@ -121,16 +123,16 @@ public static class Program
             }
             if (Environment.GetEnvironmentVariable("BELTDBG") != null)
                 for (int y = w.H - 1; y >= 0; y--) { var line = y.ToString("00") + " "; for (int x = 0; x < w.W; x++) { var bb = w.AtOrShaft(x, y); var gt = w.Ground[y * w.W + x]; line += bb != null ? MapChar(bb.Type) : gt == Terrain.Water ? "~" : gt == Terrain.IronOre ? "o" : gt == Terrain.Stone ? "s" : w.CoalSeam[y * w.W + x] ? "k" : w.Units[y * w.W + x] < 0 ? "_" : w.Logs[y * w.W + x] > 0 ? "t" : "."; } Console.WriteLine(line); }
-            if (w.Tier < 10) { fails++; Console.WriteLine($"seed {seed}: demo stuck on {demo.Waiting(w)}"); }
+            if (w.Tier < 11) { fails++; Console.WriteLine($"seed {seed}: demo stuck on {demo.Waiting(w)}"); }
             Console.WriteLine($"seed {seed}: pit vehicles crowded (two parked on one tile / excavators touching) in {crowded} of {samples} samples, truck stopped on a belt in {onBelt}");
-            Console.Write($"seed {seed}: T1 {w.GoalReachedAt:0}  T2 {w.Tier2GoalAt:0}  T3 {w.Tier3GoalAt:0}  T4 {w.Tier4GoalAt:0}  T5 {w.Tier5GoalAt:0} wire {w.Delivered[Item.Wire]}  T6 {w.Tier6GoalAt:0} motor {w.Delivered[Item.Motor]}  T7 {w.Tier7GoalAt:0} tractor {w.Delivered[Item.Tractor]}  T8 {w.Tier8GoalAt:0} plane {w.Delivered[Item.Plane]}  T9 {w.Tier9GoalAt:0} radio {w.Delivered[Item.Radio]} rail {w.RailHauled}  steel {w.Delivered[Item.Steel]} coal {w.Delivered[Item.Coal]} ore {w.Delivered[Item.Ore]} |");
+            Console.Write($"seed {seed}: T1 {w.GoalReachedAt:0}  T2 {w.Tier2GoalAt:0}  T3 {w.Tier3GoalAt:0}  T4 {w.Tier4GoalAt:0}  T5 {w.Tier5GoalAt:0} wire {w.Delivered[Item.Wire]}  T6 {w.Tier6GoalAt:0} motor {w.Delivered[Item.Motor]}  T7 {w.Tier7GoalAt:0} tractor {w.Delivered[Item.Tractor]}  T8 {w.Tier8GoalAt:0} plane {w.Delivered[Item.Plane]}  T9 {w.Tier9GoalAt:0} radio {w.Delivered[Item.Radio]}  T10 {w.Tier10GoalAt:0} drone {w.Delivered[Item.Drone]} flown {w.DroneFlown} rail {w.RailHauled}  steel {w.Delivered[Item.Steel]} coal {w.Delivered[Item.Coal]} ore {w.Delivered[Item.Ore]} |");
             foreach (var v in w.Vehicles) Console.Write($" {v.Type} '{v.Status}';");
             Console.WriteLine();
             foreach (var bd in w.Buildings.Values)
                 if (w.Tier < 4 && (bd.Type == BuildingType.Furnace || bd.Type == BuildingType.Hopper || bd.Type == BuildingType.Smelter || bd.Type == BuildingType.TripHammer))
                     Console.WriteLine($"    {bd.Type} {bd.X},{bd.Y} f{bd.Facing}: {bd.Status}  in [{string.Join(",", System.Linq.Enumerable.Select(bd.Input, kv => kv.Key + "=" + kv.Value))}]" + (bd.Type == BuildingType.Hopper ? $" wantsOre {w.HopperWants(bd, Item.Ore)} wantsCoal {w.HopperWants(bd, Item.Coal)}" : ""));
         }
-        Console.WriteLine(fails == 0 ? "all seeds reached Tier 10 (radio goal)" : fails + " seeds did NOT reach Tier 10");
+        Console.WriteLine(fails == 0 ? "all seeds reached Tier 11 (drone goal)" : fails + " seeds did NOT reach Tier 11");
         return fails == 0 ? 0 : 1;
     }
 
@@ -139,11 +141,11 @@ public static class Program
     {
         var b = new Balance();
         var w = MapGen.NewTier1(b);
-        var demo = new DemoFactory(false, true, tier2: true, tier3: true, tier4: true, tier5: true, tier6: true, tier7: true, tier8: true, tier9: true);
+        var demo = new DemoFactory(false, true, tier2: true, tier3: true, tier4: true, tier5: true, tier6: true, tier7: true, tier8: true, tier9: true, tier10: true);
         bool gift3 = false;
         bool gift = false;
         float next = 0f;
-        while (w.Time < 9000f && w.Tier < 10)
+        while (w.Time < 10500f && w.Tier < 11)
         {
             demo.BuildWhatYouCan(w);
             demo.PitActions(w);
