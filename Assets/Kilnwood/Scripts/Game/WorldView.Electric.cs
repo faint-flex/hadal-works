@@ -131,8 +131,8 @@ namespace Kilnwood.Game
             for (int k = 0; k < 3; k++)
                 Art.Cyl("Coil", B, new Vector3(-1.55f, 0.16f + k * 0.17f, 0.35f + (k % 2) * 0.08f), 0.55f, 0.16f, ItemColor(Item.Wire) * (1f + 0.1f * k));
             // Gable insulator where the drop line from the nearest pole comes in.
-            Art.Cube("Service bracket", B, new Vector3(-1.82f, 2.95f, -0.75f), new Vector3(0.1f, 0.9f, 0.1f), iron);
-            Art.Cyl("Insulator", B, new Vector3(-1.82f, 3.4f, -0.75f), 0.14f, 0.2f, Insulator);
+            Art.Cube("Service bracket", B, new Vector3(-2.0f, 3.1f, -0.75f), new Vector3(0.1f, 1.6f, 0.1f), iron);   // clear of the roof overhang
+            Art.Cyl("Insulator", B, new Vector3(-2.0f, 3.9f, -0.75f), 0.14f, 0.2f, Insulator);
             Front(B, h);
         }
 
@@ -147,7 +147,7 @@ namespace Kilnwood.Game
             {
                 case BuildingType.Pole: return v.Body.TransformPoint(new Vector3(k * ArmHalf, PoleTop + 0.17f, 0f));
                 case BuildingType.Dynamo: return v.Body.TransformPoint(new Vector3(-1.4f + k * ArmHalf, 4.52f, -1.4f));
-                default: return v.Body.TransformPoint(new Vector3(-1.82f, 3.6f, -0.75f));
+                default: return v.Body.TransformPoint(new Vector3(-2.0f, 4.1f, -0.75f));
             }
         }
 

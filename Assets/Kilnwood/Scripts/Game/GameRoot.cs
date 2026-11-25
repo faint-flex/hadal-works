@@ -520,7 +520,7 @@ namespace Kilnwood.Game
             {
                 // Tier 5 shots: the dynamo on the shaft, then the pole line down to the wire mill.
                 string[] names = { "dynamo", "wire-mill" };
-                if (_elecShot == 0) Rig.Frame(WorldView.FootCenter(DemoFactory.DynamoX, DemoFactory.DynamoY, 2), 315f, 40f, 16f);   // from the south-east, clear of the woodcutter
+                if (_elecShot == 0) Rig.Frame(WorldView.FootCenter(DemoFactory.DynamoX, DemoFactory.DynamoY, 2), 120f, 56f, 18f);   // from the north-west over the open grass, above the trees
                 else Rig.Frame(WorldView.FootCenter(38, 26, 2), 160f, 34f, 26f);
                 StartCoroutine(ShotNextFrame((30 + _elecShot) + "-tier5-" + names[_elecShot] + "-t" + Mathf.RoundToInt(W.Time) + "s"));
                 _elecShot++;
