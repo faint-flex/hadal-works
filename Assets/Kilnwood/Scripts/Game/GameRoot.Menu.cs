@@ -14,8 +14,8 @@ namespace Kilnwood.Game
     public partial class GameRoot
     {
         bool _research;
-        static readonly string[] TierNames = { "", "First Fire", "Water Power", "Steam", "Rails", "Electricity", "Next era" };
-        static readonly string[] PageNames = { "", "BASICS", "WATER POWER", "STEAM", "RAILS", "ELECTRICITY" };
+        static readonly string[] TierNames = { "", "First Fire", "Water Power", "Steam", "Rails", "Electricity", "Machine Age", "Next era" };
+        static readonly string[] PageNames = { "", "BASICS", "WATER POWER", "STEAM", "RAILS", "ELECTRICITY", "MACHINES" };
         List<BuildingType> _iconTypes;
         GUIStyle _tile, _tileOn, _tileLocked, _tiny, _tinyDim, _tab, _tabOn, _tabLocked, _cardTitle;
         Texture2D _barBack, _barFill, _barDone, _line;
@@ -24,7 +24,7 @@ namespace Kilnwood.Game
         {
             if (_iconTypes != null) return _iconTypes;
             _iconTypes = new List<BuildingType>();
-            for (int p = 1; p <= 5; p++)
+            for (int p = 1; p <= 6; p++)
                 foreach (var t in PageTools(p)) _iconTypes.Add(TypeOf(t));
             _iconTypes.Add(BuildingType.Splitter);
             return _iconTypes;
@@ -88,11 +88,11 @@ namespace Kilnwood.Game
         {
             MenuStyles();
             const float tileW = 104f, tileH = 112f, gap = 5f;
-            int pages = 5;
-            var bar = Panel(new Rect(Wd / 2f - 715f, Ht - 162f, 1430f, 152f));
+            int pages = 6;
+            var bar = Panel(new Rect(Wd / 2f - 780f, Ht - 162f, 1560f, 152f));
 
             // Tabs: one per tier page; locked ones say which tier opens them.
-            float tabW = 246f;
+            float tabW = 232f;
             for (int p = 1; p <= pages; p++)
             {
                 bool open = W.Tier >= p;
@@ -104,7 +104,7 @@ namespace Kilnwood.Game
                     else Toast(PageNames[p] + " opens at Tier " + p + ": press T to see the goal");
                 }
             }
-            var researchR = new Rect(bar.xMax - 160f, bar.y + 6f, 152f, 28f);
+            var researchR = new Rect(bar.xMax - 128f, bar.y + 6f, 120f, 28f);
             if (GUI.Button(researchR, (_research ? "> " : "") + "RESEARCH (T)", _research ? _tabOn : _tab)) _research = !_research;
 
             // Building tiles for this page.
@@ -234,6 +234,8 @@ namespace Kilnwood.Game
                 case BuildingType.Rail: return "Drag a line of track. Trucks can cross it.";
                 case BuildingType.Dynamo: return "Touch it to a line shaft. Turns shaft power into electricity.";
                 case BuildingType.Pole: return "Carries electricity. Poles link up to 8 tiles apart; machines 2 tiles away join.";
+                case BuildingType.ElectricMine: return "Electric. Digs ore or stone twice as fast, no fuel. Needs a pole close by.";
+                case BuildingType.MachineShop: return "Electric. Builds motors from wire and iron plate.";
                 case BuildingType.WireMill: return "Electric. Draws steel into wire. Needs a pole close by.";
                 default: return null;
             }
@@ -250,6 +252,7 @@ namespace Kilnwood.Game
                 case 3: return new[] { ("steel", Item.Steel, W.Delivered[Item.Steel], B.GoalSteel), ("coal", Item.Coal, W.Delivered[Item.Coal], B.GoalCoal) };
                 case 4: return new[] { ("hauled by train", Item.None, W.RailHauled, B.GoalRail) };
                 case 5: return new[] { ("steel wire", Item.Wire, W.Delivered[Item.Wire], B.GoalWire) };
+                case 6: return new[] { ("motors", Item.Motor, W.Delivered[Item.Motor], B.GoalMotor) };
                 default: return new (string, Item, int, int)[0];
             }
         }
@@ -262,18 +265,19 @@ namespace Kilnwood.Game
             "Dig the coal seam. A steam engine and a steel furnace.",
             "Track, stations and trains haul from the far ore field.",
             "Dynamos on the shafts, power poles, and an electric wire mill.",
+            "Electric mines and a machine shop that builds motors.",
             "Coming in a later build.",
         };
 
         void DrawResearch(float Wd, float Ht)
         {
             MenuStyles();
-            var p = Panel(new Rect(Wd / 2f - 760f, 84f, 1520f, Mathf.Min(640f, Ht - 260f)));
+            var p = Panel(new Rect(Wd / 2f - 800f, 84f, 1600f, Mathf.Min(640f, Ht - 260f)));
             GUI.Label(new Rect(p.x + 20f, p.y + 10f, 700f, 34f), "<b>Research</b>   reach each tier's goal to unlock the next", _h2);
             if (GUI.Button(new Rect(p.xMax - 130f, p.y + 10f, 116f, 34f), "Close (T)", _btn)) _research = false;
 
-            const int tiers = 6;
-            float nodeW = 230f, gapX = 20f, top = p.y + 60f, nodeH = p.height - 76f;
+            const int tiers = 7;
+            float nodeW = 209f, gapX = 16f, top = p.y + 60f, nodeH = p.height - 76f;
             for (int n = 1; n <= tiers; n++)
             {
                 float nx = p.x + 20f + (n - 1) * (nodeW + gapX);
@@ -295,7 +299,7 @@ namespace Kilnwood.Game
                 // Unlocks: building pictures with names.
                 float uy = top + 118f;
                 var unlocks = new List<BuildingType>();
-                if (n <= 5) foreach (var t in PageTools(n)) unlocks.Add(TypeOf(t));
+                if (n <= 6) foreach (var t in PageTools(n)) unlocks.Add(TypeOf(t));
                 if (n == 1) unlocks.Add(BuildingType.Splitter);
                 if (unlocks.Count > 0) GUI.Label(new Rect(nx + 12f, uy, nodeW - 24f, 22f), "Unlocks", _tinyDim);
                 uy += 22f;
@@ -303,9 +307,9 @@ namespace Kilnwood.Game
                 foreach (var bt in unlocks)
                 {
                     var icon = View != null ? View.IconIfReady(bt) : null;
-                    var cell = new Rect(ux + col * 72f, uy, 70f, 62f);
-                    if (icon != null) GUI.DrawTexture(new Rect(cell.x + 10f, cell.y, 50f, 50f), icon, ScaleMode.ScaleToFit, true);
-                    GUI.Label(new Rect(cell.x - 1f, cell.y + 46f, 72f, 34f), "<size=11>" + B.Defs[bt].Name + "</size>", locked ? _tinyDim : _tiny);
+                    var cell = new Rect(ux + col * 66f, uy, 64f, 62f);
+                    if (icon != null) GUI.DrawTexture(new Rect(cell.x + 7f, cell.y, 50f, 50f), icon, ScaleMode.ScaleToFit, true);
+                    GUI.Label(new Rect(cell.x - 1f, cell.y + 46f, 66f, 34f), "<size=11>" + B.Defs[bt].Name + "</size>", locked ? _tinyDim : _tiny);
                     col++;
                     if (col == 3) { col = 0; uy += 80f; }
                 }

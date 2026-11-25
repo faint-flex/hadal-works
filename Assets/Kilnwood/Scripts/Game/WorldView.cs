@@ -79,6 +79,7 @@ namespace Kilnwood.Game
                 case Item.Coal: return new Color(0.09f, 0.09f, 0.1f);
                 case Item.Steel: return new Color(0.72f, 0.76f, 0.82f);
                 case Item.Wire: return new Color(0.42f, 0.44f, 0.47f);
+                case Item.Motor: return new Color(0.17f, 0.3f, 0.23f);
                 default: return Color.white;
             }
         }
@@ -539,6 +540,8 @@ namespace Kilnwood.Game
                 case BuildingType.Dynamo: MakeDynamo(B, s, v); break;
                 case BuildingType.Pole: MakePole(v); break;
                 case BuildingType.WireMill: MakeWireMill(B, s, v); break;
+                case BuildingType.ElectricMine: MakeElectricMine(B, s, v); break;
+                case BuildingType.MachineShop: MakeMachineShop(B, s, v); break;
                 case BuildingType.Lodge:
                 {
                     float fz = (s - 2.2f) / 2f;   // front wall
@@ -601,7 +604,7 @@ namespace Kilnwood.Game
                 // One upright label per machine: name on top, status (and fuel) underneath.
                 // Neighbouring machines alternate label heights so their names don't stack on each other.
                 // Three label heights in a pattern, so any two neighbouring 2x2 machines get different heights.
-                float top = (b.Type == BuildingType.SteamEngine || b.Type == BuildingType.Furnace ? 7.4f : b.Type == BuildingType.Mine || b.Type == BuildingType.Smelter ? 6.0f : 4.4f) + ((b.X / 2 + 2 * (b.Y / 2)) % 3) * 1.8f;
+                float top = (b.Type == BuildingType.SteamEngine || b.Type == BuildingType.Furnace ? 7.4f : b.Type == BuildingType.Mine || b.Type == BuildingType.ElectricMine || b.Type == BuildingType.Smelter ? 6.0f : 4.4f) + ((b.X / 2 + 2 * (b.Y / 2)) % 3) * 1.8f;
                 if (b.Type == BuildingType.Lodge)
                 {
                     // Lodge name sits in front (south side), clear of the machines behind it.
@@ -692,6 +695,8 @@ namespace Kilnwood.Game
                 case BuildingType.Station: return _w.IsYard(b) ? "STATION (lodge yard)" : "STATION";
                 case BuildingType.Dynamo: return "DYNAMO " + _w.B.Defs[b.Type].Kw + " kW";
                 case BuildingType.WireMill: return "WIRE MILL E";
+                case BuildingType.ElectricMine: return "ELECTRIC MINE " + Items.Letter(_w.ExtractorResource(b, out _));
+                case BuildingType.MachineShop: return "MACHINE SHOP M";
                 default: return "";
             }
         }
@@ -1095,6 +1100,14 @@ namespace Kilnwood.Game
                     Art.Cyl("Spool end", t, new Vector3(0f, 0.27f, -0.25f), 0.56f, 0.05f, Look.Timber * 0.8f, new Vector3(90f, 0f, 0f));
                     Art.Cyl("Spool end", t, new Vector3(0f, 0.27f, 0.2f), 0.56f, 0.05f, Look.Timber * 0.8f, new Vector3(90f, 0f, 0f));
                     top = 0.56f;
+                    break;
+                case Item.Motor:
+                    // A small green electric motor on its side: copper end, steel shaft, a foot.
+                    Art.Cyl("Body", t, new Vector3(-0.28f, 0.28f, 0f), 0.46f, 0.56f, col, new Vector3(0f, 0f, -90f));
+                    Art.Cyl("End", t, new Vector3(0.28f, 0.28f, 0f), 0.36f, 0.08f, new Color(0.72f, 0.42f, 0.24f), new Vector3(0f, 0f, -90f));
+                    Art.Cyl("Shaft", t, new Vector3(0.36f, 0.28f, 0f), 0.08f, 0.18f, Look.Iron * 1.4f, new Vector3(0f, 0f, -90f));
+                    Art.Cube("Foot", t, new Vector3(0f, 0.04f, 0f), new Vector3(0.5f, 0.08f, 0.4f), Look.Iron);
+                    top = 0.54f;
                     break;
                 case Item.Fish:
                     Art.Ball("Body", t, new Vector3(0f, 0.13f, 0f), new Vector3(0.28f, 0.24f, 0.62f), col);

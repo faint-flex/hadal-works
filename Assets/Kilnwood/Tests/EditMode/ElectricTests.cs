@@ -16,7 +16,7 @@ namespace Kilnwood.Tests
             var w = new World(B);
             for (int y = 0; y < w.H; y++) { w.SetGround(0, y, Terrain.Water); w.SetGround(1, y, Terrain.Water); }
             w.Place(BuildingType.Lodge, 30, 30, 0, 0, free: true);
-            foreach (var it in new[] { Item.Wood, Item.Stone, Item.Iron, Item.Brick, Item.Gear, Item.Plank, Item.Plate, Item.Steel }) w.Storage[it] = 500;
+            foreach (var it in new[] { Item.Wood, Item.Stone, Item.Iron, Item.Brick, Item.Gear, Item.Plank, Item.Plate, Item.Steel, Item.Wire }) w.Storage[it] = 500;
             w.UnlockTier(tier);
             return w;
         }
@@ -113,6 +113,37 @@ namespace Kilnwood.Tests
             w.Tick(0.1f);
             var back = SaveData.From(w).ToWorld(B);
             Assert.AreEqual(B.GoalWire, back.Delivered[Item.Wire]);
+        }
+            [Test]
+        public void Machine_shop_makes_motors_from_wire_and_plate_and_motors_open_tier7()
+        {
+            var w = Valley(tier: 6);
+            WheelAndDynamo(w);
+            var shop = w.Place(BuildingType.MachineShop, 8, 13, 0);   // within 2 tiles of the dynamo
+            Assert.IsNotNull(shop);
+            shop.Input[Item.Wire] = 2;
+            shop.Input[Item.Plate] = 1;
+            w.Tick(0.1f);
+            float share = shop.Elec;
+            Assert.Greater(share, 0f);
+            w.Tick(5f / share + 0.2f);
+            Assert.AreEqual(Item.Motor, shop.OutItem);
+            Assert.AreEqual(1, shop.OutCount);
+            w.Delivered[Item.Motor] = B.GoalMotor;
+            w.Tick(0.1f);
+            Assert.AreEqual(7, w.Tier);
+        }
+
+        [Test]
+        public void Electric_mine_needs_ore_ground_and_digs_twice_as_fast()
+        {
+            var w = Valley(tier: 6);
+            for (int y = 20; y < 24; y++) for (int x = 20; x < 30; x++) w.SetGround(x, y, Terrain.IronOre);
+            Assert.AreEqual("Mines must sit on iron ore or stone", w.CanPlace(BuildingType.ElectricMine, 40, 40));
+            Assert.AreEqual(2f * w.ExtractRate(BuildingType.Mine, 2), w.ExtractRate(BuildingType.ElectricMine, 2), 1e-4);
+            var m = w.Place(BuildingType.ElectricMine, 20, 20, 0);
+            w.Tick(0.5f);
+            StringAssert.StartsWith("No electricity", m.Status);
         }
     }
 }

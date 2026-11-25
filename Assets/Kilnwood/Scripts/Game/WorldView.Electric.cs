@@ -146,6 +146,72 @@ namespace Kilnwood.Game
             Front(B, h);
         }
 
+        // ------------------------------------------------------------------ Tier 6: electric mine, machine shop
+
+        static readonly Color Copper = new Color(0.72f, 0.42f, 0.24f);
+
+        void MakeElectricMine(Transform B, float s, BView v)
+        {
+            Color stone = Look.StoneWall, iron = Look.Iron, dark = Look.MineDark;
+            float h = s / 2f;
+            Art.Cube("Pad", B, new Vector3(0f, 0.1f, 0f), new Vector3(s - 0.3f, 0.2f, s - 0.3f), stone * 0.75f);
+            Art.Cyl("Bore", B, new Vector3(0f, 0.18f, -0.2f), 1.3f, 0.06f, dark * 0.4f);
+            // Four riveted iron legs to a deck, the motor on top, the drill string down through the middle.
+            for (int i = 0; i < 4; i++)
+            {
+                float lx = i % 2 == 0 ? -1.15f : 1.15f, lz = i < 2 ? -1.35f : 0.95f;
+                Art.Cube("Leg", B, new Vector3(lx, 1.6f, lz), new Vector3(0.16f, 3.2f, 0.16f), iron);
+                Art.Cube("Cross brace", B, new Vector3(lx, 1.5f, -0.2f), new Vector3(0.06f, 0.06f, 2.6f), iron * 0.9f, new Vector3(-40f, 0f, 0f));
+            }
+            Art.Cube("Deck", B, new Vector3(0f, 3.25f, -0.2f), new Vector3(2.6f, 0.16f, 2.6f), iron * 0.8f);
+            Art.Cube("Rail", B, new Vector3(0f, 3.6f, 1.08f), new Vector3(2.6f, 0.06f, 0.06f), Look.Accent * 0.9f);
+            Art.Cyl("Motor", B, new Vector3(0f, 3.33f, -0.2f), 1.1f, 1.0f, DynamoGreen);
+            Art.Cyl("Motor cap", B, new Vector3(0f, 4.33f, -0.2f), 1.16f, 0.1f, Brass * 0.85f);
+            var drill = new GameObject("Drill").transform;
+            drill.SetParent(B, false);
+            drill.localPosition = new Vector3(0f, 0f, -0.2f);
+            Art.Cyl("Drill string", drill, new Vector3(0f, 0.15f, 0f), 0.24f, 3.1f, iron * 1.3f);
+            Art.Cube("Drill collar", drill, new Vector3(0f, 1.2f, 0f), new Vector3(0.5f, 0.2f, 0.12f), Look.Accent);
+            v.Anim = drill;
+            // Ore spout and a little heap at the front.
+            Art.Cube("Spout", B, new Vector3(0f, 0.75f, 1.2f), new Vector3(0.6f, 0.12f, 1.1f), iron, new Vector3(18f, 0f, 0f));
+            Art.RockAt("Heap", B, new Vector3(0.9f, 0.2f, 1.4f), new Vector3(0.7f, 0.35f, 0.5f), Look.OreRock, 0.5f);
+            // Service mast for the drop line.
+            Art.Cyl("Service mast", B, new Vector3(-1.6f, 0.2f, -1.6f), 0.16f, 4.4f, Look.Bark);
+            Art.Cyl("Insulator", B, new Vector3(-1.6f, 4.6f, -1.6f), 0.14f, 0.2f, Insulator);
+            Front(B, h);
+        }
+
+        void MakeMachineShop(Transform B, float s, BView v)
+        {
+            Color brick = Look.Brickwork, stone = Look.StoneWall, glass = new Color(0.32f, 0.36f, 0.38f);
+            float h = s / 2f;
+            Art.Cube("Floor", B, new Vector3(0f, 0.08f, 0f), new Vector3(s - 0.3f, 0.16f, s - 0.3f), stone * 0.85f);
+            Art.Cube("Walls", B, new Vector3(0f, 1.2f, -0.1f), new Vector3(3.5f, 2.4f, 3.0f), brick);
+            Art.Cube("Plinth course", B, new Vector3(0f, 0.3f, -0.1f), new Vector3(3.6f, 0.3f, 3.1f), stone * 0.8f);
+            // Saw-tooth roof: three north-light bays, each a sloping slab and a band of glass.
+            for (int k = 0; k < 3; k++)
+            {
+                float z0 = -1.6f + k * 1.0f;
+                Art.Cube("Roof", B, new Vector3(0f, 2.7f, z0 + 0.5f), new Vector3(3.6f, 0.08f, 1.17f), Look.Roof, new Vector3(-31f, 0f, 0f));
+                Art.Cube("Window", B, new Vector3(0f, 2.7f, z0 + 1.0f), new Vector3(3.4f, 0.58f, 0.05f), glass);
+            }
+            for (int k = -1; k <= 1; k += 2)
+                for (int j = 0; j < 2; j++)
+                    Art.Cube("Window", B, new Vector3(k * 1.77f, 1.3f, -0.9f + j * 1.2f), new Vector3(0.05f, 0.9f, 0.6f), glass);
+            Art.Cube("Door", B, new Vector3(0.7f, 0.95f, 1.42f), new Vector3(1.0f, 1.6f, 0.05f), Look.Roof);
+            // Finished motors waiting by the door.
+            for (int k = 0; k < 3; k++)
+            {
+                Art.Cyl("Motor", B, new Vector3(-0.9f + k * 0.45f, 0.38f, 1.65f), 0.36f, 0.5f, DynamoGreen, new Vector3(0f, 0f, 90f));
+                Art.Cyl("Motor end", B, new Vector3(-0.9f + k * 0.45f + 0.06f, 0.38f, 1.65f), 0.24f, 0.08f, Copper, new Vector3(0f, 0f, 90f));
+            }
+            // Service bracket at the west gable for the drop line.
+            Art.Cube("Service bracket", B, new Vector3(-1.95f, 3.0f, -1.2f), new Vector3(0.1f, 1.3f, 0.1f), Look.Iron);
+            Art.Cyl("Insulator", B, new Vector3(-1.95f, 3.65f, -1.2f), 0.14f, 0.2f, Insulator);
+            Front(B, h);
+        }
+
         // ------------------------------------------------------------------ wires and motion
 
         /// <summary>Where a wire meets this building (world space): insulator k (-1 or +1) on a pole or the
@@ -157,6 +223,8 @@ namespace Kilnwood.Game
             {
                 case BuildingType.Pole: return v.Body.TransformPoint(new Vector3(k * ArmHalf, PoleTop + 0.17f, 0f));
                 case BuildingType.Dynamo: return v.Body.TransformPoint(new Vector3(-1.4f + k * ArmHalf, 4.52f, -1.4f));
+                case BuildingType.ElectricMine: return v.Body.TransformPoint(new Vector3(-1.6f, 4.8f, -1.6f));
+                case BuildingType.MachineShop: return v.Body.TransformPoint(new Vector3(-1.95f, 3.85f, -1.2f));
                 default: return v.Body.TransformPoint(new Vector3(-2.0f, 4.1f, -0.75f));
             }
         }
@@ -249,7 +317,7 @@ namespace Kilnwood.Game
             float dt = Time.deltaTime;
             foreach (var b in _w.Buildings.Values)
             {
-                if (b.Type != BuildingType.Dynamo && b.Type != BuildingType.Pole && b.Type != BuildingType.WireMill) continue;
+                if (b.Type != BuildingType.Dynamo && b.Type != BuildingType.Pole && b.Type != BuildingType.WireMill && b.Type != BuildingType.ElectricMine) continue;
                 if (!_views.TryGetValue(b.Id, out var v)) continue;
                 switch (b.Type)
                 {
@@ -266,6 +334,12 @@ namespace Kilnwood.Game
                         if (v.Extra != null && v.Extra.activeSelf != live) v.Extra.SetActive(live);
                         bool shine = live && Night > 0.3f;
                         if (v.FireLight != null && v.FireLight.enabled != shine) v.FireLight.enabled = shine;
+                        break;
+                    }
+                    case BuildingType.ElectricMine:
+                    {
+                        bool running = b.Status == "Working" || b.Status.StartsWith("Low electricity");
+                        if (running && v.Anim != null) { v.AnimAngle += dt * 300f * Mathf.Max(0.2f, b.Elec); v.Anim.localRotation = Quaternion.Euler(0f, v.AnimAngle, 0f); }
                         break;
                     }
                     case BuildingType.WireMill:

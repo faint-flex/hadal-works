@@ -4,9 +4,9 @@ namespace Kilnwood.Sim
 {
     public enum Terrain { Grass, Forest, IronOre, Stone, Water }
 
-    public enum Item { None, Wood, Ore, Stone, Charcoal, Iron, Brick, Gear, Fish, Dirt, Plank, Plate, Coal, Steel, Wire }
+    public enum Item { None, Wood, Ore, Stone, Charcoal, Iron, Brick, Gear, Fish, Dirt, Plank, Plate, Coal, Steel, Wire, Motor }
 
-    public enum BuildingType { Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Lodge, Fisher, Cabin, Splitter, Garage, Hopper, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station, Dynamo, Pole, WireMill }
+    public enum BuildingType { Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Lodge, Fisher, Cabin, Splitter, Garage, Hopper, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station, Dynamo, Pole, WireMill, ElectricMine, MachineShop }
 
     public enum VehicleType { Excavator, Truck, Train }
 
@@ -83,6 +83,7 @@ namespace Kilnwood.Sim
                 case Item.Coal: return "Coal";
                 case Item.Steel: return "Steel";
                 case Item.Wire: return "Steel wire";
+                case Item.Motor: return "Motor";
                 default: return "-";
             }
         }
@@ -106,6 +107,7 @@ namespace Kilnwood.Sim
                 case Item.Coal: return "K";
                 case Item.Steel: return "T";
                 case Item.Wire: return "E";
+                case Item.Motor: return "M";
                 default: return "";
             }
         }
@@ -197,6 +199,12 @@ namespace Kilnwood.Sim
         public int PoleCover = 2;                // machines this close to a pole or dynamo join its grid
         public int WireMillKw = 8;
         public int GoalWire = 150;               // steel wire delivered to the lodge
+
+        // 0.12 Tier 6 "Machine Age": electric mines and the machine shop's motors.
+        public int ElectricMineKw = 6;
+        public float ElectricMineSpeed = 2f;     // digs twice as fast as a fuel-fired mine
+        public int MachineShopKw = 10;
+        public int GoalMotor = 80;               // motors delivered to the lodge
 
         public (Item item, int count)[] VehicleCost(VehicleType t) => t == VehicleType.Excavator ? ExcavatorCost : t == VehicleType.Train ? TrainCost : TruckCost;
 
@@ -290,6 +298,18 @@ namespace Kilnwood.Sim
                 Type = BuildingType.WireMill, Name = "Wire mill", Size = 2, Key = '3', Tier = 5, Kw = WireMillKw, NeedsElectric = true,
                 Cost = new[] { (Item.Plate, 10), (Item.Brick, 10), (Item.Steel, 6) },
                 Recipes = new[] { new Recipe { Name = "Steel wire", InItems = new[] { Item.Steel }, InCounts = new[] { 1 }, Out = Item.Wire, OutCount = 2, Seconds = 2.5f } },
+            });
+            Add(new BuildingDef
+            {
+                Type = BuildingType.ElectricMine, Name = "Electric mine", Size = 2, Key = '1', Tier = 6, Kw = ElectricMineKw, NeedsElectric = true,
+                SitsOn = new[] { Terrain.IronOre, Terrain.Stone },
+                Cost = new[] { (Item.Plate, 10), (Item.Steel, 6), (Item.Wire, 10) },
+            });
+            Add(new BuildingDef
+            {
+                Type = BuildingType.MachineShop, Name = "Machine shop", Size = 2, Key = '2', Tier = 6, Kw = MachineShopKw, NeedsElectric = true,
+                Cost = new[] { (Item.Brick, 20), (Item.Plate, 10), (Item.Wire, 10) },
+                Recipes = new[] { new Recipe { Name = "Motor", InItems = new[] { Item.Wire, Item.Plate }, InCounts = new[] { 2, 1 }, Out = Item.Motor, Seconds = 5f } },
             });
             Add(new BuildingDef { Type = BuildingType.Hopper, Name = "Hopper", Size = 2, Cost = new[] { (Item.Wood, 10), (Item.Stone, 6) }, Key = '8' });
         }

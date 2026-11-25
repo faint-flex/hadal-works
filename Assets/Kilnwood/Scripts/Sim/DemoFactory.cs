@@ -29,16 +29,17 @@ namespace Kilnwood.Sim
         readonly bool _tier3;
 
         readonly bool _tier4;
-        readonly bool _tier5;
+        readonly bool _tier5, _tier6;
         readonly int _railsEnd;
-        public const int FieldStationX = 54, FieldStationY = 7, YardStationX = 35, YardStationY = 26, DynamoX = 42, DynamoY = 20;
+        public const int FieldStationX = 54, FieldStationY = 7, YardStationX = 35, YardStationY = 26, DynamoX = 42, DynamoY = 20, ShopX = 36, ShopY = 32;
 
-        public DemoFactory(bool people = false, bool pit = false, bool tier2 = false, bool tier3 = false, bool tier4 = false, bool tier5 = false)
+        public DemoFactory(bool people = false, bool pit = false, bool tier2 = false, bool tier3 = false, bool tier4 = false, bool tier5 = false, bool tier6 = false)
         {
             _pit = pit;
             _tier3 = tier3;
             _tier4 = tier4;
             _tier5 = tier5;
+            _tier6 = tier6;
             const int N = 0, E = 1, S = 2, W = 3;
             const int Charcoal = 0, Brick = 1;
             // Phase 1: wood into the lodge (pays for everything else).
@@ -154,6 +155,26 @@ namespace Kilnwood.Sim
                 _steps.Add(new Step { Type = BuildingType.Belt, X = 37, Y = 30, Remove = true, MinTier = 5 });
                 _steps.Add(new Step { Type = BuildingType.Belt, X = 36, Y = 30, Remove = true, MinTier = 5 });
                 Add(BuildingType.WireMill, 36, 29, W);
+            }
+
+            // Phase 10 (0.12 Tier 6 "Machine Age"): a second dynamo; the wire mill turns north to feed a machine shop
+            // that also takes the trip hammer's plates; motors go to the lodge. The brick line's mine goes electric.
+            if (tier6)
+            {
+                Add(BuildingType.Dynamo, 42, 22, W);
+                Add(BuildingType.Pole, 38, 31, N);
+                _steps.Add(new Step { Type = BuildingType.WireMill, X = 36, Y = 29, Remove = true, MinTier = 6 });
+                Add(BuildingType.WireMill, 36, 29, N);
+                Add(BuildingType.Belt, 36, 31, N);
+                Add(BuildingType.MachineShop, ShopX, ShopY, W);
+                Add(BuildingType.Belt, 35, 33, W);
+                Add(BuildingType.Belt, 34, 33, W);
+                _steps.Add(new Step { Type = BuildingType.Belt, X = 36, Y = 34, Remove = true, MinTier = 6 });
+                Add(BuildingType.Belt, 36, 34, S);
+                Add(BuildingType.Pole, 33, 38, N);
+                Add(BuildingType.Pole, 32, 44, N);
+                _steps.Add(new Step { Type = BuildingType.Mine, X = 30, Y = 46, Remove = true, MinTier = 6 });
+                Add(BuildingType.ElectricMine, 30, 46, S);
             }
         }
 

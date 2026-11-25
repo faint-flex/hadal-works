@@ -82,6 +82,7 @@ namespace Kilnwood.Sim
         public float Tier3GoalAt { get; private set; } = -1f;
         public float Tier4GoalAt { get; private set; } = -1f;
         public float Tier5GoalAt { get; private set; } = -1f;
+        public float Tier6GoalAt { get; private set; } = -1f;
 
         public World(Balance b)
         {
@@ -292,6 +293,8 @@ namespace Kilnwood.Sim
 
         public float ExtractRate(BuildingType type, int tiles) => type == BuildingType.Woodcutter
             ? Math.Min(B.WoodMaxPerSecond, tiles / B.WoodSecondsPerTile)
+            : type == BuildingType.ElectricMine
+            ? Math.Min(B.ExtractMaxPerSecond * B.ElectricMineSpeed, tiles / B.ExtractSecondsPerTile * B.ElectricMineSpeed)
             : Math.Min(B.ExtractMaxPerSecond, tiles / B.ExtractSecondsPerTile);
 
         /// <summary>Forest tiles a woodcutter can reach that still have logs (its footprint plus a ring; not under other buildings).</summary>
@@ -392,6 +395,11 @@ namespace Kilnwood.Sim
             {
                 Tier = 6;
                 Tier5GoalAt = Time;
+            }
+            if (Tier == 6 && Delivered[Item.Motor] >= B.GoalMotor)
+            {
+                Tier = 7;
+                Tier6GoalAt = Time;
             }
         }
 
@@ -584,14 +592,16 @@ namespace Kilnwood.Sim
             switch (m.Type)
             {
                 case BuildingType.Woodcutter:
-                case BuildingType.Mine: StepExtractor(m, dt); break;
+                case BuildingType.Mine:
+                case BuildingType.ElectricMine: StepExtractor(m, dt); break;
                 case BuildingType.Kiln:
                 case BuildingType.Smelter:
                 case BuildingType.Workshop:
                 case BuildingType.Sawmill:
                 case BuildingType.TripHammer:
                 case BuildingType.Furnace:
-                case BuildingType.WireMill: StepCrafter(m, dt); break;
+                case BuildingType.WireMill:
+                case BuildingType.MachineShop: StepCrafter(m, dt); break;
                 case BuildingType.Dynamo: m.Status = DynamoStatus(m); return;
                 case BuildingType.Pole: m.Status = PoleStatus(m); return;
                 case BuildingType.SteamEngine: return;   // fired and its status set in StepPower

@@ -95,7 +95,7 @@ namespace Kilnwood.Game
                 _windows.Clear();
                 foreach (var v in _views.Values)
                 {
-                    if (v.Type != Kilnwood.Sim.BuildingType.Lodge && v.Type != Kilnwood.Sim.BuildingType.Cabin && v.Type != Kilnwood.Sim.BuildingType.Workshop && v.Type != Kilnwood.Sim.BuildingType.WireMill) continue;
+                    if (v.Type != Kilnwood.Sim.BuildingType.Lodge && v.Type != Kilnwood.Sim.BuildingType.Cabin && v.Type != Kilnwood.Sim.BuildingType.Workshop && v.Type != Kilnwood.Sim.BuildingType.WireMill && v.Type != Kilnwood.Sim.BuildingType.MachineShop) continue;
                     foreach (var r in v.Root.GetComponentsInChildren<Renderer>(true))
                         if (r.gameObject.name == "Window") _windows.Add(r);
                 }
