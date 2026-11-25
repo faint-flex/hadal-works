@@ -165,22 +165,33 @@ namespace Kilnwood.Game
             {
                 if (v.Type == VehicleType.Train) continue;
                 var vv = _vviews[v.Id];
-                // Parked trucks ease back a little from an excavator they sit next to, so bodies never overlap.
+                // Parked machines ease apart a little from any machine they sit next to, so bodies never overlap
+                // (0.20: excavators from excavators and trucks from trucks too, not only trucks from excavators).
                 var want = Vector2.zero;
-                if (v.Type == VehicleType.Truck && v.State != VehicleState.Driving)
+                if (v.State != VehicleState.Driving)
                     foreach (var o in _w.Vehicles)
                     {
-                        if (o.Type != VehicleType.Excavator) continue;
+                        if (o == v || o.Type == VehicleType.Train) continue;
                         var d = new Vector2(v.X - o.X, v.Y - o.Y);
                         float m = d.magnitude;
-                        const float clear = 1.9f;    // tiles between centres that keeps the excavator's tail out of the bed
-                        if (m > 1e-3f && m < clear) want += d / m * Mathf.Min(0.75f, clear - m);
+                        float clear = v.Type == VehicleType.Excavator && o.Type == VehicleType.Excavator ? 2.3f : 1.9f;
+                        if (m < 1e-3f) d = new Vector2(Mathf.Sin(v.Id * 2.4f), Mathf.Cos(v.Id * 2.4f)) * 1e-3f;   // same spot: split by id
+                        m = d.magnitude;
+                        if (m < clear) want += d / m * Mathf.Min(0.75f, clear - m) * (v.Type == VehicleType.Excavator && o.Type != VehicleType.Excavator ? 0.3f : 1f);
                     }
                 vv.Nudge = Vector2.Lerp(vv.Nudge, Vector2.ClampMagnitude(want, 0.75f), 1f - Mathf.Exp(-4f * dt));
                 float wx = (v.X + vv.Nudge.x) * T, wz = (v.Y + vv.Nudge.y) * T;
-                float y = GroundHeight(wx, wz);
                 // Lean with the slope: compare the ground ahead and behind.
                 var fwd = Quaternion.Euler(0f, v.Heading, 0f) * Vector3.forward;
+                // Stand on the highest of the centre and the four ends of the tracks / wheels: a machine digging a single
+                // deep tile straddles the hole instead of sinking into it (0.20: steam shovels vanished into the pit floor).
+                var side = new Vector3(fwd.z, 0f, -fwd.x);
+                float y = GroundHeight(wx, wz);
+                for (int k = 0; k < 4; k++)
+                {
+                    var o = fwd * ((k & 1) == 0 ? 0.95f : -0.95f) + side * ((k & 2) == 0 ? 0.6f : -0.6f);
+                    y = Mathf.Max(y, GroundHeight(wx + o.x, wz + o.z) - 0.1f);
+                }
                 float ahead = GroundHeight(wx + fwd.x * 1.2f, wz + fwd.z * 1.2f), behind = GroundHeight(wx - fwd.x * 1.2f, wz - fwd.z * 1.2f);
                 float pitch = -Mathf.Atan2(ahead - behind, 2.4f) * Mathf.Rad2Deg;
                 vv.Yaw = Mathf.LerpAngle(vv.Yaw, v.Heading, 1f - Mathf.Exp(-10f * dt));

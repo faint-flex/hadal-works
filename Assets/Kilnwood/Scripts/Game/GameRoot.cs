@@ -528,6 +528,7 @@ namespace Kilnwood.Game
                 File.AppendAllText(Path.Combine(_shotsDir, "shots-result.txt"), "tier 1 goal at " + W.GoalReachedAt.ToString("0") + " s game time\n");
             }
             if (W.Tier >= 3 && W.Tier2GoalAt > 0f && !_tier2Shot) { _tier2Shot = true; StartCoroutine(TierShot("19-tier2-goal-t" + Mathf.RoundToInt(W.Time) + "s")); }
+            if (W.Tier >= 6 && W.Era == 1 && !_dieselShot) { _dieselShot = true; StartCoroutine(PitShot("46-era-diesel-t" + Mathf.RoundToInt(W.Time) + "s")); }
             if (W.Tier >= 4 && _railAt <= 0f) _railAt = W.Time + 150f;
             bool trainOut = false;
             foreach (var tv in W.Vehicles) if (tv.Type == VehicleType.Train && tv.State == VehicleState.Driving && tv.PathStep > 4 && tv.PathStep < tv.Path.Count - 4) trainOut = true;
@@ -647,6 +648,20 @@ namespace Kilnwood.Game
             yield return new WaitForEndOfFrame();
             ScreenCapture.CaptureScreenshot(Path.Combine(_shotsDir, name + ".png"));
             _lastShotFrame = _frames;
+        }
+
+        bool _dieselShot;
+
+        /// <summary>0.20: the pit fleet where it is working (shows the diesel-era shovel and tipper in Tiers 4-6).</summary>
+        System.Collections.IEnumerator PitShot(string name)
+        {
+            Vector3 sum = Vector3.zero; int n = 0;
+            foreach (var veh in W.Vehicles) if (veh.Type != VehicleType.Train) { sum += new Vector3(veh.X * WorldView.T, 0f, veh.Y * WorldView.T); n++; }
+            if (n == 0) yield break;
+            Rig.Frame(sum / n, 215f, 32f, 24f);
+            for (int k = 0; k < 3; k++) yield return null;
+            yield return new WaitForEndOfFrame();
+            ScreenCapture.CaptureScreenshot(Path.Combine(_shotsDir, name + ".png"));
         }
 
         System.Collections.IEnumerator TierShot(string name)
