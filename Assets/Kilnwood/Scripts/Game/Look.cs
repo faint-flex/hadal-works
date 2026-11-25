@@ -161,6 +161,24 @@ namespace Kilnwood.Game
             return m;
         }
 
+        static Material _glass;
+
+        /// <summary>Window glass: dark, smooth and slightly blue, so it mirrors the sky probe instead of reading as a flat grey slab.</summary>
+        public static Material GlassMat
+        {
+            get
+            {
+                if (_glass != null) return _glass;
+                var c = new Color(0.3f, 0.37f, 0.42f);
+                _glass = new Material(Mat(c)) { name = "Window glass" };
+                if (_glass.HasProperty("_Glossiness")) _glass.SetFloat("_Glossiness", 0.92f);
+                if (_glass.HasProperty("_Smoothness")) _glass.SetFloat("_Smoothness", 0.92f);
+                if (_glass.HasProperty("_Metallic")) _glass.SetFloat("_Metallic", 0.35f);
+                _glass.enableInstancing = true;
+                return _glass;
+            }
+        }
+
         static readonly Dictionary<Color, Material> _glow = new Dictionary<Color, Material>();
 
         /// <summary>A self-lit material (fire, embers) that glows even in shade.</summary>

@@ -531,7 +531,7 @@ namespace Kilnwood.Game
                 _elecAt = W.Time + 40f;
             }
             if (W.Tier >= 6 && _shopAt <= 0f) _shopAt = W.Time + 220f;
-            if (_shopAt > 0f && _shopShot < 2 && W.Time >= _shopAt)
+            if (_shopAt > 0f && _shopShot < 2 && W.Time >= _shopAt && (_shopShot > 0 || W.Time >= _shopAt + 60f || MotorOnShopBelt()))
             {
                 // Tier 6 shots: the machine shop beside the wire mill, then the electric mine on the stone field.
                 string[] names = { "machine-shop", "electric-mine" };
@@ -547,6 +547,17 @@ namespace Kilnwood.Game
         float _railAt; int _railShot;
         float _elecAt; int _elecShot;
         float _shopAt; int _shopShot;
+
+        /// <summary>True while a motor rides the short belt from the machine shop to the lodge (so the shot shows one).</summary>
+        bool MotorOnShopBelt()
+        {
+            for (int x = DemoFactory.ShopX - 2; x < DemoFactory.ShopX; x++)
+            {
+                var b = W.At(x, DemoFactory.ShopY + 1);
+                if (b != null && b.Type == BuildingType.Belt && b.BeltItem == Item.Motor) return true;
+            }
+            return false;
+        }
 
         Vector3 TrainFocus()
         {

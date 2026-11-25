@@ -79,7 +79,7 @@ namespace Kilnwood.Game
                 case Item.Coal: return new Color(0.09f, 0.09f, 0.1f);
                 case Item.Steel: return new Color(0.72f, 0.76f, 0.82f);
                 case Item.Wire: return new Color(0.42f, 0.44f, 0.47f);
-                case Item.Motor: return new Color(0.17f, 0.3f, 0.23f);
+                case Item.Motor: return new Color(0.22f, 0.44f, 0.3f);
                 default: return Color.white;
             }
         }
@@ -638,6 +638,7 @@ namespace Kilnwood.Game
                 if (r.GetComponent<TextMesh>() != null) continue;
                 var m = r.sharedMaterial;
                 if (m == null || m.IsKeywordEnabled("_EMISSION")) continue;
+                if (r.gameObject.name == "Window") { r.sharedMaterial = Look.GlassMat; continue; }
                 var c = m.color;
                 float lum = c.r * 0.3f + c.g * 0.59f + c.b * 0.11f;
                 foreach (var (rc, surf) in SurfaceRefs)

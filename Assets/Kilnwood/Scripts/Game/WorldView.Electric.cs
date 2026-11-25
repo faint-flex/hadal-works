@@ -195,11 +195,25 @@ namespace Kilnwood.Game
                 float z0 = -1.6f + k * 1.0f;
                 Art.Cube("Roof", B, new Vector3(0f, 2.7f, z0 + 0.5f), new Vector3(3.6f, 0.08f, 1.17f), Look.Roof, new Vector3(-31f, 0f, 0f));
                 Art.Cube("Window", B, new Vector3(0f, 2.7f, z0 + 1.0f), new Vector3(3.4f, 0.58f, 0.05f), glass);
+                // Glazing bars and a sill, so each band reads as framed panes of glass.
+                for (int j = -3; j <= 3; j++)
+                    Art.Cube("Glazing bar", B, new Vector3(j * 0.56f, 2.7f, z0 + 1.03f), new Vector3(0.05f, 0.6f, 0.05f), Look.Iron * 0.9f);
+                Art.Cube("Sill", B, new Vector3(0f, 2.41f, z0 + 1.03f), new Vector3(3.5f, 0.05f, 0.08f), Look.Iron * 0.9f);
             }
             for (int k = -1; k <= 1; k += 2)
                 for (int j = 0; j < 2; j++)
                     Art.Cube("Window", B, new Vector3(k * 1.77f, 1.3f, -0.9f + j * 1.2f), new Vector3(0.05f, 0.9f, 0.6f), glass);
             Art.Cube("Door", B, new Vector3(0.7f, 0.95f, 1.42f), new Vector3(1.0f, 1.6f, 0.05f), Look.Roof);
+            Art.Cube("Door lintel", B, new Vector3(0.7f, 1.82f, 1.43f), new Vector3(1.25f, 0.14f, 0.1f), stone * 0.9f);
+            // Corbelled brick course under the eaves and stone quoins on the corners.
+            Art.Cube("Cornice", B, new Vector3(0f, 2.38f, -0.1f), new Vector3(3.62f, 0.12f, 3.12f), brick * 0.85f);
+            for (int a = -1; a <= 1; a += 2)
+                for (int b = -1; b <= 1; b += 2)
+                    for (int q = 0; q < 4; q++)
+                        Art.Cube("Quoin", B, new Vector3(a * 1.76f, 0.6f + q * 0.5f, -0.1f + b * 1.51f), new Vector3(0.1f, 0.22f, 0.1f), stone);
+            // A roof vent on the ridge to let the forge heat out.
+            Art.Cyl("Roof vent", B, new Vector3(1.1f, 3.15f, -0.6f), 0.32f, 0.5f, Look.Iron);
+            Art.ConeAt("Vent cap", B, new Vector3(1.1f, 3.45f, -0.6f), 0.5f, 0.2f, Look.Iron * 0.8f);
             // Finished motors waiting by the door.
             for (int k = 0; k < 3; k++)
             {
