@@ -98,7 +98,7 @@ namespace Kilnwood.Game
             // Wheel: it stands in the river beside the bank with its face along the current, the axle running
             // from the house out over the water, so the flow pushes the bottom paddles downstream.
             const float R = 1.8f;
-            var hub = new Vector3(0f, 1.25f, s / 2f + 1.05f);
+            var hub = new Vector3(0f, 1.25f, s / 2f + 1.35f);
             var mount = new GameObject("Wheel mount").transform;
             mount.SetParent(f, false);
             mount.localPosition = hub;

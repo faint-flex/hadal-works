@@ -426,9 +426,10 @@ namespace Kilnwood.Game
 
         void UpdateShots()
         {
+            _page = Mathf.Clamp(W.Tier, 1, 4);   // shots show the newest build page
             _frames++;
             _frameTime += Time.unscaledDeltaTime;
-            if (_frames > 30)
+            if (_frames > 30 && !_goalPanel)   // stop timing once the end-of-run save/load and final shots start
             {
                 if (Time.unscaledDeltaTime > 0.05f) _spikes++;
                 if (Time.unscaledDeltaTime > _worstFrame) { _worstFrame = Time.unscaledDeltaTime; _worstAt = W.Time; _worstFrameNo = _frames; }

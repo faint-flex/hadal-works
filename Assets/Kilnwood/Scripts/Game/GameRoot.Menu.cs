@@ -48,6 +48,7 @@ namespace Kilnwood.Game
             _tileLocked.normal.textColor = new Color(0.6f, 0.58f, 0.55f);
             _tiny = new GUIStyle(GUI.skin.label) { fontSize = 13, richText = true, wordWrap = true };
             _tiny.normal.textColor = new Color(0.95f, 0.92f, 0.86f);
+            _tiny.clipping = TextClipping.Overflow;
             _tinyDim = new GUIStyle(_tiny);
             _tinyDim.normal.textColor = new Color(0.62f, 0.6f, 0.56f);
             _tab = new GUIStyle(GUI.skin.button) { fontSize = 14, fontStyle = FontStyle.Bold, richText = true };
@@ -55,9 +56,11 @@ namespace Kilnwood.Game
             _tabOn.normal.textColor = Look.Accent; _tabOn.hover.textColor = Look.Accent;
             _tabOn.normal.background = _tab.active.background;
             _tabLocked = new GUIStyle(_tab) { fontStyle = FontStyle.Normal };
-            _tabLocked.normal.textColor = new Color(0.55f, 0.53f, 0.5f);
+            _tabLocked.normal.textColor = new Color(0.8f, 0.77f, 0.72f);
+            _tabLocked.hover.textColor = new Color(0.9f, 0.87f, 0.82f);
             _cardTitle = new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, richText = true };
             _cardTitle.normal.textColor = Color.white;
+            _cardTitle.clipping = TextClipping.Overflow;
             _barBack = Solid(new Color(0.22f, 0.19f, 0.16f, 1f));
             _barFill = Solid(new Color(0.85f, 0.6f, 0.25f, 1f));
             _barDone = Solid(new Color(0.45f, 0.7f, 0.4f, 1f));
@@ -89,12 +92,12 @@ namespace Kilnwood.Game
             var bar = Panel(new Rect(Wd / 2f - 715f, Ht - 162f, 1430f, 152f));
 
             // Tabs: one per tier page; locked ones say which tier opens them.
-            float tabW = 200f;
+            float tabW = 262f;
             for (int p = 1; p <= pages; p++)
             {
                 bool open = W.Tier >= p;
                 var r = new Rect(bar.x + 8f + (p - 1) * (tabW + 4f), bar.y + 6f, tabW, 28f);
-                string label = open ? (_page == p ? "> " : "") + PageNames[p] : "LOCKED  " + PageNames[p] + " (T" + p + ")";
+                string label = open ? (_page == p ? "> " : "") + PageNames[p] : "LOCKED: " + PageNames[p] + " (T" + p + ")";
                 if (GUI.Button(r, label, !open ? _tabLocked : _page == p ? _tabOn : _tab))
                 {
                     if (open) { _page = p; SetTool(Tool.Select); }
@@ -144,6 +147,9 @@ namespace Kilnwood.Game
                 var (t, name, sub) = tools[i];
                 var r = new Rect(rx + i * (tileW + gap), y, tileW, tileH);
                 if (GUI.Button(r, name + "\n<size=12>" + sub + "</size>", _tool == t ? _tileOn : _tile)) SetTool(_tool == t ? Tool.Select : t);
+                var ti = t == Tool.Demolish || View == null ? null : View.ToolIcon(t == Tool.Dig);
+                if (ti != null) GUI.DrawTexture(new Rect(r.x + (r.width - 66f) / 2f, r.y + 3f, 66f, 66f), ti, ScaleMode.ScaleToFit, true);
+                else if (t == Tool.Demolish) GUI.Label(new Rect(r.x, r.y + 2f, r.width, 64f), "X", DemolishGlyph());
                 if (_tool == t) GUI.Box(new Rect(r.x, r.yMax - 3f, r.width, 3f), GUIContent.none, Underline());
                 if (r.Contains(Event.current.mousePosition))
                     hoverCard = t == Tool.Dig ? "<b>Dig</b>\nDrag over ore, coal, stone or grass. Excavators dig it layer by layer and trucks carry it to hoppers, the lodge or a dump."
@@ -153,6 +159,15 @@ namespace Kilnwood.Game
 
             if (hoverTool) DrawBuildCard(hoverType, bar);
             else if (hoverCard != null) DrawTextCard(hoverCard, bar);
+        }
+
+        GUIStyle _glyph;
+        GUIStyle DemolishGlyph()
+        {
+            if (_glyph != null) return _glyph;
+            _glyph = new GUIStyle(GUI.skin.label) { fontSize = 50, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+            _glyph.normal.textColor = new Color(0.9f, 0.42f, 0.3f);
+            return _glyph;
         }
 
         GUIStyle _underline;
@@ -265,31 +280,31 @@ namespace Kilnwood.Game
                 if (n < tiers)
                 {
                     GUI.DrawTexture(new Rect(node.xMax + 2f, top + 40f, gapX - 8f, 3f), _line);
-                    GUI.Label(new Rect(node.xMax + gapX - 16f, top + 28f, 20f, 26f), "<b>></b>", _body);
+                    GUI.Label(new Rect(node.xMax + gapX - 18f, top + 26f, 24f, 28f), ">", _cardTitle);
                 }
                 string state = done ? "DONE" : now ? "NOW" : "LOCKED";
-                GUI.Label(new Rect(nx + 12f, top + 10f, nodeW - 24f, 26f), "<b>Tier " + n + "</b>  " + TierNames[n], _cardTitle);
+                GUI.Label(new Rect(nx + 12f, top + 8f, nodeW - 24f, 30f), "<b>Tier " + n + "</b>  " + TierNames[n], _cardTitle);
                 GUI.Label(new Rect(nx + 12f, top + 38f, nodeW - 24f, 22f), state, now ? _btnSmallOn : _tiny);
                 GUI.Label(new Rect(nx + 12f, top + 60f, nodeW - 24f, 54f), TierBlurb[n], locked ? _tinyDim : _tiny);
 
                 // Unlocks: building pictures with names.
                 float uy = top + 118f;
-                GUI.Label(new Rect(nx + 12f, uy, nodeW - 24f, 20f), "Unlocks", _tinyDim);
-                uy += 20f;
                 var unlocks = new List<BuildingType>();
                 if (n <= 4) foreach (var t in PageTools(n)) unlocks.Add(TypeOf(t));
                 if (n == 1) unlocks.Add(BuildingType.Splitter);
+                if (unlocks.Count > 0) GUI.Label(new Rect(nx + 12f, uy, nodeW - 24f, 22f), "Unlocks", _tinyDim);
+                uy += 22f;
                 int col = 0; float ux = nx + 10f;
                 foreach (var bt in unlocks)
                 {
                     var icon = View != null ? View.IconIfReady(bt) : null;
                     var cell = new Rect(ux + col * 64f, uy, 62f, 62f);
                     if (icon != null) GUI.DrawTexture(new Rect(cell.x + 6f, cell.y, 50f, 50f), icon, ScaleMode.ScaleToFit, true);
-                    GUI.Label(new Rect(cell.x - 2f, cell.y + 46f, 66f, 18f), "<size=11>" + B.Defs[bt].Name + "</size>", locked ? _tinyDim : _tiny);
+                    GUI.Label(new Rect(cell.x - 2f, cell.y + 46f, 66f, 34f), "<size=11>" + B.Defs[bt].Name + "</size>", locked ? _tinyDim : _tiny);
                     col++;
-                    if (col == 4) { col = 0; uy += 70f; }
+                    if (col == 4) { col = 0; uy += 84f; }
                 }
-                if (col > 0) uy += 70f;
+                if (col > 0) uy += 84f;
                 if (n == 1) { GUI.Label(new Rect(nx + 12f, uy, nodeW - 24f, 20f), "+ excavators and trucks (at the garage)", _tiny); uy += 22f; }
                 if (n == 4) { GUI.Label(new Rect(nx + 12f, uy, nodeW - 24f, 20f), "+ trains (at a station)", _tiny); uy += 22f; }
 
@@ -297,14 +312,14 @@ namespace Kilnwood.Game
                 var goals = GoalOf(n);
                 if (goals.Length > 0)
                 {
-                    float gy = node.yMax - 22f - goals.Length * 40f;
-                    GUI.Label(new Rect(nx + 12f, gy - 22f, nodeW - 24f, 20f), "Goal: deliver to the lodge", _tinyDim);
+                    float gy = node.yMax - 22f - 2 * 40f;   // goals line up across tiers
+                    GUI.Label(new Rect(nx + 12f, gy - 24f, nodeW - 24f, 22f), "Goal: deliver to the lodge", _tinyDim);
                     foreach (var g in goals)
                     {
                         int have = Mathf.Min(g.have, g.need);
                         if (done) have = g.need;
                         string letter = g.item != Item.None ? Items.Letter(g.item) + " " : "";
-                        GUI.Label(new Rect(nx + 12f, gy, nodeW - 24f, 18f), letter + g.name + "  " + (locked ? "0" : have.ToString()) + " / " + g.need, _tiny);
+                        GUI.Label(new Rect(nx + 12f, gy, nodeW - 24f, 22f), letter + g.name + "  " + (locked ? "0" : have.ToString()) + " / " + g.need, _tiny);
                         var bar = new Rect(nx + 12f, gy + 20f, nodeW - 24f, 10f);
                         GUI.DrawTexture(bar, _barBack);
                         float f = locked ? 0f : have / (float)g.need;
