@@ -815,6 +815,13 @@ namespace Kilnwood.Game
             if (cam != null)
             {
                 Look.TurnFlatLabels(cam.transform.eulerAngles.y);
+                // Item letters lie flat on the items: from a low camera they are only white slivers (the "dashes" seen
+                // through the trees at dusk), so they fade out below about 25 degrees and are full from 35 up.
+                if (_itemTextMat != null)
+                {
+                    float pitch = cam.transform.eulerAngles.x; if (pitch > 180f) pitch -= 360f;
+                    _itemTextMat.SetColor("_Color", new Color(1f, 1f, 1f, Mathf.Clamp01((pitch - 22f) / 13f)));
+                }
                 Look.TurnBillboards(cam.transform.rotation, cam.transform.position);
                 DeclutterLabels(cam);
                 ScaleItems(cam);

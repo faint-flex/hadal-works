@@ -12,7 +12,7 @@ namespace Kilnwood.Game
     public static class Trees
     {
         const int Variants = 4;
-        static Mesh[] _pines, _leafy, _leafyFar, _pineCards, _leafCards;
+        static Mesh[] _pines, _leafy, _leafyFar, _pineCards;
         static Material _src;
         static bool _checked;
         static readonly Dictionary<Color, Material> _mats = new Dictionary<Color, Material>();
@@ -80,12 +80,8 @@ namespace Kilnwood.Game
                 var g = Leaf[(int)(r2 * 3.99f)];
                 if (!far) Art.Part("Trunk", parent, Art.Frustum, Vector3.zero, new Vector3(0.38f * s, 2.6f * s, 0.38f * s), Look.Bark);
                 Add("Crown", parent, far ? _leafyFar[v] : _leafy[v], Mat(g), Vector3.zero, Vector3.one * s * (far ? 1.35f : 1f), !far);
-                if (!far && CardsAvailable)
-                {
-                    // 0.18.2: leaf clusters from a generated atlas (the 0.18.0 cut-out left streaks that read as shards).
-                    _leafCards ??= MakeAll(LeafCards);
-                    Add("Leaves", parent, _leafCards[v], CardMat(_leafTex, g), Vector3.zero, Vector3.one * s, true);
-                }
+                // Leaf cards (0.18.0, 0.18.2) read as stickers on a smooth blob and cost frame time, so they stay off;
+                // broadleaf crowns need a real rebuild (ragged outline) in a later pass.
             }
         }
 
