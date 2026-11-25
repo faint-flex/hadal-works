@@ -100,8 +100,10 @@ public static class Program
     static int Jitter(int seeds)
     {
         int fails = 0;
+        int only = int.TryParse(Environment.GetEnvironmentVariable("JSEED"), out var js) ? js : 0;
         for (int seed = 1; seed <= seeds; seed++)
         {
+            if (only > 0 && seed != only) continue;
             _t9seen = false;
             var rng = new Random(seed);
             var b = new Balance();
@@ -119,7 +121,7 @@ public static class Program
                 w.Tick((float)(0.02 + rng.NextDouble() * 0.5));
                 if (w.Tier == 9 && !_t9seen && w.Time > w.Tier8GoalAt + 20f) { _t9seen = true; Console.WriteLine($"seed {seed}: 20 s into Tier 9: waiting {demo.Waiting(w)}; lodge steel {w.Storage[Item.Steel]} wire {w.Storage[Item.Wire]} plate {w.Storage[Item.Plate]} plank {w.Storage[Item.Plank]} brick {w.Storage[Item.Brick]} motor {w.Storage[Item.Motor]}"); }
                 if (w.Time >= nextCrowd) { nextCrowd = w.Time + 5f; samples++; if (Crowded(w)) crowded++; if (StoppedOnBelt(w)) onBelt++; }
-                if (seeds == 1 && w.Tier >= 3 && w.Time >= _trace) { _trace = w.Time + 60f; Trace(w); }
+                if ((seeds == 1 || only > 0) && w.Tier >= 3 && w.Time >= _trace) { _trace = w.Time + 60f; Trace(w); }
             }
             if (Environment.GetEnvironmentVariable("BELTDBG") != null)
                 for (int y = w.H - 1; y >= 0; y--) { var line = y.ToString("00") + " "; for (int x = 0; x < w.W; x++) { var bb = w.AtOrShaft(x, y); var gt = w.Ground[y * w.W + x]; line += bb != null ? MapChar(bb.Type) : gt == Terrain.Water ? "~" : gt == Terrain.IronOre ? "o" : gt == Terrain.Stone ? "s" : w.CoalSeam[y * w.W + x] ? "k" : w.Units[y * w.W + x] < 0 ? "_" : w.Logs[y * w.W + x] > 0 ? "t" : "."; } Console.WriteLine(line); }

@@ -67,7 +67,7 @@ namespace Kilnwood.Sim
 
         /// <summary>What digging this tile gives next, or None when it can't be dug any further.</summary>
         /// <summary>How many levels down the pit may go: deeper once Tier 8 opens.</summary>
-        public int DigDepth => Tier >= 8 ? B.DeepPitDepth : B.MaxDigDepth;
+        public int DigDepth => Tier >= B.DeepPitTier ? B.DeepPitDepth : B.MaxDigDepth;
 
         public Item MaterialAt(int i)
         {

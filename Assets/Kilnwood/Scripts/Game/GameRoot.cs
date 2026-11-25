@@ -542,7 +542,7 @@ namespace Kilnwood.Game
                     if (dz.Type == VehicleType.Dozer && dz.State == VehicleState.Digging)
                     {
                         _dozerShot = true;
-                        Rig.Frame(WorldView.FootCenter(dz.TileX, dz.TileY, 1), 200f, 52f, 18f);
+                        Rig.Frame(WorldView.FootCenter(dz.TileX, dz.TileY, 1), 0f, 48f, 18f);   // from the open south side (it clears from the south edge)
                         StartCoroutine(ShotNextFrame("49-dozer-clearing-t" + Mathf.RoundToInt(W.Time) + "s"));
                         break;
                     }

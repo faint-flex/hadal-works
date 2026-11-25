@@ -163,7 +163,8 @@ namespace Kilnwood.Sim
 
         // 0.5 "Open Pit": digging, excavators and trucks.
         public int MaxDigDepth = 4;              // levels below the surface (1 level = 1 m)
-        public int DeepPitDepth = 8;             // 0.15: from Tier 8 the pit can go this deep (the shallow ore runs out)
+        public int DeepPitDepth = 8;             // 0.15: deeper pit once DeepPitTier opens (the shallow ore runs out)
+        public int DeepPitTier = 7;              // 0.22.1: was Tier 8; the shallow coal ran out in Tier 7 on 1 seed in 10
         public int MaxDumpHeight = 2;            // levels above the surface
         public int UnitsPerLevel = 8;            // items in one level of one tile
         public float DigSeconds = 1.5f;          // excavator: one unit every 1.5 s

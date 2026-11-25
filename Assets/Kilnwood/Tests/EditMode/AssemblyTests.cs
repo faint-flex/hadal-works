@@ -138,12 +138,12 @@ namespace Kilnwood.Tests
         [Test]
         public void Tier8_lets_the_pit_dig_deeper()
         {
-            var w = Valley(tier: 7);
+            var w = Valley(tier: 6);
             w.SetGround(20, 20, Terrain.IronOre);
             int i = 20 * w.W + 20;
             w.Units[i] = -B.UnitsPerLevel * B.MaxDigDepth;
             Assert.AreEqual(Item.None, w.MaterialAt(i));
-            w.UnlockTier(8);
+            w.UnlockTier(7);
             Assert.AreEqual(Item.Ore, w.MaterialAt(i));
         }
     }
