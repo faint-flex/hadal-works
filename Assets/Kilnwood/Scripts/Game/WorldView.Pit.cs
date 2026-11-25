@@ -192,8 +192,11 @@ namespace Kilnwood.Game
                     var o = fwd * ((k & 1) == 0 ? 0.95f : -0.95f) + side * ((k & 2) == 0 ? 0.6f : -0.6f);
                     y = Mathf.Max(y, GroundHeight(wx + o.x, wz + o.z) - 0.1f);
                 }
-                float ahead = GroundHeight(wx + fwd.x * 1.2f, wz + fwd.z * 1.2f), behind = GroundHeight(wx - fwd.x * 1.2f, wz - fwd.z * 1.2f);
-                float pitch = -Mathf.Atan2(ahead - behind, 2.4f) * Mathf.Rad2Deg;
+                // 0.20.2: each end rests on the higher of its two corners (like the straddle above), and the lean is
+                // limited to 12 degrees, so a machine bridging the edge of a dug hole doesn't tip 30-40 degrees.
+                float ahead = Mathf.Max(GroundHeight(wx + fwd.x * 1.2f + side.x * 0.6f, wz + fwd.z * 1.2f + side.z * 0.6f), GroundHeight(wx + fwd.x * 1.2f - side.x * 0.6f, wz + fwd.z * 1.2f - side.z * 0.6f));
+                float behind = Mathf.Max(GroundHeight(wx - fwd.x * 1.2f + side.x * 0.6f, wz - fwd.z * 1.2f + side.z * 0.6f), GroundHeight(wx - fwd.x * 1.2f - side.x * 0.6f, wz - fwd.z * 1.2f - side.z * 0.6f));
+                float pitch = Mathf.Clamp(-Mathf.Atan2(ahead - behind, 2.4f) * Mathf.Rad2Deg, -12f, 12f);
                 vv.Yaw = Mathf.LerpAngle(vv.Yaw, v.Heading, 1f - Mathf.Exp(-10f * dt));
                 vv.Root.localPosition = new Vector3(wx, y, wz);
                 vv.Root.localRotation = Quaternion.Euler(pitch, vv.Yaw, 0f);
