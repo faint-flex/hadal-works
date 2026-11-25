@@ -104,7 +104,7 @@ namespace Kilnwood.Game
                     else Toast(PageNames[p] + " opens at Tier " + p + ": press T to see the goal");
                 }
             }
-            var researchR = new Rect(bar.xMax - 140f, bar.y + 6f, 132f, 28f);
+            var researchR = new Rect(bar.xMax - 158f, bar.y + 6f, 150f, 28f);
             if (GUI.Button(researchR, (_research ? "> " : "") + "RESEARCH (T)", _research ? _tabOn : _tab)) _research = !_research;
 
             // Building tiles for this page.

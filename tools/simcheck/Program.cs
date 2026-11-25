@@ -61,6 +61,17 @@ public static class Program
         return false;
     }
 
+    static bool StoppedOnBelt(World w)
+    {
+        foreach (var v in w.Vehicles)
+        {
+            if (v.Type != VehicleType.Truck || v.State == VehicleState.Driving) continue;
+            var b = w.At(v.TileX, v.TileY);
+            if (b != null && (b.Type == BuildingType.Belt || b.Type == BuildingType.Splitter)) { if (Environment.GetEnvironmentVariable("BELTDBG") != null) Console.WriteLine($"  t={w.Time:0} truck at {v.TileX},{v.TileY} {v.State} {v.Status} drop={(w.Buildings.Count > v.DropBuilding ? w.Buildings[v.DropBuilding].Type + "@" + w.Buildings[v.DropBuilding].X + "," + w.Buildings[v.DropBuilding].Y : "?")}"); return true; }
+        }
+        return false;
+    }
+
     static int Jitter(int seeds)
     {
         int fails = 0;
@@ -71,7 +82,7 @@ public static class Program
             var w = MapGen.NewTier1(b);
             var demo = new DemoFactory(false, true, tier2: true, tier3: true, tier4: true, tier5: true, tier6: true);
             bool gift = false, gift3 = false;
-            int samples = 0, crowded = 0; float nextCrowd = 0f;
+            int samples = 0, crowded = 0, onBelt = 0; float nextCrowd = 0f;
             while (w.Time < 6600f && w.Tier < 7)
             {
                 demo.BuildWhatYouCan(w);
@@ -80,11 +91,13 @@ public static class Program
                 if (!gift && w.Time >= 200f) { w.Storage[Item.Iron] += 60; gift = true; }
                 if (!gift3 && w.Tier >= 3) { w.Storage[Item.Iron] += 80; gift3 = true; }
                 w.Tick((float)(0.02 + rng.NextDouble() * 0.5));
-                if (w.Time >= nextCrowd) { nextCrowd = w.Time + 5f; samples++; if (Crowded(w)) crowded++; }
+                if (w.Time >= nextCrowd) { nextCrowd = w.Time + 5f; samples++; if (Crowded(w)) crowded++; if (StoppedOnBelt(w)) onBelt++; }
                 if (seeds == 1 && w.Tier >= 3 && w.Time >= _trace) { _trace = w.Time + 60f; Trace(w); }
             }
+            if (Environment.GetEnvironmentVariable("BELTDBG") != null)
+                for (int y = 40; y >= 22; y--) { var line = y.ToString("00") + " "; for (int x = 24; x < 46; x++) { var bb = w.At(x, y); line += bb == null ? "." : bb.Type.ToString().Substring(0, 1) + ""; } Console.WriteLine(line); }
             if (w.Tier < 7) fails++;
-            Console.WriteLine($"seed {seed}: pit vehicles crowded (two parked on one tile / excavators touching) in {crowded} of {samples} samples");
+            Console.WriteLine($"seed {seed}: pit vehicles crowded (two parked on one tile / excavators touching) in {crowded} of {samples} samples, truck stopped on a belt in {onBelt}");
             Console.Write($"seed {seed}: T1 {w.GoalReachedAt:0}  T2 {w.Tier2GoalAt:0}  T3 {w.Tier3GoalAt:0}  T4 {w.Tier4GoalAt:0}  T5 {w.Tier5GoalAt:0} wire {w.Delivered[Item.Wire]}  T6 {w.Tier6GoalAt:0} motor {w.Delivered[Item.Motor]} rail {w.RailHauled}  steel {w.Delivered[Item.Steel]} coal {w.Delivered[Item.Coal]} ore {w.Delivered[Item.Ore]} |");
             foreach (var v in w.Vehicles) Console.Write($" {v.Type} '{v.Status}';");
             Console.WriteLine();

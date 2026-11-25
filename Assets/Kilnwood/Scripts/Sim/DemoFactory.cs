@@ -169,6 +169,9 @@ namespace Kilnwood.Sim
                 Add(BuildingType.MachineShop, ShopX, ShopY, W);
                 Add(BuildingType.Belt, 35, 33, W);
                 Add(BuildingType.Belt, 34, 33, W);
+                // The motor belt boxes in the lodge hopper, so trucks would tip from the belts: move it to the lodge's south side.
+                _steps.Add(new Step { Type = BuildingType.Hopper, X = 34, Y = 31, Remove = true, MinTier = 6 });
+                Add(BuildingType.Hopper, 32, 28, N);
                 _steps.Add(new Step { Type = BuildingType.Belt, X = 36, Y = 34, Remove = true, MinTier = 6 });
                 Add(BuildingType.Belt, 36, 34, S);
                 Add(BuildingType.Pole, 33, 38, N);

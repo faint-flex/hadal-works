@@ -680,14 +680,16 @@ namespace Kilnwood.Sim
             if (drops.Count == 0 && Lodge != null)
                 foreach (int t in RingTiles(Lodge)) drops[t] = Lodge.Id;
             if (drops.Count == 0) { v.Status = "Nowhere to tip"; v.State = VehicleState.Waiting; return; }
-            if (drops.ContainsKey(TileOf(v))) { v.DropBuilding = drops[TileOf(v)]; v.State = VehicleState.Tipping; v.Timer = 0f; return; }
-            if (Go(v, drops.ContainsKey, VehicleState.Tipping))
+            if (drops.ContainsKey(TileOf(v)) && OffRoad(TileOf(v))) { v.DropBuilding = drops[TileOf(v)]; v.State = VehicleState.Tipping; v.Timer = 0f; return; }
+            // Tip from open ground beside the hopper; a belt tile only if there is no other way in.
+            if (Go(v, n => drops.ContainsKey(n) && OffRoad(n), VehicleState.Tipping) || Go(v, drops.ContainsKey, VehicleState.Tipping))
             {
                 v.DropBuilding = drops[v.Path[v.Path.Count - 1]];
                 var b = Buildings[v.DropBuilding];
                 v.Status = "Taking " + Items.Name(v.Load).ToLowerInvariant() + " to the " + B.Defs[b.Type].Name.ToLowerInvariant();
                 return;
             }
+            if (drops.ContainsKey(TileOf(v))) { v.DropBuilding = drops[TileOf(v)]; v.State = VehicleState.Tipping; v.Timer = 0f; return; }
             v.Status = "Can't reach a hopper or the lodge";
             v.State = VehicleState.Waiting;
         }
