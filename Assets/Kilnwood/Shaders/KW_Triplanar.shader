@@ -8,6 +8,9 @@ Shader "Kilnwood/Triplanar"
         _MainTex ("Pattern", 2D) = "white" {}
         _Scale ("Repeats per metre", Float) = 1
         _Glossiness ("Smoothness", Range(0,1)) = 0.1
+        _Grime ("Weathering noise", 2D) = "gray" {}
+        _GrimeAmount ("Weathering", Range(0,1)) = 0.7
+        _GroundDirt ("Dirt splashed up from the ground", Range(0,1)) = 0.75
     }
     SubShader
     {
@@ -18,9 +21,9 @@ Shader "Kilnwood/Triplanar"
         #pragma surface surf Standard fullforwardshadows
         #pragma target 3.0
 
-        sampler2D _MainTex;
+        sampler2D _MainTex, _Grime;
         fixed4 _Color;
-        float _Scale;
+        float _Scale, _GrimeAmount, _GroundDirt;
         half _Glossiness;
 
         struct Input
@@ -38,9 +41,20 @@ Shader "Kilnwood/Triplanar"
             fixed3 tx = tex2D(_MainTex, p.zy).rgb;
             fixed3 ty = tex2D(_MainTex, p.xz).rgb;
             fixed3 tz = tex2D(_MainTex, p.xy).rgb;
-            o.Albedo = (tx * n.x + ty * n.y + tz * n.z) * _Color.rgb;
+            fixed3 c = (tx * n.x + ty * n.y + tz * n.z) * _Color.rgb;
+            // Weathering (realism pass 3): soft blotches everywhere, rain streaks running down walls,
+            // and earthy dirt splashed up the bottom metre, with a ragged edge.
+            float3 wp = IN.worldPos;
+            float blot = tex2D(_Grime, wp.xz * 0.045 + wp.y * 0.031).r;
+            float streak = tex2D(_Grime, float2((wp.x + wp.z) * 0.35, wp.y * 0.05)).r;
+            float wall = saturate(1.0 - n.y);
+            c *= lerp(1.0, 0.8 + 0.4 * blot, _GrimeAmount);
+            c *= lerp(1.0, 0.84 + 0.3 * streak, wall * _GrimeAmount);
+            float dirt = saturate(1.0 - (wp.y + (blot - 0.5) * 0.6) / 1.1) * _GroundDirt;
+            c = lerp(c, c * fixed3(0.62, 0.55, 0.45), dirt);
+            o.Albedo = c;
             o.Metallic = 0;
-            o.Smoothness = _Glossiness;
+            o.Smoothness = _Glossiness * lerp(1.0, 0.45, dirt) * (0.7 + 0.6 * blot);
             o.Alpha = 1;
         }
         ENDCG

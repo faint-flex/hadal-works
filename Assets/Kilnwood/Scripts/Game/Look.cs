@@ -133,6 +133,12 @@ namespace Kilnwood.Game
             {
                 m = new Material(_triBase);
                 m.SetFloat("_Scale", Art.PatternRepeats(s));
+                if (m.HasProperty("_Grime"))
+                {
+                    m.SetTexture("_Grime", Art.Grain);
+                    m.SetFloat("_GrimeAmount", s == Surface.Shingle ? 0.85f : 0.7f);
+                    m.SetFloat("_GroundDirt", s == Surface.Shingle ? 0f : 0.75f);
+                }
             }
             else
             {

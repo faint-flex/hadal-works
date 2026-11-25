@@ -334,6 +334,9 @@ namespace Kilnwood.Game
 
         static Texture2D _grain, _grainNormal, _ripples;
 
+        /// <summary>Soft grey noise (also used to weather building surfaces).</summary>
+        public static Texture2D Grain { get { if (_grain == null) MakeGrain(); return _grain; } }
+
         /// <summary>Tileable value noise on a `period` lattice (wraps at 1).</summary>
         static float TileNoise(float u, float v, int period, int seed)
         {
