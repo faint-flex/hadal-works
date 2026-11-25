@@ -682,6 +682,16 @@ namespace Kilnwood.Game
                 yield return new WaitForEndOfFrame();
                 ScreenCapture.CaptureScreenshot(Path.Combine(_shotsDir, name + ".png"));
             }
+            // 0.18: low views toward the sun across the valley, so the sky shows (day, dusk, night).
+            foreach (var (hour, name) in new[] { (10.5f, "41-sky-day"), (18.1f, "42-sky-dusk"), (22f, "43-sky-night") })
+            {
+                WorldView.FixedHour = hour;
+                float sunYaw = -40f + (hour - 10.5f) * 9f;
+                Rig.Frame(WorldView.FootCenter(MapGen.LodgeX, MapGen.LodgeY, 4), (hour > 20f ? 150f : sunYaw) + 180f, 7f, 70f);
+                for (int k = 0; k < 4; k++) yield return null;
+                yield return new WaitForEndOfFrame();
+                ScreenCapture.CaptureScreenshot(Path.Combine(_shotsDir, name + ".png"));
+            }
             WorldView.FixedHour = 10.5f;
             var sb = new StringBuilder();
             sb.AppendLine("goal reached: " + W.GoalReached + " at " + W.GoalReachedAt.ToString("0") + " s game time");

@@ -18,6 +18,7 @@ namespace Kilnwood.Game
         readonly List<Matrix4x4[]> _batches = new List<Matrix4x4[]>();
         readonly List<int> _counts = new List<int>();
         RenderParams _rp;
+        bool _cards;
 
         public GrassView(World w)
         {
@@ -25,7 +26,16 @@ namespace Kilnwood.Game
             var m = Resources.Load<Material>("KW_Grass");
             if (m == null || m.shader == null || !m.shader.isSupported) return;
             _mat = new Material(m) { enableInstancing = true };
-            _mesh = TuftMesh();
+            // 0.18 photoreal pass 2: scanned grass clumps on crossed cards (Poly Haven, CC0) when they are there.
+            var cards = Resources.Load<Texture2D>("Foliage/grass_cards");
+            if (cards != null && _mat.HasProperty("_Cutoff"))
+            {
+                _mat.mainTexture = cards;
+                _mat.SetFloat("_Cutoff", 0.45f);
+                _mesh = CardTuftMesh();
+                _cards = true;
+            }
+            else _mesh = TuftMesh();
             _rp = new RenderParams(_mat)
             {
                 shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off,
@@ -55,7 +65,8 @@ namespace Kilnwood.Game
                     if (!Open(x, y)) continue;
                     // Thinner next to things (paths get trodden), fuller in open meadow.
                     bool edge = !Open(x + 1, y) || !Open(x - 1, y) || !Open(x, y + 1) || !Open(x, y - 1);
-                    int count = edge ? TuftsPerTile / 2 : TuftsPerTile;
+                    int perTile = _cards ? 6 : TuftsPerTile;   // card clumps are fuller, so fewer of them
+                    int count = edge ? perTile / 2 : perTile;
                     for (int k = 0; k < count; k++)
                     {
                         float jx = Art.Hash(x * 7 + k, y, 21), jz = Art.Hash(x, y * 5 + k, 22), r = Art.Hash(x + k, y + k, 23);
@@ -76,6 +87,31 @@ namespace Kilnwood.Game
         {
             if (_mat == null) return;
             for (int i = 0; i < _batches.Count; i++) Graphics.RenderMeshInstanced(_rp, _mesh, 0, _batches[i], _counts[i]);
+        }
+
+        /// <summary>0.18: three crossed cards, each showing one of the four scanned grass clumps; root dark, tip light.</summary>
+        static Mesh CardTuftMesh()
+        {
+            var v = new List<Vector3>(); var c = new List<Color>(); var n = new List<Vector3>(); var uv = new List<Vector2>(); var t = new List<int>();
+            for (int k = 0; k < 3; k++)
+            {
+                float a = k * 60f + 17f;
+                var side = Quaternion.Euler(0f, a, 0f) * Vector3.right;
+                float w = 0.42f, h = 0.42f;
+                int cell = (k * 3 + 1) & 3;
+                float u0 = cell * 0.25f, u1 = u0 + 0.25f;
+                var root = new Color(0.72f, 0.74f, 0.66f, 0f); var tip = new Color(1f, 1f, 0.95f, 1f);
+                int o = v.Count;
+                v.Add(-side * w); v.Add(side * w); v.Add(side * w + Vector3.up * h); v.Add(-side * w + Vector3.up * h);
+                c.Add(root); c.Add(root); c.Add(tip); c.Add(tip);
+                for (int q = 0; q < 4; q++) n.Add(Vector3.up);
+                uv.Add(new Vector2(u0, 0f)); uv.Add(new Vector2(u1, 0f)); uv.Add(new Vector2(u1, 1f)); uv.Add(new Vector2(u0, 1f));
+                t.AddRange(new[] { o, o + 2, o + 1, o, o + 3, o + 2 });
+            }
+            var m = new Mesh { name = "Grass clump cards" };
+            m.SetVertices(v); m.SetColors(c); m.SetNormals(n); m.SetUVs(0, uv); m.SetTriangles(t, 0);
+            m.RecalculateBounds();
+            return m;
         }
 
         /// <summary>Seven thin blades leaning out from a point, two greens, darker at the root.</summary>

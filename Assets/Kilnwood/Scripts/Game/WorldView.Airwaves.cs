@@ -161,7 +161,7 @@ namespace Kilnwood.Game
             for (int k = 0; k < 4; k++)
             {
                 float sx = (k & 1) == 0 ? -1f : 1f, sz = (k & 2) == 0 ? -1f : 1f;
-                Art.Cube("Mast leg", B, new Vector3(mx + sx * 0.1f, 0.15f + mh / 2f, mz + sz * 0.1f), new Vector3(0.05f, mh, 0.05f), MastRed * 0.85f,
+                Art.Cube("Mast leg", B, new Vector3(mx + sx * 0.1f, 0.15f + mh / 2f, mz + sz * 0.1f), new Vector3(0.08f, mh, 0.08f), MastRed * 0.85f,
                     new Vector3(sz * 2.2f, 0f, -sx * 2.2f));
             }
             for (int k = 0; k < 10; k++)

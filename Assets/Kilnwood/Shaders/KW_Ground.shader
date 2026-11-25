@@ -87,7 +87,7 @@ Shader "Kilnwood/Ground"
                 half3 a2 = UNITY_SAMPLE_TEX2D(_GrassD, q2).rgb * w0 + UNITY_SAMPLE_TEX2D_SAMPLER(_ForestD, _GrassD, q2).rgb * w1
                         + UNITY_SAMPLE_TEX2D_SAMPLER(_RockD, _GrassD, q2).rgb * (w2 + w3 + w4);
                 half3 scan = a * 0.65 + a2 * 0.35;
-                o.Albedo = base * lerp(1, scan * 2, lerp(0.45, 0.9, near));
+                o.Albedo = base * lerp(1, scan * 2, lerp(0.7, 1.0, near));   // 0.18: stronger, it barely showed
                 n = UnpackNormal(UNITY_SAMPLE_TEX2D_SAMPLER(_GrassN, _GrassD, q)) * w0 + UnpackNormal(UNITY_SAMPLE_TEX2D_SAMPLER(_ForestN, _GrassD, q)) * w1
                   + UnpackNormal(UNITY_SAMPLE_TEX2D_SAMPLER(_RockN, _GrassD, q)) * w2 + UnpackNormal(UNITY_SAMPLE_TEX2D_SAMPLER(_OreN, _GrassD, q)) * w3
                   + UnpackNormal(UNITY_SAMPLE_TEX2D_SAMPLER(_MudN, _GrassD, q)) * w4;

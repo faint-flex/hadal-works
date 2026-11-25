@@ -5,26 +5,29 @@ Shader "Kilnwood/Grass"
     Properties
     {
         _Color ("Tint", Color) = (1,1,1,1)
+        _MainTex ("Grass cards (0.18, RGBA)", 2D) = "white" {}
+        _Cutoff ("Alpha cut", Range(0,1)) = 0
         _Wind ("Wind strength", Float) = 0.09
         _FadeStart ("Shrink from distance", Float) = 32
         _FadeEnd ("Gone at distance", Float) = 65
     }
     SubShader
     {
-        Tags { "RenderType"="Opaque" }
+        Tags { "RenderType"="TransparentCutout" "Queue"="AlphaTest" }
         Cull Off
         LOD 200
 
         CGPROGRAM
-        #pragma surface surf Standard vertex:vert
+        #pragma surface surf Standard vertex:vert alphatest:_Cutoff
         #pragma multi_compile_instancing
         #pragma target 3.0
 
         fixed4 _Color;
+        sampler2D _MainTex;
         float _Wind;
         float _FadeStart, _FadeEnd;
 
-        struct Input { float4 color : COLOR; };
+        struct Input { float2 uv_MainTex; float4 color : COLOR; };
 
         void vert(inout appdata_full v)
         {
@@ -42,7 +45,9 @@ Shader "Kilnwood/Grass"
 
         void surf(Input IN, inout SurfaceOutputStandard o)
         {
-            o.Albedo = IN.color.rgb * _Color.rgb;
+            fixed4 tex = tex2D(_MainTex, IN.uv_MainTex);
+            o.Albedo = tex.rgb * IN.color.rgb * _Color.rgb;
+            o.Alpha = tex.a;
             o.Smoothness = 0.05;
             o.Metallic = 0;
             o.Occlusion = lerp(0.55, 1.0, IN.color.a);

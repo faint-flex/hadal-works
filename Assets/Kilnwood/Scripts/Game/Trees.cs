@@ -12,7 +12,7 @@ namespace Kilnwood.Game
     public static class Trees
     {
         const int Variants = 4;
-        static Mesh[] _pines, _leafy, _leafyFar;
+        static Mesh[] _pines, _leafy, _leafyFar, _pineCards, _leafCards;
         static Material _src;
         static bool _checked;
         static readonly Dictionary<Color, Material> _mats = new Dictionary<Color, Material>();
@@ -67,6 +67,11 @@ namespace Kilnwood.Game
                 var g = Art.PineGreens[(int)(r2 * 2.99f)];
                 if (!far) Art.Part("Trunk", parent, Art.Frustum, Vector3.zero, new Vector3(0.34f * s, 1.6f * s, 0.34f * s), Look.Bark);
                 Add("Pine", parent, _pines[v], Mat(g * 1.15f), Vector3.zero, Vector3.one * s * (far ? 1.35f : 1f), !far);
+                if (!far && CardsAvailable)
+                {
+                    _pineCards ??= MakeAll(PineCards);
+                    Add("Twigs", parent, _pineCards[v], CardMat(_twigTex, g), Vector3.zero, Vector3.one * s, true);
+                }
             }
             else
             {
@@ -75,10 +80,151 @@ namespace Kilnwood.Game
                 var g = Leaf[(int)(r2 * 3.99f)];
                 if (!far) Art.Part("Trunk", parent, Art.Frustum, Vector3.zero, new Vector3(0.38f * s, 2.6f * s, 0.38f * s), Look.Bark);
                 Add("Crown", parent, far ? _leafyFar[v] : _leafy[v], Mat(g), Vector3.zero, Vector3.one * s * (far ? 1.35f : 1f), !far);
+                if (!far && CardsAvailable)
+                {
+                    _leafCards ??= MakeAll(LeafCards);
+                    Add("Leaves", parent, _leafCards[v], CardMat(_leafTex, g), Vector3.zero, Vector3.one * s, true);
+                }
             }
         }
 
         static float Frac(float x) => x - Mathf.Floor(x);
+
+        // ------------------------------------------------------------------ 0.18 foliage cards
+
+        static Shader _cardShader;
+        static Texture2D _twigTex, _leafTex;
+        static bool _cardsChecked;
+        static readonly Dictionary<(Texture2D, Color), Material> _cardMats = new Dictionary<(Texture2D, Color), Material>();
+
+        /// <summary>Scanned twig and leaf cards (Resources/Foliage, from Poly Haven, CC0) and their shader.</summary>
+        static bool CardsAvailable
+        {
+            get
+            {
+                if (!_cardsChecked)
+                {
+                    _cardsChecked = true;
+                    _cardShader = Shader.Find("Kilnwood/FoliageCard");
+                    _twigTex = Resources.Load<Texture2D>("Foliage/twig_cards");
+                    _leafTex = Resources.Load<Texture2D>("Foliage/leaf_cards");
+                    if (_cardShader != null && !_cardShader.isSupported) _cardShader = null;
+                }
+                return _cardShader != null && _twigTex != null && _leafTex != null;
+            }
+        }
+
+        static Material CardMat(Texture2D tex, Color crown)
+        {
+            if (_cardMats.TryGetValue((tex, crown), out var m)) return m;
+            m = new Material(_cardShader) { enableInstancing = true, name = "Foliage cards" };
+            m.mainTexture = tex;
+            // The photo is already green: tint only a little toward the crown's colour so each tree still differs.
+            float lum = crown.r * 0.3f + crown.g * 0.59f + crown.b * 0.11f;
+            var rel = new Color(crown.r / lum, crown.g / lum, crown.b / lum) * 0.5f;
+            m.SetColor("_Color", Color.Lerp(new Color(0.92f, 0.95f, 0.88f), rel, 0.25f));
+            m.SetFloat("_Cutoff", 0.45f);
+            _cardMats[(tex, crown)] = m;
+            return m;
+        }
+
+        /// <summary>One card: a trapezoid from base (narrow) to tip (wide) along len, spread along wid; uv cell (u0, v0) of size cw x ch.</summary>
+        static void Card(List<Vector3> vs, List<Vector3> ns, List<Color> cs, List<Vector2> uv, List<int> ts, Vector3 basePt, Vector3 tipPt,
+                         Vector3 wid, float wBase, float wTip, Vector3 normal, Color baseCol, Color tipCol, float u0, float v0, float cw, float ch)
+        {
+            int o = vs.Count;
+            vs.Add(basePt - wid * wBase); vs.Add(basePt + wid * wBase); vs.Add(tipPt + wid * wTip); vs.Add(tipPt - wid * wTip);
+            for (int k = 0; k < 4; k++) ns.Add(normal);
+            cs.Add(baseCol); cs.Add(baseCol); cs.Add(tipCol); cs.Add(tipCol);
+            float ub = (1f - wBase / Mathf.Max(wTip, 1e-4f)) * 0.5f;
+            uv.Add(new Vector2(u0 + cw * ub, v0)); uv.Add(new Vector2(u0 + cw * (1f - ub), v0)); uv.Add(new Vector2(u0 + cw, v0 + ch)); uv.Add(new Vector2(u0, v0 + ch));
+            ts.Add(o); ts.Add(o + 2); ts.Add(o + 1); ts.Add(o); ts.Add(o + 3); ts.Add(o + 2);
+        }
+
+        /// <summary>Fir twig cards along every branch tip of the pine's skirts (same layout as Pine), two crossed per branch.</summary>
+        static Mesh PineCards(int seed)
+        {
+            var vs = new List<Vector3>(); var ns = new List<Vector3>(); var cs = new List<Color>(); var uv = new List<Vector2>(); var ts = new List<int>();
+            const int tiers = 6;
+            float height = 5.2f + N(seed, 0) * 0.8f;
+            for (int t = 0; t <= tiers; t++)
+            {
+                bool spire = t == tiers;
+                float f = spire ? 1f : t / (float)(tiers - 1);
+                float baseY = spire ? height - 0.75f : 1.0f + f * (height - 1.9f);
+                float rad = spire ? 0.3f : Mathf.Lerp(1.45f, 0.42f, f) * (0.9f + N(seed, t + 10) * 0.2f);
+                float apexY = spire ? height + 0.35f : baseY + Mathf.Lerp(1.25f, 1.0f, f);
+                int spokes = spire ? 4 : t < 2 ? 11 : t < 4 ? 9 : 7;
+                float twist = spire ? 0f : N(seed, t + 20) * Mathf.PI * 2f;
+                float shade = Mathf.Lerp(0.62f, 1.0f, f);
+                int sd = seed * 31 + (spire ? 99 : t);
+                int n = spokes * 2;
+                for (int i = 0; i < n; i += 2)
+                {
+                    float a = twist + i * Mathf.PI * 2f / n + (N(sd, i) - 0.5f) * 0.25f;
+                    float r = rad * (0.88f + N(sd, i + 50) * 0.24f) * 1.12f;
+                    float y = baseY - 0.12f - N(sd, i + 90) * 0.18f;
+                    var outDir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                    var tip = outDir * r + Vector3.up * (spire ? apexY - baseY + y : y);
+                    var basePt = outDir * (rad * 0.12f) + Vector3.up * (spire ? baseY : Mathf.Lerp(apexY, baseY, 0.45f));
+                    var len = tip - basePt;
+                    var side = Vector3.Cross(len.normalized, Vector3.up).normalized;
+                    var nrm = new Vector3(tip.x, 0.35f * rad + 0.25f, tip.z).normalized;
+                    float w = Mathf.Max(0.35f, rad * 0.55f);
+                    int cell = (i / 2 + t + seed) & 3;
+                    float u0 = (cell & 1) * 0.5f, v0 = (cell & 2) == 0 ? 0.5f : 0f;
+                    var cb = new Color(0.8f, 0.82f, 0.78f, 0.45f * shade); var ct = new Color(1f, 1f, 0.95f, 1f * shade);
+                    Card(vs, ns, cs, uv, ts, basePt, tip, side, w * 0.25f, w, nrm, cb, ct, u0, v0, 0.5f, 0.5f);
+                    // A second card on edge, tilted, so the branch has depth from the side.
+                    var up2 = Vector3.Cross(side, len.normalized).normalized;
+                    Card(vs, ns, cs, uv, ts, basePt, tip, (up2 * 0.6f + side * 0.4f).normalized, w * 0.15f, w * 0.6f, nrm, cb, ct, (cell & 1) == 0 ? 0.5f : 0f, v0, 0.5f, 0.5f);
+                }
+            }
+            return BuildCards("Pine twigs", vs, ns, cs, uv, ts);
+        }
+
+        /// <summary>Leaf-spray cards over each leaf mass of the broadleaf crown (same layout as Broadleaf), facing outward.</summary>
+        static Mesh LeafCards(int seed)
+        {
+            var vs = new List<Vector3>(); var ns = new List<Vector3>(); var cs = new List<Color>(); var uv = new List<Vector2>(); var ts = new List<int>();
+            var centre = new Vector3(0f, 3.5f, 0f);
+            int blobs = 6 + (int)(N(seed, 1) * 3f);
+            for (int b = 0; b < blobs; b++)
+            {
+                float a = b * 2.39996f + N(seed, b + 5);
+                float up = b == 0 ? 0.9f : (N(seed, b + 15) - 0.35f) * 1.4f;
+                float out_ = b == 0 ? 0f : 0.75f + N(seed, b + 25) * 0.45f;
+                var c = centre + new Vector3(Mathf.Cos(a) * out_, up, Mathf.Sin(a) * out_);
+                float r = b == 0 ? 1.25f : 0.85f + N(seed, b + 35) * 0.4f;
+                int cards = b == 0 ? 16 : 11;
+                for (int k = 0; k < cards; k++)
+                {
+                    // Spread over the mass (golden spiral), a bit more on top and outside.
+                    float z = 1f - 2f * (k + 0.5f) / cards, rr = Mathf.Sqrt(1f - z * z), ph = k * 2.39996f + seed;
+                    var d = new Vector3(Mathf.Cos(ph) * rr, z * 0.8f + 0.2f, Mathf.Sin(ph) * rr).normalized;
+                    var p = c + Vector3.Scale(d, new Vector3(r * 1.1f, r * 0.85f, r * 1.1f)) * 0.95f;
+                    var side = Vector3.Cross(d, Vector3.up); if (side.sqrMagnitude < 1e-3f) side = Vector3.right; side.Normalize();
+                    var along = Vector3.Cross(side, d).normalized;
+                    float sz = 0.75f + N(seed * 7 + b, k) * 0.35f;
+                    var fromCrown = (p - centre);
+                    var nrm = (fromCrown.normalized * 0.7f + d * 0.3f).normalized;
+                    float ex = Mathf.Clamp01(0.3f + 0.45f * Mathf.Clamp01(fromCrown.magnitude / 2.2f) + 0.35f * (d.y * 0.5f + 0.5f));
+                    var col = new Color(0.95f, 1f, 0.92f, ex);
+                    float v0 = (k & 1) * 0.5f;
+                    Card(vs, ns, cs, uv, ts, p - along * sz * 0.5f, p + along * sz * 0.5f, side, sz * 0.5f, sz * 0.5f, nrm, col, col, 0f, v0, 1f, 0.5f);
+                }
+            }
+            return BuildCards("Leaf sprays", vs, ns, cs, uv, ts);
+        }
+
+        static Mesh BuildCards(string name, List<Vector3> vs, List<Vector3> ns, List<Color> cs, List<Vector2> uv, List<int> ts)
+        {
+            var m = new Mesh { name = name };
+            m.SetVertices(vs); m.SetNormals(ns); m.SetColors(cs); m.SetUVs(0, uv); m.SetTriangles(ts, 0);
+            m.RecalculateBounds();
+            var b = m.bounds; b.Expand(0.6f); m.bounds = b;
+            return m;
+        }
 
         static Mesh[] MakeAll(System.Func<int, Mesh> make)
         {

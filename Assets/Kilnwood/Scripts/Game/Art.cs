@@ -233,8 +233,14 @@ namespace Kilnwood.Game
         }
 
         /// <summary>A rock with random tilt and turn. `k` in 0..1 varies it.</summary>
-        public static GameObject RockAt(string n, Transform p, Vector3 pos, Vector3 size, Color c, float k) =>
-            Part(n, p, Rock, pos, size, c, new Vector3((k - 0.5f) * 14f, k * 360f, (0.5f - k) * 10f));
+        public static GameObject RockAt(string n, Transform p, Vector3 pos, Vector3 size, Color c, float k)
+        {
+            var go = Part(n, p, Rock, pos, size, c, new Vector3((k - 0.5f) * 14f, k * 360f, (0.5f - k) * 10f));
+            // 0.18 photoreal pass 2: scanned rock surface (Poly Haven, CC0), tinted to the rock's own colour.
+            var r = go.GetComponent<MeshRenderer>();
+            if (r != null) r.sharedMaterial = Look.SurfMat(c, Look.Surface.Rock);
+            return go;
+        }
 
         // ------------------------------------------------------------------ textures
 

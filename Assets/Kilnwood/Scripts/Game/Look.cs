@@ -118,7 +118,7 @@ namespace Kilnwood.Game
         }
 
         /// <summary>Surface patterns for building parts (projected in world space by the KW_Tri material).</summary>
-        public enum Surface { Plain, Wood, Brick, Stone, Shingle, Weathered }
+        public enum Surface { Plain, Wood, Brick, Stone, Shingle, Weathered, Rock }
 
         static readonly Dictionary<(Color, Surface), Material> _surf = new Dictionary<(Color, Surface), Material>();
         static Material _triBase;
@@ -158,7 +158,9 @@ namespace Kilnwood.Game
                 m.SetTexture("_RoughMap", Resources.Load<Texture2D>("PBR/" + scan + "_rough"));
                 m.SetFloat("_HasPBR", 1f);
                 m.SetFloat("_Scale", ScanRepeats(scan));
-                m.SetFloat("_GrimeAmount", 0.45f);   // the scans carry their own weathering
+                m.SetFloat("_GrimeAmount", s == Surface.Rock ? 0.2f : 0.45f);   // the scans carry their own weathering
+                if (s == Surface.Rock) m.SetFloat("_GroundDirt", 0.3f);
+                if (s == Surface.Wood || s == Surface.Rock) m.SetFloat("_BumpScale", 1.5f);   // planks and rock read flat otherwise
             }
             else m.mainTexture = Art.PatternTexture(s);
             m.color = c * 1.2f;   // patterns and scans average about 0.83, so lift the tint to keep the same overall colour
@@ -184,6 +186,7 @@ namespace Kilnwood.Game
                 case Surface.Stone: return "stone";
                 case Surface.Shingle: return "shingle";
                 case Surface.Weathered: return iron ? "metal" : "concrete";
+                case Surface.Rock: return "boulder";
                 default: return null;
             }
         }
@@ -196,7 +199,8 @@ namespace Kilnwood.Game
                 case "brick": return 1f / 2.2f;
                 case "stone": return 1f / 2.6f;
                 case "wood": return 1f / 2.4f;
-                case "shingle": return 1f / 2.2f;
+                case "shingle": return 1f / 3.4f;   // 0.18: bigger tiles, the small ones read as noise from the usual camera
+                case "boulder": return 1f / 1.6f;
                 case "metal": return 1f / 2.0f;
                 default: return 1f / 3.0f;
             }

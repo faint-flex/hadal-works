@@ -20,6 +20,18 @@ namespace Kilnwood.EditorTools
                 if (p.EndsWith("_nor.jpg")) ti.textureType = TextureImporterType.NormalMap;
                 else { ti.textureType = TextureImporterType.Default; ti.sRGBTexture = false; }
             }
+            else if (p.Contains("/Resources/Foliage/"))
+            {
+                // 0.18: alpha-cut foliage cards; keep the leaf coverage in the small mips so far trees don't thin out.
+                ti.textureType = TextureImporterType.Default;
+                ti.alphaIsTransparency = true;
+                ti.mipmapEnabled = true;
+                ti.mipMapsPreserveCoverage = true;
+                ti.alphaTestReferenceValue = 0.45f;
+                ti.anisoLevel = 4;
+                ti.wrapMode = UnityEngine.TextureWrapMode.Clamp;
+                ti.textureCompression = TextureImporterCompression.CompressedHQ;
+            }
             else if (p.Contains("/Resources/Sky/"))
             {
                 ti.textureType = TextureImporterType.Default;

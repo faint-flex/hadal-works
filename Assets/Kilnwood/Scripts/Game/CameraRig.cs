@@ -98,7 +98,7 @@ namespace Kilnwood.Game
             {
                 var d = GameInput.MouseDelta;
                 _yaw += d.x * 0.25f;
-                _pitch = Mathf.Clamp(_pitch - d.y * 0.2f, 25f, 85f);
+                _pitch = Mathf.Clamp(_pitch - d.y * 0.2f, 8f, 85f);   // 0.18: low enough to look across the valley at the sky
             }
 
             float scroll = GameInput.Scroll;
