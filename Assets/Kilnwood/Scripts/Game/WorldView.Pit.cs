@@ -134,9 +134,11 @@ namespace Kilnwood.Game
             public float HeapH;
             public float Yaw;
             public Vector2 Nudge;     // visual-only push away from a neighbouring machine while parked
+            public int Era;           // 0.20: which era this model was built for (rebuilt when the era changes)
         }
 
         readonly Dictionary<int, VView> _vviews = new Dictionary<int, VView>();
+        int _vehicleIconEra = -1;
         static readonly Color MachineOrange = new Color(0.93f, 0.55f, 0.16f);
         static readonly Color MachineDark = new Color(0.16f, 0.15f, 0.14f);
         static readonly Color Glass = new Color(0.2f, 0.27f, 0.32f);
@@ -147,9 +149,16 @@ namespace Kilnwood.Game
             foreach (var v in _w.Vehicles)
                 if (v.Type != VehicleType.Train && !_vviews.ContainsKey(v.Id)) _vviews[v.Id] = v.Type == VehicleType.Excavator ? MakeExcavator() : MakeTruck();
             List<int> gone = null;
+            // 0.20: a new era refits the whole fleet (and the buy-button pictures).
             foreach (var kv in _vviews)
-                if (_w.VehicleById(kv.Key) == null) (gone ??= new List<int>()).Add(kv.Key);
-            if (gone != null) foreach (int id in gone) { Destroy(_vviews[id].Root.gameObject); _vviews.Remove(id); }
+                if (_w.VehicleById(kv.Key) == null || kv.Value.Era != _w.Era) (gone ??= new List<int>()).Add(kv.Key);
+            if (_vehicleIconEra != _w.Era) { bool had = _vehicleIconEra >= 0 && _vehicleIconsTried; _vehicleIconEra = _w.Era; if (had) { _vehicleIconsTried = false; MakeVehicleIcons(); } }
+            if (gone != null)
+            {
+                foreach (int id in gone) { Destroy(_vviews[id].Root.gameObject); _vviews.Remove(id); }
+                foreach (var v in _w.Vehicles)
+                    if (v.Type != VehicleType.Train && !_vviews.ContainsKey(v.Id)) _vviews[v.Id] = v.Type == VehicleType.Excavator ? MakeExcavator() : MakeTruck();
+            }
 
             float dt = Time.deltaTime;
             foreach (var v in _w.Vehicles)
@@ -181,14 +190,14 @@ namespace Kilnwood.Game
                 if (vv.Exhaust != null) SetSmoke(vv.Exhaust, moving || v.State == VehicleState.Digging);
                 if (vv.Wheels != null && moving)
                 {
-                    float spin = (v.Type == VehicleType.Truck ? _w.B.TruckSpeed : _w.B.ExcavatorSpeed) * T / (Mathf.PI * 0.9f) * 360f * dt;
+                    float spin = (v.Type == VehicleType.Truck ? _w.B.TruckSpeed : _w.B.ExcavatorSpeed) * _w.B.EraWork[_w.Era] * T / (Mathf.PI * 0.9f) * 360f * dt;
                     foreach (var wh in vv.Wheels) wh.Rotate(Vector3.up, spin, Space.Self);
                 }
 
                 if (v.Type == VehicleType.Excavator)
                 {
                     // Scoop: boom dips, arm curls, bucket tips, while digging; rests up otherwise.
-                    if (v.State == VehicleState.Digging && v.Status.StartsWith("Digging")) vv.Phase += dt * Mathf.PI * 2f / _w.B.DigSeconds;
+                    if (v.State == VehicleState.Digging && v.Status.StartsWith("Digging")) vv.Phase += dt * Mathf.PI * 2f / _w.DigTime;
                     float p = v.State == VehicleState.Digging && v.Status.StartsWith("Digging") ? vv.Phase : 0f;
                     float s = Mathf.Sin(p);
                     vv.Boom.localRotation = Quaternion.Euler(-35f + 22f * s, 0f, 0f);
@@ -200,7 +209,7 @@ namespace Kilnwood.Game
                 {
                     float tip = v.State == VehicleState.Tipping ? Mathf.Clamp01(v.Timer / (_w.B.TipSeconds * 0.6f)) : 0f;
                     vv.Bed.localRotation = Quaternion.Euler(-48f * tip, 0f, 0f);
-                    SetCargo(vv, v.LoadCount > 0 ? v.Load : Item.None, v.LoadCount / (float)_w.B.TruckCap);
+                    SetCargo(vv, v.LoadCount > 0 ? v.Load : Item.None, v.LoadCount / (float)_w.TruckCapacity);
                 }
             }
         }
@@ -227,47 +236,102 @@ namespace Kilnwood.Game
             }
         }
 
-        VView MakeExcavator()
+        // 0.20 machine eras: the same rig (tracks, turning body, boom, arm, bucket / chassis, cab, tipping bed) dressed
+        // for its era. Era 0 steam shovel and chain-drive lorry, era 1 diesel shovel and tipper truck, era 2 hydraulic
+        // excavator and dump truck. Every era keeps the load heap and its letter badge.
+        static readonly Color SteamRed = new Color(0.42f, 0.16f, 0.11f);
+        static readonly Color DieselYellow = new Color(0.86f, 0.66f, 0.18f);
+        static readonly Color LorryRed = new Color(0.5f, 0.15f, 0.1f);
+        static readonly Color DumpYellow = new Color(0.95f, 0.74f, 0.14f);
+
+        VView MakeExcavator(int era = -1)
         {
-            var vv = new VView();
-            vv.Root = new GameObject("Excavator").transform;
+            if (era < 0) era = _w.Era;
+            var vv = new VView { Era = era };
+            vv.Root = new GameObject(World.VehicleName(VehicleType.Excavator, era)).transform;
             vv.Root.SetParent(transform, false);
             var r = vv.Root;
-            // Tracks and undercarriage.
+            var iron = new Color(0.3f, 0.3f, 0.3f);
+            // Tracks and undercarriage (steam shovels ran on heavy plate crawlers too).
             for (int side = -1; side <= 1; side += 2)
             {
                 Art.Cube("Track", r, new Vector3(side * 0.62f, 0.28f, 0f), new Vector3(0.42f, 0.5f, 2.1f), MachineDark);
-                for (int k = -1; k <= 1; k++) Art.Cyl("Roller", r, new Vector3(side * 0.62f, 0.28f, k * 0.75f), 0.36f, 0.46f, new Color(0.3f, 0.3f, 0.3f), new Vector3(0f, 0f, 90f));
+                for (int k = -1; k <= 1; k++) Art.Cyl("Roller", r, new Vector3(side * 0.62f, 0.28f, k * 0.75f), 0.36f, 0.46f, iron, new Vector3(0f, 0f, 90f));
             }
             Art.Cube("Frame", r, new Vector3(0f, 0.45f, 0f), new Vector3(0.9f, 0.25f, 1.4f), MachineDark);
-            // Upper body: cab on the left, engine and counterweight behind.
             var body = new GameObject("Body").transform;
             body.SetParent(r, false);
             body.localPosition = new Vector3(0f, 0.6f, 0f);
-            Art.Cube("Deck", body, new Vector3(0f, 0.3f, -0.15f), new Vector3(1.55f, 0.6f, 1.7f), MachineOrange);
-            Art.Cube("Counterweight", body, new Vector3(0f, 0.35f, -1.05f), new Vector3(1.5f, 0.55f, 0.35f), MachineOrange * 0.8f);
-            Art.Cube("Cab", body, new Vector3(-0.38f, 0.95f, 0.25f), new Vector3(0.72f, 0.75f, 0.8f), MachineOrange);
-            Art.Cube("Window", body, new Vector3(-0.38f, 1.02f, 0.66f), new Vector3(0.6f, 0.5f, 0.03f), Glass);
-            Art.Cube("Side window", body, new Vector3(-0.75f, 1.02f, 0.25f), new Vector3(0.03f, 0.45f, 0.6f), Glass);
-            Art.Cyl("Exhaust pipe", body, new Vector3(0.5f, 0.6f, -0.7f), 0.1f, 0.6f, MachineDark);
-            vv.Exhaust = Art.Smoke(body, new Vector3(0.5f, 1.25f, -0.7f), 0.35f);
-            { var main = vv.Exhaust.main; main.startSizeMultiplier = 0.35f; main.startLifetimeMultiplier = 0.5f; }
-            // Boom -> arm -> bucket, hinged at the front right of the deck.
-            vv.Boom = new GameObject("Boom").transform;
-            vv.Boom.SetParent(body, false);
-            vv.Boom.localPosition = new Vector3(0.3f, 0.55f, 0.55f);
-            Art.Cube("Boom beam", vv.Boom, new Vector3(0f, 0f, 1.0f), new Vector3(0.24f, 0.28f, 2.1f), MachineOrange);
-            Art.Cyl("Ram", vv.Boom, new Vector3(0f, -0.25f, 0.2f), 0.1f, 1.2f, new Color(0.75f, 0.75f, 0.75f), new Vector3(60f, 0f, 0f));
-            vv.Arm = new GameObject("Arm").transform;
-            vv.Arm.SetParent(vv.Boom, false);
-            vv.Arm.localPosition = new Vector3(0f, 0f, 2.0f);
-            Art.Cube("Arm beam", vv.Arm, new Vector3(0f, 0f, 0.75f), new Vector3(0.2f, 0.22f, 1.5f), MachineOrange * 0.92f);
-            vv.Bucket = new GameObject("Bucket").transform;
-            vv.Bucket.SetParent(vv.Arm, false);
-            vv.Bucket.localPosition = new Vector3(0f, 0f, 1.5f);
-            Art.Cube("Bucket back", vv.Bucket, new Vector3(0f, -0.15f, 0.12f), new Vector3(0.6f, 0.4f, 0.08f), MachineDark);
-            Art.Cube("Bucket floor", vv.Bucket, new Vector3(0f, -0.35f, 0.35f), new Vector3(0.6f, 0.08f, 0.5f), MachineDark);
-            for (int k = -1; k <= 1; k++) Art.Cube("Tooth", vv.Bucket, new Vector3(k * 0.2f, -0.35f, 0.65f), new Vector3(0.07f, 0.05f, 0.15f), new Color(0.6f, 0.6f, 0.6f));
+            Color paint = era == 0 ? SteamRed : era == 1 ? DieselYellow : MachineOrange;
+            if (era == 0)
+            {
+                // A timber-clad machinery house with an iron roof, an upright boiler and its tall stack.
+                Art.Cube("House", body, new Vector3(0f, 0.55f, -0.2f), new Vector3(1.5f, 1.1f, 1.7f), Look.Timber);
+                Art.Cube("Roof", body, new Vector3(0f, 1.15f, -0.2f), new Vector3(1.65f, 0.08f, 1.85f), MachineDark);
+                Art.Cube("Sill", body, new Vector3(0f, 0.05f, -0.2f), new Vector3(1.6f, 0.12f, 1.8f), paint);
+                Art.Cube("Door", body, new Vector3(-0.76f, 0.5f, 0.2f), new Vector3(0.03f, 0.75f, 0.45f), paint);
+                Art.Cyl("Boiler", body, new Vector3(0.3f, 0.75f, -0.7f), 0.6f, 1.2f, MachineDark);
+                Art.Cyl("Stack", body, new Vector3(0.3f, 1.65f, -0.7f), 0.2f, 1.0f, MachineDark);
+                Art.Cyl("Stack cap", body, new Vector3(0.3f, 2.15f, -0.7f), 0.3f, 0.08f, MachineDark);
+                Art.Cyl("Coal box", body, new Vector3(-0.35f, 0.25f, -1.1f), 0.5f, 0.5f, iron);
+                vv.Exhaust = Art.Smoke(body, new Vector3(0.3f, 2.25f, -0.7f), 0.6f);
+                { var main = vv.Exhaust.main; main.startSizeMultiplier = 0.6f; main.startLifetimeMultiplier = 0.8f; }
+                // Boom: two lattice rails, a cable sheave at the head; dipper stick in timber; a riveted dipper.
+                vv.Boom = new GameObject("Boom").transform;
+                vv.Boom.SetParent(body, false);
+                vv.Boom.localPosition = new Vector3(0.1f, 0.4f, 0.65f);
+                for (int sd = -1; sd <= 1; sd += 2) Art.Cube("Boom rail", vv.Boom, new Vector3(sd * 0.14f, 0f, 1.0f), new Vector3(0.06f, 0.1f, 2.1f), paint);
+                for (int k = 0; k < 5; k++) Art.Cube("Lacing", vv.Boom, new Vector3(0f, 0f, 0.2f + k * 0.42f), new Vector3(0.3f, 0.04f, 0.04f), paint, new Vector3(0f, 35f * (k % 2 == 0 ? 1 : -1), 0f));
+                Art.Cyl("Sheave", vv.Boom, new Vector3(0f, 0f, 2.05f), 0.32f, 0.08f, iron, new Vector3(0f, 0f, 90f));
+                Art.Cyl("Hoist cable", vv.Boom, new Vector3(0f, 0.25f, 1.0f), 0.025f, 2.1f, new Color(0.15f, 0.15f, 0.15f), new Vector3(90f, 0f, 0f));
+                vv.Arm = new GameObject("Dipper stick").transform;
+                vv.Arm.SetParent(vv.Boom, false);
+                vv.Arm.localPosition = new Vector3(0f, 0f, 2.0f);
+                Art.Cube("Stick", vv.Arm, new Vector3(0f, 0f, 0.75f), new Vector3(0.16f, 0.18f, 1.5f), Look.Timber * 0.8f);
+                vv.Bucket = new GameObject("Dipper").transform;
+                vv.Bucket.SetParent(vv.Arm, false);
+                vv.Bucket.localPosition = new Vector3(0f, 0f, 1.5f);
+                Art.Cube("Dipper back", vv.Bucket, new Vector3(0f, -0.15f, 0.12f), new Vector3(0.62f, 0.45f, 0.08f), iron);
+                Art.Cube("Dipper floor", vv.Bucket, new Vector3(0f, -0.38f, 0.35f), new Vector3(0.62f, 0.08f, 0.5f), iron);
+                for (int sd = -1; sd <= 1; sd += 2) Art.Cube("Dipper side", vv.Bucket, new Vector3(sd * 0.3f, -0.2f, 0.35f), new Vector3(0.04f, 0.38f, 0.5f), iron * 0.9f);
+                for (int k = -1; k <= 1; k++) Art.Cube("Tooth", vv.Bucket, new Vector3(k * 0.2f, -0.38f, 0.65f), new Vector3(0.07f, 0.05f, 0.15f), new Color(0.55f, 0.55f, 0.55f));
+            }
+            else
+            {
+                // Diesel shovel (era 1): a steel house and a box boom; hydraulic excavator (era 2): cab, counterweight, rams.
+                Art.Cube("Deck", body, new Vector3(0f, 0.3f, -0.15f), new Vector3(1.55f, 0.6f, 1.7f), paint);
+                Art.Cube("Counterweight", body, new Vector3(0f, 0.35f, -1.05f), new Vector3(1.5f, 0.55f, 0.35f), paint * 0.8f);
+                Art.Cube("Cab", body, new Vector3(-0.38f, 0.95f, 0.25f), new Vector3(0.72f, 0.75f, 0.8f), paint);
+                Art.Cube("Window", body, new Vector3(-0.38f, 1.02f, 0.66f), new Vector3(0.6f, 0.5f, 0.03f), Glass);
+                Art.Cube("Side window", body, new Vector3(-0.75f, 1.02f, 0.25f), new Vector3(0.03f, 0.45f, 0.6f), Glass);
+                if (era == 1)
+                {
+                    Art.Cube("Engine house", body, new Vector3(0.35f, 0.85f, -0.45f), new Vector3(0.8f, 0.55f, 1.0f), paint * 0.92f);
+                    Art.Cube("Louvres", body, new Vector3(0.76f, 0.85f, -0.45f), new Vector3(0.02f, 0.3f, 0.7f), MachineDark);
+                    Art.Cube("A-frame", body, new Vector3(0.1f, 1.45f, 0.35f), new Vector3(0.1f, 0.9f, 0.1f), paint * 0.85f, new Vector3(25f, 0f, 0f));
+                }
+                Art.Cyl("Exhaust pipe", body, new Vector3(0.5f, 0.6f, -0.7f), 0.1f, era == 1 ? 0.9f : 0.6f, MachineDark);
+                float ey = era == 1 ? 1.55f : 1.25f;
+                vv.Exhaust = Art.Smoke(body, new Vector3(0.5f, ey, -0.7f), 0.35f);
+                { var main = vv.Exhaust.main; main.startSizeMultiplier = 0.35f; main.startLifetimeMultiplier = 0.5f; }
+                vv.Boom = new GameObject("Boom").transform;
+                vv.Boom.SetParent(body, false);
+                vv.Boom.localPosition = new Vector3(0.3f, 0.55f, 0.55f);
+                Art.Cube("Boom beam", vv.Boom, new Vector3(0f, 0f, 1.0f), new Vector3(0.24f, 0.28f, 2.1f), paint);
+                if (era == 2) Art.Cyl("Ram", vv.Boom, new Vector3(0f, -0.25f, 0.2f), 0.1f, 1.2f, new Color(0.75f, 0.75f, 0.75f), new Vector3(60f, 0f, 0f));
+                else Art.Cyl("Hoist cable", vv.Boom, new Vector3(0f, 0.25f, 1.0f), 0.025f, 2.1f, new Color(0.15f, 0.15f, 0.15f), new Vector3(90f, 0f, 0f));
+                vv.Arm = new GameObject("Arm").transform;
+                vv.Arm.SetParent(vv.Boom, false);
+                vv.Arm.localPosition = new Vector3(0f, 0f, 2.0f);
+                Art.Cube("Arm beam", vv.Arm, new Vector3(0f, 0f, 0.75f), new Vector3(0.2f, 0.22f, 1.5f), paint * 0.92f);
+                if (era == 2) Art.Cyl("Arm ram", vv.Arm, new Vector3(0f, 0.2f, 0.5f), 0.08f, 0.9f, new Color(0.75f, 0.75f, 0.75f), new Vector3(90f, 0f, 0f));
+                vv.Bucket = new GameObject("Bucket").transform;
+                vv.Bucket.SetParent(vv.Arm, false);
+                vv.Bucket.localPosition = new Vector3(0f, 0f, 1.5f);
+                Art.Cube("Bucket back", vv.Bucket, new Vector3(0f, -0.15f, 0.12f), new Vector3(0.6f, 0.4f, 0.08f), MachineDark);
+                Art.Cube("Bucket floor", vv.Bucket, new Vector3(0f, -0.35f, 0.35f), new Vector3(0.6f, 0.08f, 0.5f), MachineDark);
+                for (int k = -1; k <= 1; k++) Art.Cube("Tooth", vv.Bucket, new Vector3(k * 0.2f, -0.35f, 0.65f), new Vector3(0.07f, 0.05f, 0.15f), new Color(0.6f, 0.6f, 0.6f));
+            }
             // What's in the bucket.
             vv.Cargo = new GameObject("Load").transform;
             vv.Cargo.SetParent(vv.Bucket, false);
@@ -278,45 +342,82 @@ namespace Kilnwood.Game
             return vv;
         }
 
-        VView MakeTruck()
+        VView MakeTruck(int era = -1)
         {
-            var vv = new VView();
-            vv.Root = new GameObject("Truck").transform;
+            if (era < 0) era = _w.Era;
+            var vv = new VView { Era = era };
+            vv.Root = new GameObject(World.VehicleName(VehicleType.Truck, era)).transform;
             vv.Root.SetParent(transform, false);
             var r = vv.Root;
-            var green = new Color(0.25f, 0.42f, 0.3f);
-            Art.Cube("Chassis", r, new Vector3(0f, 0.55f, 0f), new Vector3(0.9f, 0.22f, 2.6f), MachineDark);
-            Art.Cube("Cab", r, new Vector3(0f, 1.05f, 0.95f), new Vector3(1.05f, 0.85f, 0.7f), green);
-            Art.Cube("Windscreen", r, new Vector3(0f, 1.2f, 1.31f), new Vector3(0.9f, 0.4f, 0.03f), Glass);
-            Art.Cube("Bumper", r, new Vector3(0f, 0.55f, 1.33f), new Vector3(1.0f, 0.18f, 0.06f), new Color(0.6f, 0.6f, 0.6f));
-            Art.Cyl("Exhaust pipe", r, new Vector3(0.45f, 0.9f, 0.55f), 0.08f, 0.9f, MachineDark);
-            vv.Exhaust = Art.Smoke(r, new Vector3(0.45f, 1.85f, 0.55f), 0.3f);
+            Color paint = era == 0 ? LorryRed : era == 1 ? new Color(0.25f, 0.42f, 0.3f) : DumpYellow;
+            float wheelD = era == 0 ? 0.8f : era == 1 ? 0.9f : 1.15f, wheelW = era == 0 ? 0.1f : era == 2 ? 0.24f : 0.14f;
+            float axleY = wheelD / 2f;
+            Art.Cube("Chassis", r, new Vector3(0f, axleY + 0.1f, 0f), new Vector3(era == 2 ? 1.1f : 0.9f, 0.22f, 2.6f), MachineDark);
+            if (era == 0)
+            {
+                // Open cab on posts behind a long bonnet and a brass-edged radiator.
+                Art.Cube("Bonnet", r, new Vector3(0f, 0.85f, 1.05f), new Vector3(0.7f, 0.45f, 0.55f), paint);
+                Art.Cube("Radiator", r, new Vector3(0f, 0.88f, 1.34f), new Vector3(0.66f, 0.52f, 0.05f), new Color(0.62f, 0.5f, 0.25f));
+                Art.Cube("Seat box", r, new Vector3(0f, 0.85f, 0.55f), new Vector3(1.0f, 0.45f, 0.45f), paint);
+                for (int sd = -1; sd <= 1; sd += 2)
+                    for (int fz = 0; fz < 2; fz++)
+                        Art.Cube("Post", r, new Vector3(sd * 0.46f, 1.35f, 0.38f + fz * 0.38f), new Vector3(0.04f, 0.6f, 0.04f), MachineDark);
+                Art.Cube("Canopy", r, new Vector3(0f, 1.67f, 0.57f), new Vector3(1.05f, 0.05f, 0.6f), MachineDark);
+                Art.Cyl("Lamp", r, new Vector3(0.38f, 1.0f, 1.36f), 0.14f, 0.1f, new Color(0.62f, 0.5f, 0.25f), new Vector3(90f, 0f, 0f));
+            }
+            else if (era == 1)
+            {
+                Art.Cube("Cab", r, new Vector3(0f, 1.05f, 0.95f), new Vector3(1.05f, 0.85f, 0.7f), paint);
+                Art.Cube("Windscreen", r, new Vector3(0f, 1.2f, 1.31f), new Vector3(0.9f, 0.4f, 0.03f), Glass);
+                Art.Cube("Bumper", r, new Vector3(0f, 0.55f, 1.33f), new Vector3(1.0f, 0.18f, 0.06f), new Color(0.6f, 0.6f, 0.6f));
+            }
+            else
+            {
+                // Big off-road dump truck: a cab offset to one side on a deck over the engine, steps, a wide grille.
+                Art.Cube("Engine deck", r, new Vector3(0f, 1.0f, 1.0f), new Vector3(1.25f, 0.4f, 0.7f), paint);
+                Art.Cube("Grille", r, new Vector3(0f, 0.95f, 1.36f), new Vector3(1.0f, 0.32f, 0.04f), MachineDark);
+                Art.Cube("Cab", r, new Vector3(-0.32f, 1.5f, 0.95f), new Vector3(0.55f, 0.6f, 0.6f), paint);
+                Art.Cube("Windscreen", r, new Vector3(-0.32f, 1.58f, 1.26f), new Vector3(0.48f, 0.34f, 0.03f), Glass);
+                Art.Cube("Rail", r, new Vector3(0f, 1.24f, 1.32f), new Vector3(1.25f, 0.04f, 0.04f), MachineDark);
+                for (int k = 0; k < 3; k++) Art.Cube("Step", r, new Vector3(0.55f, 0.45f + k * 0.22f, 1.3f), new Vector3(0.18f, 0.03f, 0.12f), MachineDark);
+            }
+            float pipeY = era == 2 ? 1.45f : 0.9f;
+            Art.Cyl("Exhaust pipe", r, new Vector3(0.45f, pipeY, 0.55f), 0.08f, era == 0 ? 0.5f : 0.9f, MachineDark);
+            vv.Exhaust = Art.Smoke(r, new Vector3(0.45f, pipeY + (era == 0 ? 0.3f : 0.95f), 0.55f), 0.3f);
             { var main = vv.Exhaust.main; main.startSizeMultiplier = 0.3f; main.startLifetimeMultiplier = 0.5f; }
             var wheels = new List<Transform>();
-            foreach (float z in new[] { 0.85f, -0.35f, -0.95f })
+            var zs = era == 2 ? new[] { 0.85f, -0.75f } : era == 0 ? new[] { 0.85f, -0.75f } : new[] { 0.85f, -0.35f, -0.95f };
+            foreach (float z in zs)
                 for (int side = -1; side <= 1; side += 2)
                 {
                     var wpivot = new GameObject("Wheel").transform;
                     wpivot.SetParent(r, false);
-                    wpivot.localPosition = new Vector3(side * 0.52f, 0.45f, z);
+                    wpivot.localPosition = new Vector3(side * (era == 2 ? 0.62f : 0.52f), axleY, z);
                     wpivot.localRotation = Quaternion.Euler(0f, 0f, 90f);
-                    Art.Part("Tyre", wpivot, Art.Prim(PrimitiveType.Cylinder), Vector3.zero, new Vector3(0.9f, 0.14f, 0.9f), MachineDark);
-                    Art.Part("Hub", wpivot, Art.Prim(PrimitiveType.Cylinder), new Vector3(0f, -0.02f * side, 0f), new Vector3(0.4f, 0.15f, 0.4f), new Color(0.65f, 0.6f, 0.5f));
+                    Art.Part("Tyre", wpivot, Art.Prim(PrimitiveType.Cylinder), Vector3.zero, new Vector3(wheelD, wheelW, wheelD), MachineDark);
+                    Art.Part("Hub", wpivot, Art.Prim(PrimitiveType.Cylinder), new Vector3(0f, -0.02f * side, 0f), new Vector3(wheelD * 0.45f, wheelW + 0.01f, wheelD * 0.45f), era == 0 ? Look.Timber : new Color(0.65f, 0.6f, 0.5f));
+                    if (era == 0)
+                        for (int k = 0; k < 4; k++)   // wooden spokes
+                            Art.Part("Spoke", wpivot, Art.Prim(PrimitiveType.Cube), new Vector3(0f, -0.03f * side, 0f), new Vector3(wheelD * 0.85f, 0.03f, 0.05f), Look.Timber, new Vector3(0f, k * 45f, 0f));
                     wheels.Add(wpivot);
                 }
             vv.Wheels = wheels.ToArray();
-            // Bed hinged at the back so it tips up.
+            // Bed hinged at the back so it tips up. Era 0 is planked timber; era 2 is a wide steel body with a cab guard.
             vv.Bed = new GameObject("Bed").transform;
             vv.Bed.SetParent(r, false);
-            vv.Bed.localPosition = new Vector3(0f, 0.7f, -1.25f);
-            Art.Cube("Bed floor", vv.Bed, new Vector3(0f, 0.05f, 0.85f), new Vector3(1.1f, 0.1f, 1.7f), green * 0.9f);
-            Art.Cube("Bed left", vv.Bed, new Vector3(-0.53f, 0.35f, 0.85f), new Vector3(0.06f, 0.55f, 1.7f), green);
-            Art.Cube("Bed right", vv.Bed, new Vector3(0.53f, 0.35f, 0.85f), new Vector3(0.06f, 0.55f, 1.7f), green);
-            Art.Cube("Bed front", vv.Bed, new Vector3(0f, 0.4f, 1.68f), new Vector3(1.1f, 0.65f, 0.06f), green);
+            vv.Bed.localPosition = new Vector3(0f, axleY + 0.25f, -1.25f);
+            Color bed = era == 0 ? Look.Timber : paint;
+            float bw = era == 2 ? 1.35f : 1.1f;
+            Art.Cube("Bed floor", vv.Bed, new Vector3(0f, 0.05f, 0.85f), new Vector3(bw, 0.1f, 1.7f), bed * 0.9f);
+            Art.Cube("Bed left", vv.Bed, new Vector3(-bw / 2f + 0.03f, 0.35f, 0.85f), new Vector3(0.06f, 0.55f, 1.7f), bed);
+            Art.Cube("Bed right", vv.Bed, new Vector3(bw / 2f - 0.03f, 0.35f, 0.85f), new Vector3(0.06f, 0.55f, 1.7f), bed);
+            Art.Cube("Bed front", vv.Bed, new Vector3(0f, 0.4f, 1.68f), new Vector3(bw, 0.65f, 0.06f), bed);
+            if (era == 2) Art.Cube("Cab guard", vv.Bed, new Vector3(0f, 0.72f, 1.95f), new Vector3(bw, 0.05f, 0.55f), paint * 0.9f);
+            if (era == 0) for (int k = 0; k < 3; k++) Art.Cube("Plank line", vv.Bed, new Vector3(-bw / 2f - 0.005f, 0.17f + k * 0.17f, 0.85f), new Vector3(0.01f, 0.015f, 1.7f), MachineDark);
             vv.Cargo = new GameObject("Load").transform;
             vv.Cargo.SetParent(vv.Bed, false);
             vv.Cargo.localPosition = new Vector3(0f, 0.1f, 0.85f);
-            Art.Part("Heap", vv.Cargo, Art.Rock, Vector3.zero, new Vector3(1.0f, 0.7f, 1.5f), Color.gray);
+            Art.Part("Heap", vv.Cargo, Art.Rock, Vector3.zero, new Vector3(bw - 0.1f, 0.7f, 1.5f), Color.gray);
             vv.HeapH = 0.7f;
             // Letter badge riding on the load: white letter on a dark disc, like the belt items.
             vv.CargoBadge = Art.Cyl("Badge", vv.Cargo, new Vector3(0f, 0.75f, 0f), 0.5f, 0.04f, new Color(0.1f, 0.1f, 0.1f));

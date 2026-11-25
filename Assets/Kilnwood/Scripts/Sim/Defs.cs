@@ -168,7 +168,13 @@ namespace Kilnwood.Sim
         public int BucketCap = 2;
         public float ExcavatorSpeed = 2f;        // tiles per second
         public float TruckSpeed = 4f;
-        public int TruckCap = 8;
+        public int TruckCap = 8;                 // era 0 load; see EraTruckCap
+        // 0.20 "Machine eras": pit machines and locomotives refit as the tiers rise.
+        // Era 0 (Tiers 1-3) steam shovel + early truck, era 1 (Tiers 4-6) diesel, era 2 (Tier 7 on) hydraulic + dump truck.
+        public int Era1Tier = 4, Era2Tier = 7;
+        public float[] EraWork = { 1f, 1.15f, 1.3f };      // dig rate and driving speed of excavators and trucks
+        public int[] EraTruckCap = { 8, 10, 12 };
+        public float[] EraTrainSpeed = { 1f, 1f, 1.3f };  // the diesel locomotive (era 2) runs faster than steam
         public float TipSeconds = 2f;            // truck tipping its load
         public float TankSeconds = 90f;          // vehicle fuel tank, used while driving or digging
         public float RefuelBelow = 15f;

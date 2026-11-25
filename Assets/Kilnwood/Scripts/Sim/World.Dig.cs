@@ -356,7 +356,7 @@ namespace Kilnwood.Sim
         bool Drive(Vehicle v, float dt)
         {
             if (v.PathStep >= v.Path.Count) return true;
-            float speed = (v.Type == VehicleType.Excavator ? B.ExcavatorSpeed : B.TruckSpeed) * (v.Tank > 0f ? 1f : 0.25f);
+            float speed = (v.Type == VehicleType.Excavator ? B.ExcavatorSpeed : B.TruckSpeed) * B.EraWork[Era] * (v.Tank > 0f ? 1f : 0.25f);
             UseFuel(v, dt);
             float move = speed * dt;
             while (move > 0f && v.PathStep < v.Path.Count)
@@ -468,9 +468,9 @@ namespace Kilnwood.Sim
                     UseFuel(v, dt);
                     v.Timer += dt * (v.Tank > 0f ? 1f : 0.25f);
                     v.Status = "Digging " + Items.Name(MaterialAt(v.DigTile)).ToLowerInvariant();
-                    if (v.Timer >= B.DigSeconds)
+                    if (v.Timer >= DigTime)
                     {
-                        v.Timer -= B.DigSeconds;
+                        v.Timer -= DigTime;
                         var got = DigOne(v.DigTile);
                         if (got != Item.None) { v.Bucket = got; v.BucketCount++; }
                     }
@@ -533,8 +533,8 @@ namespace Kilnwood.Sim
             foreach (var h in _machines)
             {
                 if (h.Type != BuildingType.Hopper) continue;
-                if (!wantOre && HopperFeedsMachine(h, Item.Ore) && HopperRoomFor(h, Item.Ore) >= B.TruckCap) wantOre = true;
-                if (!wantCoal && HopperFeedsMachine(h, Item.Coal) && HopperRoomFor(h, Item.Coal) >= B.TruckCap) wantCoal = true;
+                if (!wantOre && HopperFeedsMachine(h, Item.Ore) && HopperRoomFor(h, Item.Ore) >= TruckCapacity) wantOre = true;
+                if (!wantCoal && HopperFeedsMachine(h, Item.Coal) && HopperRoomFor(h, Item.Coal) >= TruckCapacity) wantCoal = true;
             }
             var shallow = new int[3];
             for (int k = 0; k < 3; k++) shallow[k] = int.MinValue;
@@ -621,18 +621,18 @@ namespace Kilnwood.Sim
                     if (ex == null || !Near(TileOf(v), TileOf(ex), W)) { v.Serving = 0; v.State = VehicleState.Idle; return; }
                     // Side-on to the excavator, so the bed is alongside it rather than the nose driving into it.
                     FaceAlongside(v, TileOf(ex));
-                    v.Status = "Being loaded " + v.LoadCount + " / " + B.TruckCap;
+                    v.Status = "Being loaded " + v.LoadCount + " / " + TruckCapacity;
                     if (ex.BucketCount > 0)
                     {
                         if (v.LoadCount > 0 && ex.Bucket != v.Load) { Leave(v); return; }
-                        int take = Math.Min(ex.BucketCount, B.TruckCap - v.LoadCount);
+                        int take = Math.Min(ex.BucketCount, TruckCapacity - v.LoadCount);
                         v.Load = ex.Bucket;
                         v.LoadCount += take;
                         ex.BucketCount -= take;
                         if (ex.BucketCount == 0) { ex.Bucket = Item.None; ex.WaitingSince = -1f; }
                     }
                     // Full, or the excavator has run out of work: off it goes.
-                    if (v.LoadCount >= B.TruckCap || (v.LoadCount > 0 && ex.State == VehicleState.Idle && ex.DigTile < 0)) Leave(v);
+                    if (v.LoadCount >= TruckCapacity || (v.LoadCount > 0 && ex.State == VehicleState.Idle && ex.DigTile < 0)) Leave(v);
                     else if (ex.State == VehicleState.Driving || (ex.State == VehicleState.Idle && v.LoadCount == 0 && ex.BucketCount == 0 && PickDigTile(ex) < 0))
                     { v.Serving = 0; v.State = VehicleState.Idle; }
                     return;

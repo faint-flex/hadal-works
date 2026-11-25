@@ -80,6 +80,24 @@ namespace Kilnwood.Sim
         public float GoalReachedAt { get; private set; } = -1f;
         /// <summary>1 at the start; 2 once the Tier 1 goal is met ("Water Power"); 3 after the Tier 2 goal ("Steam").</summary>
         public int Tier { get; private set; } = 1;
+
+        /// <summary>0.20 machine era: 0 steam (Tiers 1-3), 1 diesel (4-6), 2 hydraulic (7 on). Machines refit when it changes.</summary>
+        public int Era => Tier >= B.Era2Tier ? 2 : Tier >= B.Era1Tier ? 1 : 0;
+        public float DigTime => B.DigSeconds / B.EraWork[Era];
+        public int TruckCapacity => B.EraTruckCap[Era];
+
+        public static string EraName(int era) => era == 0 ? "Steam" : era == 1 ? "Diesel" : "Hydraulic";
+
+        /// <summary>What the machine is called in this era (the status panel shows it next to what it is doing).</summary>
+        public static string VehicleName(VehicleType t, int era)
+        {
+            switch (t)
+            {
+                case VehicleType.Excavator: return era == 0 ? "Steam shovel" : era == 1 ? "Diesel shovel" : "Hydraulic excavator";
+                case VehicleType.Truck: return era == 0 ? "Chain-drive lorry" : era == 1 ? "Tipper truck" : "Dump truck";
+                default: return era >= 2 ? "Diesel locomotive" : "Steam locomotive";
+            }
+        }
         public float Tier2GoalAt { get; private set; } = -1f;
         public float Tier3GoalAt { get; private set; } = -1f;
         public float Tier4GoalAt { get; private set; } = -1f;

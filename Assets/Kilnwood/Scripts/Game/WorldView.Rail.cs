@@ -149,6 +149,7 @@ namespace Kilnwood.Game
             public readonly List<Vector3> Trail = new List<Vector3>();
             public float Yaw;
             public bool LocoLeads = true;
+            public int Era;            // 0.20: steam locomotive before era 2, diesel from it
         }
 
         readonly Dictionary<int, TView> _tviews = new Dictionary<int, TView>();
@@ -161,6 +162,20 @@ namespace Kilnwood.Game
             List<int> gone = null;
             foreach (var kv in _tviews) if (_w.VehicleById(kv.Key) == null) (gone ??= new List<int>()).Add(kv.Key);
             if (gone != null) foreach (int id in gone) { var tv = _tviews[id]; Destroy(tv.Loco.gameObject); foreach (var w in tv.Wagons) Destroy(w.gameObject); _tviews.Remove(id); }
+            // 0.20: a new era swaps the locomotive; the train keeps its place on the track (trail, heading, direction).
+            List<int> refit = null;
+            foreach (var kv in _tviews) if (kv.Value.Era != _w.Era) (refit ??= new List<int>()).Add(kv.Key);
+            if (refit != null)
+                foreach (int id in refit)
+                {
+                    var old = _tviews[id];
+                    var nv = MakeTrain();
+                    nv.Trail.AddRange(old.Trail); nv.Yaw = old.Yaw; nv.LocoLeads = old.LocoLeads;
+                    nv.Loco.localPosition = old.Loco.localPosition; nv.Loco.localRotation = old.Loco.localRotation;
+                    for (int k = 0; k < nv.Wagons.Length && k < old.Wagons.Length; k++) { nv.Wagons[k].localPosition = old.Wagons[k].localPosition; nv.Wagons[k].localRotation = old.Wagons[k].localRotation; }
+                    Destroy(old.Loco.gameObject); foreach (var w in old.Wagons) Destroy(w.gameObject);
+                    _tviews[id] = nv;
+                }
 
             float dt = Time.deltaTime;
             foreach (var v in _w.Vehicles)
@@ -200,7 +215,7 @@ namespace Kilnwood.Game
                 bool moving = v.State == VehicleState.Driving;
                 SetSmoke(tv.Smoke, moving || v.State == VehicleState.Loading || v.State == VehicleState.Tipping);
                 if (moving)
-                    foreach (var wh in tv.Wheels) wh.Rotate(Vector3.up, _w.B.TrainSpeed * T / (Mathf.PI * 0.8f) * 360f * dt, Space.Self);
+                    foreach (var wh in tv.Wheels) wh.Rotate(Vector3.up, _w.B.TrainSpeed * _w.B.EraTrainSpeed[_w.Era] * T / (Mathf.PI * 0.8f) * 360f * dt, Space.Self);
                 // Cargo: split what's on board across the two wagons, largest kind first.
                 Item main = Item.None, second = Item.None; int mainN = 0, secondN = 0;
                 foreach (var kv in v.Cargo)
@@ -250,23 +265,41 @@ namespace Kilnwood.Game
 
         TView MakeTrain()
         {
-            var tv = new TView();
+            var tv = new TView { Era = _w.Era };
             var wheels = new List<Transform>();
-            // Locomotive: frame, boiler drum with smokebox and chimney, steam dome, cab at the back, red buffer beam.
-            var r = new GameObject("Locomotive").transform;
+            var r = new GameObject(World.VehicleName(VehicleType.Train, tv.Era)).transform;
             r.SetParent(transform, false);
             tv.Loco = r;
             Art.Cube("Frame", r, new Vector3(0f, 0.55f, 0f), new Vector3(1.2f, 0.25f, 3.0f), MachineDark);
-            Art.Cyl("Boiler", r, new Vector3(0f, 1.25f, -0.7f), 1.1f, 2.0f, LocoGreen, new Vector3(90f, 0f, 0f));
-            Art.Cyl("Smokebox", r, new Vector3(0f, 1.25f, 1.3f), 1.12f, 0.25f, MachineDark, new Vector3(90f, 0f, 0f));
-            Art.Cyl("Chimney", r, new Vector3(0f, 1.7f, 1.15f), 0.32f, 0.7f, MachineDark);
-            Art.Cyl("Dome", r, new Vector3(0f, 1.75f, 0.3f), 0.42f, 0.3f, new Color(0.75f, 0.6f, 0.3f));
-            Art.Cube("Cab", r, new Vector3(0f, 1.55f, -1.05f), new Vector3(1.3f, 1.4f, 0.95f), LocoGreen * 0.9f);
-            Art.Cube("Cab roof", r, new Vector3(0f, 2.3f, -1.05f), new Vector3(1.45f, 0.1f, 1.1f), MachineDark);
-            Art.Cube("Cab window", r, new Vector3(0f, 1.75f, -0.57f), new Vector3(0.9f, 0.4f, 0.03f), Glass);
+            if (tv.Era < 2)
+            {
+                // Steam locomotive: boiler drum with smokebox and chimney, steam dome, cab at the back, red buffer beam.
+                Art.Cyl("Boiler", r, new Vector3(0f, 1.25f, -0.7f), 1.1f, 2.0f, LocoGreen, new Vector3(90f, 0f, 0f));
+                Art.Cyl("Smokebox", r, new Vector3(0f, 1.25f, 1.3f), 1.12f, 0.25f, MachineDark, new Vector3(90f, 0f, 0f));
+                Art.Cyl("Chimney", r, new Vector3(0f, 1.7f, 1.15f), 0.32f, 0.7f, MachineDark);
+                Art.Cyl("Dome", r, new Vector3(0f, 1.75f, 0.3f), 0.42f, 0.3f, new Color(0.75f, 0.6f, 0.3f));
+                Art.Cube("Cab", r, new Vector3(0f, 1.55f, -1.05f), new Vector3(1.3f, 1.4f, 0.95f), LocoGreen * 0.9f);
+                Art.Cube("Cab roof", r, new Vector3(0f, 2.3f, -1.05f), new Vector3(1.45f, 0.1f, 1.1f), MachineDark);
+                Art.Cube("Cab window", r, new Vector3(0f, 1.75f, -0.57f), new Vector3(0.9f, 0.4f, 0.03f), Glass);
+                tv.Smoke = Art.Smoke(r, new Vector3(0f, 2.5f, 1.15f), 1.6f);
+            }
+            else
+            {
+                // Diesel locomotive: a long hood with louvres, a cab near the front, roof fans, a single short exhaust.
+                var paint = new Color(0.55f, 0.13f, 0.1f);
+                Art.Cube("Hood", r, new Vector3(0f, 1.15f, -0.45f), new Vector3(1.0f, 0.95f, 2.0f), paint);
+                Art.Cube("Cab", r, new Vector3(0f, 1.4f, 0.95f), new Vector3(1.3f, 1.45f, 0.9f), paint);
+                Art.Cube("Cab roof", r, new Vector3(0f, 2.16f, 0.95f), new Vector3(1.35f, 0.08f, 0.95f), MachineDark);
+                Art.Cube("Front window", r, new Vector3(0f, 1.75f, 1.41f), new Vector3(1.0f, 0.4f, 0.03f), Glass);
+                Art.Cube("Side window", r, new Vector3(0.66f, 1.75f, 0.95f), new Vector3(0.03f, 0.4f, 0.6f), Glass);
+                Art.Cube("Stripe", r, new Vector3(0f, 0.85f, 0.2f), new Vector3(1.32f, 0.12f, 2.6f), new Color(0.92f, 0.82f, 0.3f));
+                for (int k = 0; k < 4; k++) Art.Cube("Louvre", r, new Vector3(0.505f, 1.25f, -1.2f + k * 0.4f), new Vector3(0.02f, 0.45f, 0.25f), MachineDark);
+                for (int k = 0; k < 2; k++) Art.Cyl("Roof fan", r, new Vector3(0f, 1.65f, -1.0f + k * 0.7f), 0.55f, 0.06f, MachineDark);
+                Art.Cyl("Exhaust stack", r, new Vector3(0f, 1.7f, 0.1f), 0.16f, 0.2f, MachineDark);
+                tv.Smoke = Art.Smoke(r, new Vector3(0f, 1.85f, 0.1f), 0.6f);
+            }
             Art.Cube("Buffer beam", r, new Vector3(0f, 0.6f, 1.55f), new Vector3(1.35f, 0.3f, 0.12f), LocoRed);
             Art.Cube("Lamp", r, new Vector3(0f, 0.95f, 1.6f), new Vector3(0.22f, 0.22f, 0.12f), new Color(1f, 0.9f, 0.6f));
-            tv.Smoke = Art.Smoke(r, new Vector3(0f, 2.5f, 1.15f), 1.6f);
             foreach (float z in new[] { 0.9f, 0f, -0.9f }) AddWheelPair(r, z, 0.8f, wheels);
             // Two open wagons with a heap of cargo and a letter badge.
             tv.Wagons = new Transform[2];

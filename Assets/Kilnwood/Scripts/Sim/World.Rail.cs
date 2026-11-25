@@ -216,7 +216,7 @@ namespace Kilnwood.Sim
         bool DriveTrain(Vehicle v, float dt)
         {
             if (v.PathStep >= v.Path.Count) return true;
-            float speed = B.TrainSpeed * (v.Tank > 0f ? 1f : 0.25f);
+            float speed = B.TrainSpeed * B.EraTrainSpeed[Era] * (v.Tank > 0f ? 1f : 0.25f);
             UseFuel(v, dt);
             float move = speed * dt;
             while (move > 0f && v.PathStep < v.Path.Count)

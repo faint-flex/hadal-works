@@ -693,6 +693,29 @@ namespace Kilnwood.Game
                 ScreenCapture.CaptureScreenshot(Path.Combine(_shotsDir, name + ".png"));
             }
             WorldView.FixedHour = 10.5f;
+            // 0.20 machine eras: the refitted pit fleet and the train at the end of the run (hydraulic era).
+            {
+                Vector3 sum = Vector3.zero; int nv = 0; Vehicle train = null;
+                foreach (var veh in W.Vehicles)
+                {
+                    if (veh.Type == VehicleType.Train) { train ??= veh; continue; }
+                    sum += new Vector3(veh.X * WorldView.T, 0f, veh.Y * WorldView.T); nv++;
+                }
+                if (nv > 0)
+                {
+                    Rig.Frame(sum / nv, 215f, 30f, 26f);
+                    for (int k = 0; k < 4; k++) yield return null;
+                    yield return new WaitForEndOfFrame();
+                    ScreenCapture.CaptureScreenshot(Path.Combine(_shotsDir, "44-era-pit.png"));
+                }
+                if (train != null)
+                {
+                    Rig.Frame(new Vector3(train.X * WorldView.T, 0f, train.Y * WorldView.T), 135f, 28f, 22f);
+                    for (int k = 0; k < 4; k++) yield return null;
+                    yield return new WaitForEndOfFrame();
+                    ScreenCapture.CaptureScreenshot(Path.Combine(_shotsDir, "45-era-train.png"));
+                }
+            }
             var sb = new StringBuilder();
             sb.AppendLine("goal reached: " + W.GoalReached + " at " + W.GoalReachedAt.ToString("0") + " s game time");
             sb.AppendLine("tier " + W.Tier + (W.Tier >= 3 ? ", tier 2 goal at " + W.Tier2GoalAt.ToString("0") + " s" : ", tier 2 goal NOT reached") +
@@ -1005,6 +1028,7 @@ namespace Kilnwood.Game
 
         void DrawGaragePanel(Building g)
         {
+            GUILayout.Label("Machine era: " + World.EraName(W.Era) + " (dig x" + B.EraWork[W.Era].ToString("0.##") + ", truck load " + W.TruckCapacity + "). New eras arrive at Tier " + B.Era1Tier + " and Tier " + B.Era2Tier + ".", _small);
             GUILayout.Label("Vehicle fuel: W wood " + g.FuelWood + "   C charcoal " + g.FuelCharcoal + "  (holds " + B.GarageFuelCap + "). Belt wood or charcoal in.", _small);
             foreach (VehicleType t in new[] { VehicleType.Excavator, VehicleType.Truck })
             {
@@ -1023,7 +1047,7 @@ namespace Kilnwood.Game
             {
                 if (v.GarageId != g.Id) continue;
                 n++;
-                list.Append(v.Type == VehicleType.Excavator ? "Excavator: " : "Truck: ").Append(v.Status)
+                list.Append(World.VehicleName(v.Type, W.Era)).Append(": ").Append(v.Status)
                     .Append("  (fuel ").Append(Mathf.RoundToInt(100f * v.Tank / B.TankSeconds)).Append("%)\n");
             }
             GUILayout.Label(n == 0 ? "No vehicles yet. Buy an excavator and a truck, then drag a dig area (G)." : list.ToString(), _small);
