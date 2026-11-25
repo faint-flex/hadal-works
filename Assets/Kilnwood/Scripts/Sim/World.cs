@@ -14,6 +14,7 @@ namespace Kilnwood.Sim
 
         // Belt state
         public Item BeltItem;
+        public bool Fired;                   // steam turbine: has fire this tick
         public float BeltProgress;
 
         // Machine state
@@ -83,6 +84,7 @@ namespace Kilnwood.Sim
         public float Tier4GoalAt { get; private set; } = -1f;
         public float Tier5GoalAt { get; private set; } = -1f;
         public float Tier6GoalAt { get; private set; } = -1f;
+        public float Tier7GoalAt { get; private set; } = -1f;
 
         public World(Balance b)
         {
@@ -401,6 +403,11 @@ namespace Kilnwood.Sim
                 Tier = 7;
                 Tier6GoalAt = Time;
             }
+            if (Tier == 7 && Delivered[Item.Tractor] >= B.GoalTractor)
+            {
+                Tier = 8;
+                Tier7GoalAt = Time;
+            }
         }
 
         /// <summary>Homes, who works where (in build order), and eating fish from the lodge.</summary>
@@ -549,6 +556,7 @@ namespace Kilnwood.Sim
                     m.AddFuel(item);
                     return true;
                 case BuildingType.SteamEngine:
+                case BuildingType.Turbine:
                     if (!Balance.IsFuel(item) || m.FuelCount >= B.FuelCap) return false;
                     m.AddFuel(item);
                     return true;
@@ -601,7 +609,10 @@ namespace Kilnwood.Sim
                 case BuildingType.TripHammer:
                 case BuildingType.Furnace:
                 case BuildingType.WireMill:
-                case BuildingType.MachineShop: StepCrafter(m, dt); break;
+                case BuildingType.MachineShop:
+                case BuildingType.ArcFurnace:
+                case BuildingType.Assembly: StepCrafter(m, dt); break;
+                case BuildingType.Turbine: m.Status = TurbineStatus(m); return;   // fired in StepGrids
                 case BuildingType.Dynamo: m.Status = DynamoStatus(m); return;
                 case BuildingType.Pole: m.Status = PoleStatus(m); return;
                 case BuildingType.SteamEngine: return;   // fired and its status set in StepPower

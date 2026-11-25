@@ -29,17 +29,18 @@ namespace Kilnwood.Sim
         readonly bool _tier3;
 
         readonly bool _tier4;
-        readonly bool _tier5, _tier6;
+        readonly bool _tier5, _tier6, _tier7;
         readonly int _railsEnd;
-        public const int FieldStationX = 54, FieldStationY = 7, YardStationX = 35, YardStationY = 26, DynamoX = 42, DynamoY = 20, ShopX = 36, ShopY = 32;
+        public const int FieldStationX = 54, FieldStationY = 7, YardStationX = 35, YardStationY = 26, DynamoX = 42, DynamoY = 20, ShopX = 36, ShopY = 32, TurbineX = 48, TurbineY = 20, AssemblyX = 31, AssemblyY = 35;
 
-        public DemoFactory(bool people = false, bool pit = false, bool tier2 = false, bool tier3 = false, bool tier4 = false, bool tier5 = false, bool tier6 = false)
+        public DemoFactory(bool people = false, bool pit = false, bool tier2 = false, bool tier3 = false, bool tier4 = false, bool tier5 = false, bool tier6 = false, bool tier7 = false)
         {
             _pit = pit;
             _tier3 = tier3;
             _tier4 = tier4;
             _tier5 = tier5;
             _tier6 = tier6;
+            _tier7 = tier7;
             const int N = 0, E = 1, S = 2, W = 3;
             const int Charcoal = 0, Brick = 1;
             // Phase 1: wood into the lodge (pays for everything else).
@@ -178,6 +179,27 @@ namespace Kilnwood.Sim
                 Add(BuildingType.Pole, 32, 44, N);
                 _steps.Add(new Step { Type = BuildingType.Mine, X = 30, Y = 46, Remove = true, MinTier = 6 });
                 Add(BuildingType.ElectricMine, 30, 46, S);
+            }
+
+            // Phase 11 (0.14 Tier 7 "Assembly Line"): a wood-fired turbine for more electricity, then the assembly plant
+            // north of the lodge, fed steel by an electric furnace (ore from a truck hopper) and motors from the machine shop.
+            if (tier7)
+            {
+                Add(BuildingType.Turbine, TurbineX, TurbineY, N);
+                Add(BuildingType.Woodcutter, TurbineX, TurbineY + 2, S);   // feeds the turbine straight from the woods
+                _steps.Add(new Step { Type = BuildingType.Belt, X = 34, Y = 34, Remove = true, MinTier = 7 });
+                _steps.Add(new Step { Type = BuildingType.Belt, X = 33, Y = 34, Remove = true, MinTier = 7 });
+                Add(BuildingType.Assembly, AssemblyX, AssemblyY, S);
+                Add(BuildingType.Belt, 32, 34, S);
+                Add(BuildingType.ArcFurnace, 31, 38, S);
+                Add(BuildingType.Hopper, 31, 40, S);
+                // Motors: north out of the machine shop, then west into the assembly plant.
+                _steps.Add(new Step { Type = BuildingType.Belt, X = 35, Y = 33, Remove = true, MinTier = 7 });
+                Add(BuildingType.Belt, 35, 33, N);
+                _steps.Add(new Step { Type = BuildingType.Belt, X = 35, Y = 34, Remove = true, MinTier = 7 });
+                Add(BuildingType.Belt, 35, 34, N);
+                Add(BuildingType.Belt, 35, 35, W);
+                Add(BuildingType.Belt, 34, 35, W);
             }
         }
 

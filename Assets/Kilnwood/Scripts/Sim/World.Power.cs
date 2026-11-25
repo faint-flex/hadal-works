@@ -87,7 +87,7 @@ namespace Kilnwood.Sim
                 foreach (var p in net.Parts) { p.NetSupply = supply; p.NetDemand = net.Demand; p.Power = share; }
                 foreach (var m in net.Machines) m.Power = share;
             }
-            StepGrids();
+            StepGrids(dt);
         }
 
         /// <summary>Power or fuel for dt seconds of work. Powered machines run at their network's share (no fuel);

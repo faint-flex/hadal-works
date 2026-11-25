@@ -19,7 +19,7 @@ namespace Kilnwood.Sim
         readonly List<Grid> _grids = new List<Grid>();
         public IReadOnlyList<Grid> Grids => _grids;
 
-        static bool IsNode(Building b) => b.Type == BuildingType.Pole || b.Type == BuildingType.Dynamo;
+        static bool IsNode(Building b) => b.Type == BuildingType.Pole || b.Type == BuildingType.Dynamo || b.Type == BuildingType.Turbine;
 
         /// <summary>Tiles between two footprints along the longer axis (0 if they overlap, 1 if they touch).</summary>
         public static int Gap(Building a, Building b)
@@ -79,13 +79,23 @@ namespace Kilnwood.Sim
         }
 
         /// <summary>After the shaft networks: each dynamo gives its kW times its shaft share; machines share the total.</summary>
-        void StepGrids()
+        void StepGrids(float dt)
         {
+            foreach (var n in Buildings.Values)
+                if (n.Type == BuildingType.Turbine && n.GridId < 0) n.Fired = n.FuelLeft > 0f || n.FuelCount > 0;   // not on a grid: holds its fire
             foreach (var g in _grids)
             {
                 float supply = 0f;
                 foreach (var n in g.Nodes)
+                {
                     if (n.Type == BuildingType.Dynamo && n.Power > 0f) supply += B.Defs[n.Type].Kw * n.Power;
+                    else if (n.Type == BuildingType.Turbine)
+                    {
+                        // Burns only while something on its grid wants electricity.
+                        n.Fired = g.Demand <= 0 ? n.FuelLeft > 0f || n.FuelCount > 0 : Burn(n, dt * B.TurbineBurnRate);
+                        if (n.Fired) supply += B.Defs[n.Type].Kw;
+                    }
+                }
                 g.Supply = supply;
                 float share = supply <= 0f ? 0f : g.Demand <= 0 ? 1f : Math.Min(1f, supply / g.Demand);
                 foreach (var n in g.Nodes) { n.GridSupply = supply; n.GridDemand = g.Demand; n.Elec = share; }
@@ -104,9 +114,18 @@ namespace Kilnwood.Sim
                 : "Making " + made + " kW, grid uses " + d.GridDemand + " of " + Kw(d.GridSupply);
         }
 
+        string TurbineStatus(Building t)
+        {
+            if (!t.Fired) return "No fuel: feed it wood, charcoal or coal";
+            if (t.GridDemand == 0) return "Fired, nothing connected";
+            return t.GridDemand > t.GridSupply + 0.01f
+                ? "Overloaded: " + t.GridDemand + " kW wanted, " + Kw(t.GridSupply) + " kW made"
+                : "Making " + B.Defs[t.Type].Kw + " kW, grid uses " + t.GridDemand + " of " + Kw(t.GridSupply);
+        }
+
         string PoleStatus(Building p)
         {
-            if (p.GridSupply <= 0f) return p.GridDemand > 0 ? "No electricity: no dynamo turning on this grid" : "Not linked to a dynamo";
+            if (p.GridSupply <= 0f) return p.GridDemand > 0 ? "No electricity: no dynamo turning or turbine fired on this grid" : "Not linked to a dynamo or turbine";
             return p.GridDemand == 0 ? "Live, nothing connected" : "Live: " + p.GridDemand + " of " + Kw(p.GridSupply) + " kW used";
         }
 

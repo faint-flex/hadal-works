@@ -108,7 +108,7 @@ namespace Kilnwood.Sim
             {
                 foreach (var t in Touching(m))
                 {
-                    if (!BurnsFuel(t) && t.Type != BuildingType.SteamEngine && t.Type != BuildingType.Garage) continue;
+                    if (!BurnsFuel(t) && t.Type != BuildingType.SteamEngine && t.Type != BuildingType.Turbine && t.Type != BuildingType.Garage) continue;
                     foreach (var fuel in new[] { Item.Coal, Item.Charcoal, Item.Wood })
                     {
                         m.Output.TryGetValue(fuel, out int have);

@@ -770,7 +770,7 @@ namespace Kilnwood.Sim
                 if (t.Type == BuildingType.Belt || t.Type == BuildingType.Splitter || t.Type == BuildingType.Lodge) return true;
                 var r = RecipeOf(t);
                 if (r != null && r.Needs(it) > 0) return true;
-                if (Balance.IsFuel(it) && (BurnsFuel(t) || t.Type == BuildingType.SteamEngine || t.Type == BuildingType.Garage)) return true;
+                if (Balance.IsFuel(it) && (BurnsFuel(t) || t.Type == BuildingType.SteamEngine || t.Type == BuildingType.Turbine || t.Type == BuildingType.Garage)) return true;
             }
             return !anything;   // nothing in front yet: it just stores
         }
@@ -784,7 +784,7 @@ namespace Kilnwood.Sim
                 if (t == null || t == h) continue;
                 var r = RecipeOf(t);
                 if (r != null && r.Needs(it) > 0) return true;
-                if (Balance.IsFuel(it) && (BurnsFuel(t) || t.Type == BuildingType.SteamEngine)) return true;
+                if (Balance.IsFuel(it) && (BurnsFuel(t) || t.Type == BuildingType.SteamEngine || t.Type == BuildingType.Turbine)) return true;
             }
             return false;
         }

@@ -4,9 +4,9 @@ namespace Kilnwood.Sim
 {
     public enum Terrain { Grass, Forest, IronOre, Stone, Water }
 
-    public enum Item { None, Wood, Ore, Stone, Charcoal, Iron, Brick, Gear, Fish, Dirt, Plank, Plate, Coal, Steel, Wire, Motor }
+    public enum Item { None, Wood, Ore, Stone, Charcoal, Iron, Brick, Gear, Fish, Dirt, Plank, Plate, Coal, Steel, Wire, Motor, Tractor }
 
-    public enum BuildingType { Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Lodge, Fisher, Cabin, Splitter, Garage, Hopper, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station, Dynamo, Pole, WireMill, ElectricMine, MachineShop }
+    public enum BuildingType { Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Lodge, Fisher, Cabin, Splitter, Garage, Hopper, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station, Dynamo, Pole, WireMill, ElectricMine, MachineShop, Turbine, ArcFurnace, Assembly }
 
     public enum VehicleType { Excavator, Truck, Train }
 
@@ -84,6 +84,7 @@ namespace Kilnwood.Sim
                 case Item.Steel: return "Steel";
                 case Item.Wire: return "Steel wire";
                 case Item.Motor: return "Motor";
+                case Item.Tractor: return "Tractor";
                 default: return "-";
             }
         }
@@ -108,6 +109,7 @@ namespace Kilnwood.Sim
                 case Item.Steel: return "T";
                 case Item.Wire: return "E";
                 case Item.Motor: return "M";
+                case Item.Tractor: return "R";
                 default: return "";
             }
         }
@@ -205,6 +207,13 @@ namespace Kilnwood.Sim
         public float ElectricMineSpeed = 2f;     // digs twice as fast as a fuel-fired mine
         public int MachineShopKw = 10;
         public int GoalMotor = 80;               // motors delivered to the lodge
+
+        // 0.14 Tier 7 "Assembly Line": a fuel-fired turbine, the electric furnace and the assembly plant's tractors.
+        public int TurbineKw = 30;               // a steam turbine makes this while it has fuel (no shaft needed)
+        public float TurbineBurnRate = 2f;       // burns fuel twice as fast as a machine fire
+        public int ArcFurnaceKw = 12;
+        public int AssemblyKw = 16;
+        public int GoalTractor = 30;             // tractors delivered to the lodge
 
         public (Item item, int count)[] VehicleCost(VehicleType t) => t == VehicleType.Excavator ? ExcavatorCost : t == VehicleType.Train ? TrainCost : TruckCost;
 
@@ -310,6 +319,23 @@ namespace Kilnwood.Sim
                 Type = BuildingType.MachineShop, Name = "Machine shop", Size = 2, Key = '2', Tier = 6, Kw = MachineShopKw, NeedsElectric = true,
                 Cost = new[] { (Item.Brick, 20), (Item.Plate, 10), (Item.Wire, 10) },
                 Recipes = new[] { new Recipe { Name = "Motor", InItems = new[] { Item.Wire, Item.Plate }, InCounts = new[] { 2, 1 }, Out = Item.Motor, Seconds = 5f } },
+            });
+            Add(new BuildingDef
+            {
+                Type = BuildingType.Turbine, Name = "Steam turbine", Size = 2, Key = '1', Tier = 7, Kw = TurbineKw,
+                Cost = new[] { (Item.Plate, 20), (Item.Steel, 10), (Item.Brick, 10), (Item.Motor, 4) },
+            });
+            Add(new BuildingDef
+            {
+                Type = BuildingType.ArcFurnace, Name = "Electric furnace", Size = 2, Key = '2', Tier = 7, Kw = ArcFurnaceKw, NeedsElectric = true,
+                Cost = new[] { (Item.Brick, 20), (Item.Plate, 10), (Item.Motor, 4) },
+                Recipes = new[] { new Recipe { Name = "Steel", InItems = new[] { Item.Ore }, InCounts = new[] { 2 }, Out = Item.Steel, Seconds = 3f } },
+            });
+            Add(new BuildingDef
+            {
+                Type = BuildingType.Assembly, Name = "Assembly plant", Size = 3, Key = '3', Tier = 7, Kw = AssemblyKw, NeedsElectric = true,
+                Cost = new[] { (Item.Brick, 30), (Item.Plate, 20), (Item.Steel, 10), (Item.Motor, 6) },
+                Recipes = new[] { new Recipe { Name = "Tractor", InItems = new[] { Item.Motor, Item.Steel }, InCounts = new[] { 2, 2 }, Out = Item.Tractor, Seconds = 8f } },
             });
             Add(new BuildingDef { Type = BuildingType.Hopper, Name = "Hopper", Size = 2, Cost = new[] { (Item.Wood, 10), (Item.Stone, 6) }, Key = '8' });
         }
