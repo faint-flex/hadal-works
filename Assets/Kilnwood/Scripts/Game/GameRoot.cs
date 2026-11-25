@@ -13,7 +13,7 @@ namespace Kilnwood.Game
     public partial class GameRoot : MonoBehaviour
     {
         enum State { Title, Playing }
-        enum Tool { Select, Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Fisher, Cabin, Splitter, Garage, Hopper, Dig, Dump, Demolish, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station, Dynamo, Pole, WireMill, ElectricMine, MachineShop }
+        enum Tool { Select, Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Fisher, Cabin, Splitter, Garage, Hopper, Dig, Dump, Demolish, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station, Dynamo, Pole, WireMill, ElectricMine, MachineShop, Turbine, ArcFurnace, Assembly }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
@@ -82,7 +82,7 @@ namespace Kilnwood.Game
                 Directory.CreateDirectory(_shotsDir);
                 SaveSystem.PathOverride = Path.Combine(_shotsDir, "save-shots.json");
                 StartWorld(MapGen.NewTier1(B));
-                _demo = new DemoFactory(B.PeopleEnabled, pit: true, tier2: true, tier3: true, tier4: true, tier5: true, tier6: true);
+                _demo = new DemoFactory(B.PeopleEnabled, pit: true, tier2: true, tier3: true, tier4: true, tier5: true, tier6: true, tier7: true);
                 _speed = 8;
                 File.WriteAllText(Path.Combine(_shotsDir, "shots-result.txt"), "Kilnwood autopilot run\n");
             }
@@ -180,7 +180,9 @@ namespace Kilnwood.Game
         }
 
         /// <summary>Numbered tools on each build page (key 1 = first). Page 1 also has 9 = splitter.</summary>
-        Tool[] PageTools(int page) => page == 6
+        Tool[] PageTools(int page) => page == 7
+            ? new[] { Tool.Turbine, Tool.ArcFurnace, Tool.Assembly }
+            : page == 6
             ? new[] { Tool.ElectricMine, Tool.MachineShop }
             : page == 5
             ? new[] { Tool.Dynamo, Tool.Pole, Tool.WireMill }
@@ -197,7 +199,7 @@ namespace Kilnwood.Game
         void SwitchPage()
         {
             if (W.Tier < 2) { Toast("Page 2 (water power) opens at Tier 2: deliver the waterwheel parts first"); return; }
-            int pages = Mathf.Min(W.Tier, 6);
+            int pages = Mathf.Min(W.Tier, 7);
             _page = _page % pages + 1;
             SetTool(Tool.Select);
         }
@@ -236,6 +238,9 @@ namespace Kilnwood.Game
                 case Tool.WireMill: return BuildingType.WireMill;
                 case Tool.ElectricMine: return BuildingType.ElectricMine;
                 case Tool.MachineShop: return BuildingType.MachineShop;
+                case Tool.Turbine: return BuildingType.Turbine;
+                case Tool.ArcFurnace: return BuildingType.ArcFurnace;
+                case Tool.Assembly: return BuildingType.Assembly;
                 default: return BuildingType.Workshop;
             }
         }
@@ -435,7 +440,7 @@ namespace Kilnwood.Game
 
         void UpdateShots()
         {
-            _page = Mathf.Clamp(W.Tier, 1, 6);   // shots show the newest build page
+            _page = Mathf.Clamp(W.Tier, 1, 7);   // shots show the newest build page
             _frames++;
             _frameTime += Time.unscaledDeltaTime;
             if (_frames > 30 && !_goalPanel)   // stop timing once the end-of-run save/load and final shots start
@@ -541,12 +546,31 @@ namespace Kilnwood.Game
                 _shopShot++;
                 _shopAt = W.Time + 40f;
             }
-            if ((W.Tier >= 7 || W.Time > 6600f) && !_goalPanel) { _goalPanel = true; StartCoroutine(ShotsFinish()); }
+            if (W.Tier >= 7 && _asmAt <= 0f) _asmAt = W.Time + 200f;
+            if (_asmAt > 0f && _asmShot < 2 && W.Time >= _asmAt && (_asmShot > 0 || W.Time >= _asmAt + 60f || TractorOnLodgeBelt()))
+            {
+                // Tier 7 shots: the assembly plant with its furnace and hopper, then the wood-fired turbine.
+                string[] names = { "assembly-plant", "turbine" };
+                if (_asmShot == 0) Rig.Frame(WorldView.FootCenter(DemoFactory.AssemblyX, DemoFactory.AssemblyY + 1, 3), 140f, 42f, 24f);
+                else Rig.Frame(WorldView.FootCenter(DemoFactory.TurbineX, DemoFactory.TurbineY, 2), 150f, 38f, 20f);
+                StartCoroutine(ShotNextFrame((36 + _asmShot) + "-tier7-" + names[_asmShot] + "-t" + Mathf.RoundToInt(W.Time) + "s"));
+                _asmShot++;
+                _asmAt = W.Time + 40f;
+            }
+            if ((W.Tier >= 8 || W.Time > 7800f) && !_goalPanel) { _goalPanel = true; StartCoroutine(ShotsFinish()); }
         }
 
         float _railAt; int _railShot;
         float _elecAt; int _elecShot;
         float _shopAt; int _shopShot;
+        float _asmAt; int _asmShot;
+
+        /// <summary>True while a tractor rides the belt from the assembly plant into the lodge.</summary>
+        bool TractorOnLodgeBelt()
+        {
+            var b = W.At(DemoFactory.AssemblyX + 1, DemoFactory.AssemblyY - 1);
+            return b != null && b.Type == BuildingType.Belt && b.BeltItem == Item.Tractor;
+        }
 
         /// <summary>True while a motor rides the short belt from the machine shop to the lodge (so the shot shows one).</summary>
         bool MotorOnShopBelt()
@@ -616,6 +640,7 @@ namespace Kilnwood.Game
             sb.AppendLine(W.Tier >= 5 ? "tier 4 goal at " + W.Tier4GoalAt.ToString("0") + " s, hauled by rail " + W.RailHauled + ", trains " + W.CountTrains() : "tier 4 goal NOT reached, hauled by rail " + W.RailHauled + ", trains " + W.CountTrains());
             sb.AppendLine(W.Tier >= 6 ? "tier 5 goal at " + W.Tier5GoalAt.ToString("0") + " s, wire " + W.Delivered[Item.Wire] : "tier 5 goal NOT reached, wire " + W.Delivered[Item.Wire]);
             sb.AppendLine(W.Tier >= 7 ? "tier 6 goal at " + W.Tier6GoalAt.ToString("0") + " s, motors " + W.Delivered[Item.Motor] : "tier 6 goal NOT reached, motors " + W.Delivered[Item.Motor]);
+            sb.AppendLine(W.Tier >= 8 ? "tier 7 goal at " + W.Tier7GoalAt.ToString("0") + " s, tractors " + W.Delivered[Item.Tractor] : "tier 7 goal NOT reached, tractors " + W.Delivered[Item.Tractor]);
             int dugTiles = 0; foreach (var u in W.Units) if (u < 0) dugTiles++;
             sb.AppendLine("vehicles " + W.Vehicles.Count + ", dug tiles " + dugTiles + ", ore delivered " + W.Delivered[Item.Ore]);
             sb.AppendLine("buildings " + W.Buildings.Count + ", gears " + W.Delivered[Item.Gear] + ", bricks " + W.Delivered[Item.Brick] + ", wood in lodge " + W.Storage[Item.Wood]);
@@ -707,7 +732,7 @@ namespace Kilnwood.Game
             GUILayout.Space(6f);
             if (GUILayout.Button("Quit", _btn, GUILayout.Height(44f))) Application.Quit();
             GUILayout.Space(14f);
-            GUILayout.Label("Test build: Tier 1, the open pit (excavators and trucks), Tier 2 water power, Tier 3 steam and Tier 4 rails.", _small);
+            GUILayout.Label("Test build: Tiers 1 to 7, from the first fire to the assembly line.", _small);
             GUILayout.EndArea();
         }
 
@@ -723,6 +748,7 @@ namespace Kilnwood.Game
                 (W.Tier >= 3 ? "   K coal " + W.Storage[Item.Coal] + "   T steel " + W.Storage[Item.Steel] : "") +
                 (W.Tier >= 5 ? "   E wire " + W.Storage[Item.Wire] : "") +
                 (W.Tier >= 6 ? "   M motor " + W.Storage[Item.Motor] : "") +
+                (W.Tier >= 7 ? "   R tractor " + W.Storage[Item.Tractor] : "") +
                 (!B.PeopleEnabled ? "" : "   F fish " + W.Storage[Item.Fish] + "   People: " + W.WorkersUsed + " working, " + W.Population + " living" +
                 (W.WorkersNeeded > W.Population ? "   ! NEED " + (W.WorkersNeeded - W.Population) + " MORE (build cabins)" : "") +
                 (W.Hungry ? "   ! HUNGRY: machines at half speed, send fish to the lodge" : "")),
@@ -743,7 +769,9 @@ namespace Kilnwood.Game
                 ? "<b>Tier 5 goal: wire for the valley</b>   E steel wire " + Mathf.Min(W.Delivered[Item.Wire], B.GoalWire) + "/" + B.GoalWire
                 : W.Tier == 6
                 ? "<b>Tier 6 goal: motors</b>   M motors " + Mathf.Min(W.Delivered[Item.Motor], B.GoalMotor) + "/" + B.GoalMotor
-                : "<b>Tier 7 unlocked</b>   (the next tier comes in a later build)";
+                : W.Tier == 7
+                ? "<b>Tier 7 goal: tractors</b>   R tractors " + Mathf.Min(W.Delivered[Item.Tractor], B.GoalTractor) + "/" + B.GoalTractor
+                : "<b>Tier 8 unlocked</b>   (the next tier comes in a later build)";
             GUI.Label(goal, goalText, _body);
             if (_shotsDir == null)
             {
@@ -767,6 +795,9 @@ namespace Kilnwood.Game
                 : _tool == Tool.WireMill ? "WIRE MILL: electric. Put it within " + B.PoleCover + " tiles of a pole. Draws 1 steel into 2 steel wire (" + B.WireMillKw + " kW)."
                 : _tool == Tool.ElectricMine ? "ELECTRIC MINE: on iron ore or stone, within " + B.PoleCover + " tiles of a pole. No fuel, digs twice as fast (" + B.ElectricMineKw + " kW)."
                 : _tool == Tool.MachineShop ? "MACHINE SHOP: electric (" + B.MachineShopKw + " kW). Feed it 2 E wire and 1 L plate for each M motor."
+                : _tool == Tool.Turbine ? "STEAM TURBINE: a power source with no shaft. Feed it W wood, C charcoal or K coal (a woodcutter can face straight into it). Makes " + B.TurbineKw + " kW while it has fuel."
+                : _tool == Tool.ArcFurnace ? "ELECTRIC FURNACE: electric (" + B.ArcFurnaceKw + " kW), within " + B.PoleCover + " tiles of a pole or turbine. 2 O iron ore make 1 T steel, no coal."
+                : _tool == Tool.Assembly ? "ASSEMBLY PLANT: 3x3, electric (" + B.AssemblyKw + " kW). Feed it 2 M motors and 2 T steel for each R tractor."
                 : _tool == Tool.Rail ? "RAILS: drag a line of track (1 T steel + 1 W wood each). Trucks can cross it. Trains stop on the rail right beside a station."
                 : _tool == Tool.Station ? "STATION: put it beside the track. Near the lodge it unloads straight into the lodge (the yard). Click it to buy a train."
                 : _tool == Tool.SteamEngine ? "STEAM ENGINE: burns coal or charcoal fed by belt and gives " + B.EngineHp + " hp to its shafts. It only burns fuel while something uses the power."
@@ -947,11 +978,17 @@ namespace Kilnwood.Game
         {
             var r = Panel(new Rect(Wd / 2f - 330f, Ht / 2f - 170f, 660f, 340f));
             GUILayout.BeginArea(new Rect(r.x + 28f, r.y + 20f, r.width - 56f, r.height - 40f));
-            if (W.Tier >= 7)
+            if (W.Tier >= 8)
+            {
+                GUILayout.Label("TIER 8 UNLOCKED", _h1, GUILayout.Height(80f));
+                GUILayout.Label("Tractors roll out of the valley. The next tier arrives in a later build.", _body);
+                GUILayout.Label("You can keep building here as long as you like.", _small);
+            }
+            else if (W.Tier == 7)
             {
                 GUILayout.Label("TIER 7 UNLOCKED", _h1, GUILayout.Height(80f));
-                GUILayout.Label("The valley builds its own machines. The next tier arrives in a later build.", _body);
-                GUILayout.Label("You can keep building here as long as you like.", _small);
+                GUILayout.Label("Assembly Line. Page 7 has the steam turbine (electricity from wood or coal, no shaft), the electric furnace (steel from ore, no coal) and the assembly plant, which builds tractors from motors and steel.", _body);
+                GUILayout.Label("Next goal: " + B.GoalTractor + " tractors delivered to the lodge.", _small);
             }
             else if (W.Tier == 6)
             {

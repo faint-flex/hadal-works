@@ -80,6 +80,7 @@ namespace Kilnwood.Game
                 case Item.Steel: return new Color(0.72f, 0.76f, 0.82f);
                 case Item.Wire: return new Color(0.42f, 0.44f, 0.47f);
                 case Item.Motor: return new Color(0.22f, 0.44f, 0.3f);
+                case Item.Tractor: return new Color(0.86f, 0.46f, 0.16f);
                 default: return Color.white;
             }
         }
@@ -542,6 +543,9 @@ namespace Kilnwood.Game
                 case BuildingType.WireMill: MakeWireMill(B, s, v); break;
                 case BuildingType.ElectricMine: MakeElectricMine(B, s, v); break;
                 case BuildingType.MachineShop: MakeMachineShop(B, s, v); break;
+                case BuildingType.Turbine: MakeTurbine(B, s, v); break;
+                case BuildingType.ArcFurnace: MakeArcFurnace(B, s, v); break;
+                case BuildingType.Assembly: MakeAssembly(B, s, v); break;
                 case BuildingType.Lodge:
                 {
                     float fz = (s - 2.2f) / 2f;   // front wall
@@ -698,6 +702,9 @@ namespace Kilnwood.Game
                 case BuildingType.WireMill: return "WIRE MILL E";
                 case BuildingType.ElectricMine: return "ELECTRIC MINE " + Items.Letter(_w.ExtractorResource(b, out _));
                 case BuildingType.MachineShop: return "MACHINE SHOP M";
+                case BuildingType.Turbine: return "STEAM TURBINE " + _w.B.Defs[b.Type].Kw + " kW";
+                case BuildingType.ArcFurnace: return "ELECTRIC FURNACE T";
+                case BuildingType.Assembly: return "ASSEMBLY PLANT R";
                 default: return "";
             }
         }
@@ -737,7 +744,9 @@ namespace Kilnwood.Game
                 if (v.Fire != null)
                 {
                     bool lit = (working && (_w.BurnsFuel(b) || b.Type == BuildingType.Kiln || b.Type == BuildingType.Smelter || b.Type == BuildingType.Furnace))
-                        || (b.Type == BuildingType.SteamEngine && b.Status == "Running");
+                        || (b.Type == BuildingType.SteamEngine && b.Status == "Running")
+                        || (b.Type == BuildingType.Turbine && b.Fired && b.GridDemand > 0)
+                        || (b.Type == BuildingType.ArcFurnace && (working || b.Status.StartsWith("Low electricity")));
                     if (v.Fire.activeSelf != lit) { v.Fire.SetActive(lit); v.FireLight.enabled = lit; }
                     if (lit) v.FireLight.intensity = 1.2f + 0.8f * Mathf.PerlinNoise(now * 5f, v.Seed);
                     if (v.Smoke != null) SetSmoke(v.Smoke, lit);
@@ -1110,6 +1119,15 @@ namespace Kilnwood.Game
                     Art.Cube("Foot", t, new Vector3(0f, 0.04f, 0f), new Vector3(0.5f, 0.08f, 0.4f), Look.Iron);
                     top = 0.54f;
                     break;
+                case Item.Tractor:
+                {
+                    var tr = new GameObject("Tractor").transform;
+                    tr.SetParent(t, false);
+                    tr.localScale = Vector3.one * 1.15f;
+                    BuildTractor(tr, col);
+                    top = 0.56f;
+                    break;
+                }
                 case Item.Fish:
                     Art.Ball("Body", t, new Vector3(0f, 0.13f, 0f), new Vector3(0.28f, 0.24f, 0.62f), col);
                     Art.Part("Tail", t, Art.Cone, new Vector3(0f, 0.13f, -0.28f), new Vector3(0.3f, 0.22f, 0.08f), col * 0.85f, new Vector3(-90f, 0f, 0f));

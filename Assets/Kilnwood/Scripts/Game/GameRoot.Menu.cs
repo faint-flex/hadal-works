@@ -14,8 +14,8 @@ namespace Kilnwood.Game
     public partial class GameRoot
     {
         bool _research;
-        static readonly string[] TierNames = { "", "First Fire", "Water Power", "Steam", "Rails", "Electricity", "Machine Age", "Next era" };
-        static readonly string[] PageNames = { "", "BASICS", "WATER POWER", "STEAM", "RAILS", "ELECTRICITY", "MACHINES" };
+        static readonly string[] TierNames = { "", "First Fire", "Water Power", "Steam", "Rails", "Electricity", "Machine Age", "Assembly Line", "Next era" };
+        static readonly string[] PageNames = { "", "BASICS", "WATER POWER", "STEAM", "RAILS", "ELECTRICITY", "MACHINES", "ASSEMBLY" };
         List<BuildingType> _iconTypes;
         GUIStyle _tile, _tileOn, _tileLocked, _tiny, _tinyDim, _tab, _tabOn, _tabLocked, _cardTitle;
         Texture2D _barBack, _barFill, _barDone, _line;
@@ -24,7 +24,7 @@ namespace Kilnwood.Game
         {
             if (_iconTypes != null) return _iconTypes;
             _iconTypes = new List<BuildingType>();
-            for (int p = 1; p <= 6; p++)
+            for (int p = 1; p <= 7; p++)
                 foreach (var t in PageTools(p)) _iconTypes.Add(TypeOf(t));
             _iconTypes.Add(BuildingType.Splitter);
             return _iconTypes;
@@ -88,17 +88,19 @@ namespace Kilnwood.Game
         {
             MenuStyles();
             const float tileW = 104f, tileH = 112f, gap = 5f;
-            int pages = 6;
+            int pages = 7;
             var bar = Panel(new Rect(Wd / 2f - 780f, Ht - 162f, 1560f, 152f));
 
             // Tabs: one per tier page; locked ones say which tier opens them.
-            float tabW = 228f;
+            float tabW = Mathf.Floor((bar.width - 16f - 158f - (pages - 1) * 4f) / pages);
             for (int p = 1; p <= pages; p++)
             {
                 bool open = W.Tier >= p;
                 var r = new Rect(bar.x + 8f + (p - 1) * (tabW + 4f), bar.y + 6f, tabW, 28f);
                 string label = open ? (_page == p ? "> " : "") + PageNames[p] : "LOCKED: " + PageNames[p] + " (T" + p + ")";
-                if (GUI.Button(r, label, !open ? _tabLocked : _page == p ? _tabOn : _tab))
+                var tabStyle = !open ? _tabLocked : _page == p ? _tabOn : _tab;
+                if (tabStyle.CalcSize(new GUIContent(label)).x > tabW - 6f) label = "<size=12>" + label + "</size>";   // long locked names still fit
+                if (GUI.Button(r, label, tabStyle))
                 {
                     if (open) { _page = p; SetTool(Tool.Select); }
                     else Toast(PageNames[p] + " opens at Tier " + p + ": press T to see the goal");
@@ -237,6 +239,9 @@ namespace Kilnwood.Game
                 case BuildingType.ElectricMine: return "Electric. Digs ore or stone twice as fast, no fuel. Needs a pole close by.";
                 case BuildingType.MachineShop: return "Electric. Builds motors from wire and iron plate.";
                 case BuildingType.WireMill: return "Electric. Draws steel into wire. Needs a pole close by.";
+                case BuildingType.Turbine: return "Burns wood, charcoal or coal for electricity. No shaft needed. A woodcutter can feed it.";
+                case BuildingType.ArcFurnace: return "Electric. Melts iron ore into steel with no coal.";
+                case BuildingType.Assembly: return "Electric. Builds tractors from motors and steel.";
                 default: return null;
             }
         }
@@ -253,6 +258,7 @@ namespace Kilnwood.Game
                 case 4: return new[] { ("hauled by train", Item.None, W.RailHauled, B.GoalRail) };
                 case 5: return new[] { ("steel wire", Item.Wire, W.Delivered[Item.Wire], B.GoalWire) };
                 case 6: return new[] { ("motors", Item.Motor, W.Delivered[Item.Motor], B.GoalMotor) };
+                case 7: return new[] { ("tractors", Item.Tractor, W.Delivered[Item.Tractor], B.GoalTractor) };
                 default: return new (string, Item, int, int)[0];
             }
         }
@@ -266,18 +272,20 @@ namespace Kilnwood.Game
             "Track, stations and trains haul from the far ore field.",
             "Dynamos on the shafts, power poles, and an electric wire mill.",
             "Electric mines and a machine shop that builds motors.",
+            "A steam turbine, an electric furnace, and an assembly plant that builds tractors.",
             "Coming in a later build.",
         };
 
         void DrawResearch(float Wd, float Ht)
         {
             MenuStyles();
-            var p = Panel(new Rect(Wd / 2f - 800f, 84f, 1600f, Mathf.Min(640f, Ht - 260f)));
+            float pw = Mathf.Min(1840f, Wd - 40f);
+            var p = Panel(new Rect(Wd / 2f - pw / 2f, 84f, pw, Mathf.Min(640f, Ht - 260f)));
             GUI.Label(new Rect(p.x + 20f, p.y + 10f, 700f, 34f), "<b>Research</b>   reach each tier's goal to unlock the next", _h2);
             if (GUI.Button(new Rect(p.xMax - 130f, p.y + 10f, 116f, 34f), "Close (T)", _btn)) _research = false;
 
-            const int tiers = 7;
-            float nodeW = 209f, gapX = 16f, top = p.y + 60f, nodeH = p.height - 76f;
+            const int tiers = 8;
+            float gapX = 16f, nodeW = Mathf.Floor((pw - 40f - (tiers - 1) * gapX) / tiers), top = p.y + 60f, nodeH = p.height - 76f;
             for (int n = 1; n <= tiers; n++)
             {
                 float nx = p.x + 20f + (n - 1) * (nodeW + gapX);
@@ -299,7 +307,7 @@ namespace Kilnwood.Game
                 // Unlocks: building pictures with names.
                 float uy = top + 118f;
                 var unlocks = new List<BuildingType>();
-                if (n <= 6) foreach (var t in PageTools(n)) unlocks.Add(TypeOf(t));
+                if (n <= 7) foreach (var t in PageTools(n)) unlocks.Add(TypeOf(t));
                 if (n == 1) unlocks.Add(BuildingType.Splitter);
                 if (unlocks.Count > 0) GUI.Label(new Rect(nx + 12f, uy, nodeW - 24f, 22f), "Unlocks", _tinyDim);
                 uy += 22f;
@@ -307,9 +315,10 @@ namespace Kilnwood.Game
                 foreach (var bt in unlocks)
                 {
                     var icon = View != null ? View.IconIfReady(bt) : null;
-                    var cell = new Rect(ux + col * 66f, uy, 64f, 62f);
-                    if (icon != null) GUI.DrawTexture(new Rect(cell.x + 7f, cell.y, 50f, 50f), icon, ScaleMode.ScaleToFit, true);
-                    GUI.Label(new Rect(cell.x - 1f, cell.y + 46f, 66f, 34f), "<size=11>" + B.Defs[bt].Name + "</size>", locked ? _tinyDim : _tiny);
+                    float cw = Mathf.Min(66f, Mathf.Floor((nodeW - 14f) / 3f)), isz = cw - 16f;
+                    var cell = new Rect(ux + col * cw, uy, cw - 2f, 62f);
+                    if (icon != null) GUI.DrawTexture(new Rect(cell.x + (cw - isz) / 2f, cell.y, isz, isz), icon, ScaleMode.ScaleToFit, true);
+                    GUI.Label(new Rect(cell.x - 1f, cell.y + 46f, cw, 34f), "<size=11>" + B.Defs[bt].Name + "</size>", locked ? _tinyDim : _tiny);
                     col++;
                     if (col == 3) { col = 0; uy += 80f; }
                 }

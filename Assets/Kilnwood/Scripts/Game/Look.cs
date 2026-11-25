@@ -169,11 +169,11 @@ namespace Kilnwood.Game
             get
             {
                 if (_glass != null) return _glass;
-                var c = new Color(0.3f, 0.37f, 0.42f);
+                var c = new Color(0.44f, 0.52f, 0.58f);   // 0.14: lighter, so the sky shows from the usual camera height
                 _glass = new Material(Mat(c)) { name = "Window glass" };
-                if (_glass.HasProperty("_Glossiness")) _glass.SetFloat("_Glossiness", 0.92f);
-                if (_glass.HasProperty("_Smoothness")) _glass.SetFloat("_Smoothness", 0.92f);
-                if (_glass.HasProperty("_Metallic")) _glass.SetFloat("_Metallic", 0.35f);
+                if (_glass.HasProperty("_Glossiness")) _glass.SetFloat("_Glossiness", 0.96f);
+                if (_glass.HasProperty("_Smoothness")) _glass.SetFloat("_Smoothness", 0.96f);
+                if (_glass.HasProperty("_Metallic")) _glass.SetFloat("_Metallic", 0.6f);
                 _glass.enableInstancing = true;
                 return _glass;
             }
