@@ -51,7 +51,7 @@ namespace Kilnwood.Game
             Art.Cube("Switchboard leg", B, new Vector3(1.45f, 0.45f, -0.9f), new Vector3(0.1f, 0.9f, 0.1f), Look.Timber * 0.7f);
             Art.Cyl("Meter", B, new Vector3(1.38f, 1.65f, -0.9f), 0.38f, 0.06f, new Color(0.9f, 0.88f, 0.8f), new Vector3(0f, 0f, 90f));
             Art.Cube("Knife switch", B, new Vector3(1.38f, 1.05f, -0.9f), new Vector3(0.08f, 0.35f, 0.25f), Brass);
-            v.Extra = Art.Ball("Lamp", B, new Vector3(1.38f, 2.25f, -0.9f), Vector3.one * 0.22f, LampGlow);
+            v.Extra = Art.Ball("Lamp", B, new Vector3(1.38f, 2.3f, -0.9f), Vector3.one * 0.3f, LampGlow);
             v.Extra.GetComponent<Renderer>().sharedMaterial = Look.GlowMat(LampGlow);
             v.Extra.SetActive(false);
             // Terminal mast where the line starts.
@@ -79,7 +79,7 @@ namespace Kilnwood.Game
             // Lamp on a short bracket below the arm.
             Art.Cube("Lamp bracket", B, new Vector3(0f, PoleTop - 1.2f, 0.4f), new Vector3(0.05f, 0.05f, 0.7f), Look.Iron);
             Art.ConeAt("Lamp shade", B, new Vector3(0f, PoleTop - 1.35f, 0.72f), 0.42f, 0.2f, DynamoGreen);
-            v.Extra = Art.Ball("Lamp", B, new Vector3(0f, PoleTop - 1.42f, 0.72f), Vector3.one * 0.18f, LampGlow);
+            v.Extra = Art.Ball("Lamp", B, new Vector3(0f, PoleTop - 1.45f, 0.72f), Vector3.one * 0.28f, LampGlow);
             v.Extra.GetComponent<Renderer>().sharedMaterial = Look.GlowMat(LampGlow);
             v.Extra.SetActive(false);
             Art.Cube("Footing", B, new Vector3(0f, 0.08f, 0f), new Vector3(0.6f, 0.16f, 0.6f), Look.StoneWall * 0.8f);
@@ -95,9 +95,20 @@ namespace Kilnwood.Game
             // Long brick shed along the back with a raised clerestory roof.
             Art.Cube("Walls", B, new Vector3(0f, 1.25f, -0.75f), new Vector3(s - 0.6f, 2.2f, 1.9f), brick);
             Art.Cube("Plinth course", B, new Vector3(0f, 0.3f, -0.75f), new Vector3(s - 0.5f, 0.3f, 2.0f), stone * 0.8f);
-            Art.RoofAt("Roof", B, new Vector3(0f, 2.35f, -0.75f), s - 0.3f, 2.3f, 0.7f, Look.Roof, 90f);
-            Art.Cube("Clerestory", B, new Vector3(0f, 2.95f, -0.75f), new Vector3(s - 1.4f, 0.45f, 0.7f), Look.Timber * 0.85f);
-            Art.RoofAt("Clerestory roof", B, new Vector3(0f, 3.17f, -0.75f), s - 1.2f, 0.95f, 0.3f, Look.Roof * 0.9f, 90f);
+            // Pitched roof: two slabs meeting at a ridge along the shed, brick gables filling the ends.
+            const float run = 1.2f, pitch = 28f, eave = 2.35f, zMid = -0.75f;
+            float rise = run * Mathf.Sin(pitch * Mathf.Deg2Rad), half = run * Mathf.Cos(pitch * Mathf.Deg2Rad);
+            for (int k = -1; k <= 1; k += 2)
+                Art.Cube("Roof", B, new Vector3(0f, eave + rise / 2f + 0.04f, zMid + k * half / 2f), new Vector3(s - 0.3f, 0.09f, run + 0.12f), Look.Roof, new Vector3(k * pitch, 0f, 0f));
+            Art.Cube("Ridge", B, new Vector3(0f, eave + rise + 0.06f, zMid), new Vector3(s - 0.25f, 0.1f, 0.16f), Look.Roof * 0.8f);
+            for (int k = -1; k <= 1; k += 2)
+            {
+                var gable = new GameObject("Gable").transform;
+                gable.SetParent(B, false);
+                gable.localPosition = new Vector3(k * (s - 0.8f) / 2f, eave, zMid);
+                gable.localScale = new Vector3(1f, rise, half);
+                Art.Cube("Gable fill", gable, Vector3.zero, new Vector3(0.18f, 1.414f, 1.414f), brick, new Vector3(45f, 0f, 0f));
+            }
             for (int k = -1; k <= 1; k++)
                 Art.Cube("Window", B, new Vector3(k * 1.05f, 1.45f, 0.21f), new Vector3(0.55f, 0.8f, 0.05f), new Color(0.32f, 0.36f, 0.38f));
             // Drawing bench in the yard: steel goes in at one end, wire winds onto a big drum.
@@ -120,8 +131,8 @@ namespace Kilnwood.Game
             for (int k = 0; k < 3; k++)
                 Art.Cyl("Coil", B, new Vector3(-1.55f, 0.16f + k * 0.17f, 0.35f + (k % 2) * 0.08f), 0.55f, 0.16f, ItemColor(Item.Wire) * (1f + 0.1f * k));
             // Gable insulator where the drop line from the nearest pole comes in.
-            Art.Cube("Service bracket", B, new Vector3(-1.4f, 3.0f, -0.75f), new Vector3(0.1f, 0.9f, 0.1f), iron);
-            Art.Cyl("Insulator", B, new Vector3(-1.4f, 3.45f, -0.75f), 0.14f, 0.2f, Insulator);
+            Art.Cube("Service bracket", B, new Vector3(-1.82f, 2.95f, -0.75f), new Vector3(0.1f, 0.9f, 0.1f), iron);
+            Art.Cyl("Insulator", B, new Vector3(-1.82f, 3.4f, -0.75f), 0.14f, 0.2f, Insulator);
             Front(B, h);
         }
 
@@ -136,7 +147,7 @@ namespace Kilnwood.Game
             {
                 case BuildingType.Pole: return v.Body.TransformPoint(new Vector3(k * ArmHalf, PoleTop + 0.17f, 0f));
                 case BuildingType.Dynamo: return v.Body.TransformPoint(new Vector3(-1.4f + k * ArmHalf, 4.52f, -1.4f));
-                default: return v.Body.TransformPoint(new Vector3(-1.4f, 3.65f, -0.75f));
+                default: return v.Body.TransformPoint(new Vector3(-1.82f, 3.6f, -0.75f));
             }
         }
 

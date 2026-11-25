@@ -520,7 +520,7 @@ namespace Kilnwood.Game
             {
                 // Tier 5 shots: the dynamo on the shaft, then the pole line down to the wire mill.
                 string[] names = { "dynamo", "wire-mill" };
-                if (_elecShot == 0) Rig.Frame(WorldView.FootCenter(DemoFactory.DynamoX, DemoFactory.DynamoY, 2), 225f, 30f, 18f);
+                if (_elecShot == 0) Rig.Frame(WorldView.FootCenter(DemoFactory.DynamoX, DemoFactory.DynamoY, 2), 315f, 40f, 16f);   // from the south-east, clear of the woodcutter
                 else Rig.Frame(WorldView.FootCenter(38, 26, 2), 160f, 34f, 26f);
                 StartCoroutine(ShotNextFrame((30 + _elecShot) + "-tier5-" + names[_elecShot] + "-t" + Mathf.RoundToInt(W.Time) + "s"));
                 _elecShot++;
@@ -576,8 +576,8 @@ namespace Kilnwood.Game
             sb.AppendLine("tier " + W.Tier + (W.Tier >= 3 ? ", tier 2 goal at " + W.Tier2GoalAt.ToString("0") + " s" : ", tier 2 goal NOT reached") +
                 ", planks " + W.Delivered[Item.Plank] + ", plates " + W.Delivered[Item.Plate]);
             sb.AppendLine(W.Tier >= 4 ? "tier 3 goal at " + W.Tier3GoalAt.ToString("0") + " s" : "tier 3 goal NOT reached" + ", steel " + W.Delivered[Item.Steel] + ", coal " + W.Delivered[Item.Coal]);
-            sb.AppendLine(W.Tier >= 6 ? "tier 5 goal at " + W.Tier5GoalAt.ToString("0") + " s, wire " + W.Delivered[Item.Wire] : "tier 5 goal NOT reached, wire " + W.Delivered[Item.Wire]);
             sb.AppendLine(W.Tier >= 5 ? "tier 4 goal at " + W.Tier4GoalAt.ToString("0") + " s, hauled by rail " + W.RailHauled + ", trains " + W.CountTrains() : "tier 4 goal NOT reached, hauled by rail " + W.RailHauled + ", trains " + W.CountTrains());
+            sb.AppendLine(W.Tier >= 6 ? "tier 5 goal at " + W.Tier5GoalAt.ToString("0") + " s, wire " + W.Delivered[Item.Wire] : "tier 5 goal NOT reached, wire " + W.Delivered[Item.Wire]);
             int dugTiles = 0; foreach (var u in W.Units) if (u < 0) dugTiles++;
             sb.AppendLine("vehicles " + W.Vehicles.Count + ", dug tiles " + dugTiles + ", ore delivered " + W.Delivered[Item.Ore]);
             sb.AppendLine("buildings " + W.Buildings.Count + ", gears " + W.Delivered[Item.Gear] + ", bricks " + W.Delivered[Item.Brick] + ", wood in lodge " + W.Storage[Item.Wood]);
