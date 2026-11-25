@@ -104,9 +104,9 @@ namespace Kilnwood.Game
             Art.Cyl("Cone lip", B, new Vector3(-0.15f, 3.14f, -0.25f), 0.86f, 0.1f, dark);
             v.Smoke = Art.Smoke(R, new Vector3(-0.15f, 3.25f, -0.25f) * T, 1.1f);
             // Furnace mouth at the front of the cone, glowing while it melts.
-            Art.Cube("Arch", B, new Vector3(-0.15f, 0.55f, 0.43f), new Vector3(0.5f, 0.6f, 0.08f), stone * 0.9f);
-            Art.Cube("Mouth", B, new Vector3(-0.15f, 0.5f, 0.45f), new Vector3(0.34f, 0.42f, 0.04f), dark);
-            v.Fire = Art.Cube("Melt glow", B, new Vector3(-0.15f, 0.5f, 0.48f), new Vector3(0.28f, 0.34f, 0.03f), Look.Fire);
+            Art.Cube("Arch", B, new Vector3(-0.15f, 0.58f, 0.43f), new Vector3(0.62f, 0.74f, 0.08f), stone * 0.9f);
+            Art.Cube("Mouth", B, new Vector3(-0.15f, 0.52f, 0.46f), new Vector3(0.46f, 0.56f, 0.04f), dark);
+            v.Fire = Art.Cube("Melt glow", B, new Vector3(-0.15f, 0.52f, 0.49f), new Vector3(0.4f, 0.5f, 0.03f), Look.Fire);
             // Lean-to packing shed on the right with a window and a sloping roof.
             Art.Cube("Shed", B, new Vector3(0.62f, 0.55f, 0.2f), new Vector3(0.6f, 0.8f, 1.1f), brick * 0.9f);
             Art.Cube("Shed roof", B, new Vector3(0.62f, 1.02f, 0.2f), new Vector3(0.72f, 0.06f, 1.2f), Look.Roof, new Vector3(0f, 0f, 12f));
@@ -157,21 +157,21 @@ namespace Kilnwood.Game
                 BuildRadio(r, Walnut * (1f - 0.05f * k));
             }
             // Lattice mast at the back-right corner: four legs leaning in, cross braces, and the red light on top.
-            const float mh = 3.4f, mx = 0.72f, mz = -0.72f;
+            const float mh = 4.4f, mx = 0.68f, mz = -0.68f;   // 0.16.1: taller and stouter so it reads as a mast
             for (int k = 0; k < 4; k++)
             {
                 float sx = (k & 1) == 0 ? -1f : 1f, sz = (k & 2) == 0 ? -1f : 1f;
-                Art.Cube("Mast leg", B, new Vector3(mx + sx * 0.06f, 0.15f + mh / 2f, mz + sz * 0.06f), new Vector3(0.025f, mh, 0.025f), iron * 0.9f,
-                    new Vector3(sz * 1.6f, 0f, -sx * 1.6f));
+                Art.Cube("Mast leg", B, new Vector3(mx + sx * 0.1f, 0.15f + mh / 2f, mz + sz * 0.1f), new Vector3(0.05f, mh, 0.05f), MastRed * 0.85f,
+                    new Vector3(sz * 2.2f, 0f, -sx * 2.2f));
             }
-            for (int k = 0; k < 8; k++)
+            for (int k = 0; k < 10; k++)
             {
-                float y = 0.4f + k * 0.4f;
-                Art.Cube("Mast brace", B, new Vector3(mx, y, mz), new Vector3(0.22f - k * 0.016f, 0.02f, 0.02f), iron * 0.8f, new Vector3(0f, 0f, (k % 2 == 0 ? 35f : -35f)));
-                Art.Cube("Mast brace", B, new Vector3(mx, y, mz), new Vector3(0.02f, 0.02f, 0.22f - k * 0.016f), iron * 0.8f, new Vector3((k % 2 == 0 ? 35f : -35f), 0f, 0f));
+                float y = 0.4f + k * 0.42f;
+                Art.Cube("Mast brace", B, new Vector3(mx, y, mz), new Vector3(0.34f - k * 0.022f, 0.035f, 0.035f), (k % 2 == 0 ? Color.white * 0.9f : MastRed * 0.85f), new Vector3(0f, 0f, (k % 2 == 0 ? 35f : -35f)));
+                Art.Cube("Mast brace", B, new Vector3(mx, y, mz), new Vector3(0.035f, 0.035f, 0.34f - k * 0.022f), (k % 2 == 0 ? Color.white * 0.9f : MastRed * 0.85f), new Vector3((k % 2 == 0 ? 35f : -35f), 0f, 0f));
             }
             Art.Cyl("Mast top", B, new Vector3(mx, 0.15f + mh + 0.08f, mz), 0.1f, 0.16f, iron);
-            v.Extra = Art.Ball("Mast light", B, new Vector3(mx, 0.15f + mh + 0.22f, mz), new Vector3(0.12f, 0.12f, 0.12f), MastRed);
+            v.Extra = Art.Ball("Mast light", B, new Vector3(mx, 0.15f + mh + 0.22f, mz), new Vector3(0.22f, 0.22f, 0.22f), MastRed);
             var lr = v.Extra.GetComponent<Renderer>();
             lr.sharedMaterial = Look.GlowMat(MastRed);
             lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;

@@ -616,8 +616,8 @@ namespace Kilnwood.Game
                 // One upright label per machine: name on top, status (and fuel) underneath.
                 // Neighbouring machines alternate label heights so their names don't stack on each other.
                 // Three label heights in a pattern, so any two neighbouring 2x2 machines get different heights.
-                float top = b.Type == BuildingType.Assembly ? 9.6f   // big hall: one height just over the roof lantern, so the label stays on it
-                    : (b.Type == BuildingType.SteamEngine || b.Type == BuildingType.Furnace || b.Type == BuildingType.ArcFurnace || b.Type == BuildingType.Turbine || b.Type == BuildingType.Glassworks || b.Type == BuildingType.RadioWorks ? 7.4f : b.Type == BuildingType.Mine || b.Type == BuildingType.ElectricMine || b.Type == BuildingType.Smelter ? 6.0f : 4.4f) + ((b.X / 2 + 2 * (b.Y / 2)) % 3) * 1.8f;
+                float top = b.Type == BuildingType.Assembly ? 9.6f : b.Type == BuildingType.Glassworks ? 9.0f : b.Type == BuildingType.HydroDam ? 4.6f   // big hall: one height just over the roof lantern, so the label stays on it
+                    : (b.Type == BuildingType.SteamEngine || b.Type == BuildingType.Furnace || b.Type == BuildingType.ArcFurnace || b.Type == BuildingType.Turbine || b.Type == BuildingType.RadioWorks ? 7.4f : b.Type == BuildingType.Mine || b.Type == BuildingType.ElectricMine || b.Type == BuildingType.Smelter ? 6.0f : 4.4f) + ((b.X / 2 + 2 * (b.Y / 2)) % 3) * 1.8f;
                 if (b.Type == BuildingType.Lodge)
                 {
                     // Lodge name sits in front (south side), clear of the machines behind it.
@@ -1164,7 +1164,7 @@ namespace Kilnwood.Game
                 {
                     var rd = new GameObject("Radio").transform;
                     rd.SetParent(t, false);
-                    rd.localScale = Vector3.one * 0.6f;
+                    rd.localScale = Vector3.one * 0.85f;
                     BuildRadio(rd, col);
                     top = 0.6f;
                     break;

@@ -24,7 +24,7 @@ namespace Kilnwood.Game
         {
             if (_iconTypes != null) return _iconTypes;
             _iconTypes = new List<BuildingType>();
-            for (int p = 1; p <= 8; p++)
+            for (int p = 1; p <= 9; p++)
                 foreach (var t in PageTools(p)) _iconTypes.Add(TypeOf(t));
             _iconTypes.Add(BuildingType.Splitter);
             return _iconTypes;
@@ -262,11 +262,11 @@ namespace Kilnwood.Game
                 case 1: return new[] { ("gears", Item.Gear, W.Delivered[Item.Gear], B.GoalGear), ("bricks", Item.Brick, W.Delivered[Item.Brick], B.GoalBrick) };
                 case 2: return new[] { ("planks", Item.Plank, W.Delivered[Item.Plank], B.GoalPlank), ("iron plates", Item.Plate, W.Delivered[Item.Plate], B.GoalPlate) };
                 case 3: return new[] { ("steel", Item.Steel, W.Delivered[Item.Steel], B.GoalSteel), ("coal", Item.Coal, W.Delivered[Item.Coal], B.GoalCoal) };
-                case 4: return new[] { ("hauled by train", Item.None, W.RailHauled, B.GoalRail) };
+                case 4: return new[] { ("by train", Item.None, W.RailHauled, B.GoalRail) };
                 case 5: return new[] { ("steel wire", Item.Wire, W.Delivered[Item.Wire], B.GoalWire) };
                 case 6: return new[] { ("motors", Item.Motor, W.Delivered[Item.Motor], B.GoalMotor) };
                 case 7: return new[] { ("tractors", Item.Tractor, W.Delivered[Item.Tractor], B.GoalTractor) };
-                case 8: return new[] { ("aeroplanes flown", Item.Plane, W.Delivered[Item.Plane], B.GoalPlane) };
+                case 8: return new[] { ("planes flown", Item.Plane, W.Delivered[Item.Plane], B.GoalPlane) };
                 case 9: return new[] { ("radio sets", Item.Radio, W.Delivered[Item.Radio], B.GoalRadio) };
                 default: return new (string, Item, int, int)[0];
             }
@@ -341,18 +341,27 @@ namespace Kilnwood.Game
                 if (n == 1) unlocks.Add(BuildingType.Splitter);
                 if (unlocks.Count > 0) GUI.Label(new Rect(nx + 12f, uy, nodeW - 24f, 22f), "Unlocks", _tinyDim);
                 uy += 22f;
-                int col = 0; float ux = nx + 10f;
+                // Pictures in a grid (4 across), then their names as one wrapped line: names never break mid-word.
+                int col = 0; float ux = nx + 10f, cw = Mathf.Floor((nodeW - 20f) / 4f), isz = cw - 4f;
+                var names = new StringBuilder();
                 foreach (var bt in unlocks)
                 {
                     var icon = View != null ? View.IconIfReady(bt) : null;
-                    float cw = Mathf.Min(66f, Mathf.Floor((nodeW - 14f) / 3f)), isz = cw - 16f;
-                    var cell = new Rect(ux + col * cw, uy, cw - 2f, 62f);
-                    if (icon != null) GUI.DrawTexture(new Rect(cell.x + (cw - isz) / 2f, cell.y, isz, isz), icon, ScaleMode.ScaleToFit, true);
-                    GUI.Label(new Rect(cell.x + 1f, cell.y + isz + 2f, cw - 4f, 34f), "<size=" + (cw < 64f ? 10 : 11) + ">" + B.Defs[bt].Name + "</size>", locked ? _tinyDim : _tiny);
+                    if (icon != null) GUI.DrawTexture(new Rect(ux + col * cw + 2f, uy, isz, isz), icon, ScaleMode.ScaleToFit, true);
+                    if (names.Length > 0) names.Append(", ");
+                    names.Append(B.Defs[bt].Name);
                     col++;
-                    if (col == 3) { col = 0; uy += isz + 38f; }
+                    if (col == 4) { col = 0; uy += isz + 4f; }
                 }
-                if (col > 0) uy += Mathf.Min(66f, Mathf.Floor((nodeW - 14f) / 3f)) + 22f;
+                if (col > 0) uy += isz + 4f;
+                if (names.Length > 0)
+                {
+                    string list = "<size=12>" + names + "</size>";
+                    var ls = locked ? _tinyDim : _tiny;
+                    float lh = ls.CalcHeight(new GUIContent(list), nodeW - 24f);
+                    GUI.Label(new Rect(nx + 12f, uy, nodeW - 24f, lh + 2f), list, ls);
+                    uy += lh + 6f;
+                }
                 if (n == 1) { GUI.Label(new Rect(nx + 12f, uy, nodeW - 24f, 20f), "+ excavators and trucks (at the garage)", _tiny); uy += 22f; }
                 if (n == 4) { GUI.Label(new Rect(nx + 12f, uy, nodeW - 24f, 20f), "+ trains (at a station)", _tiny); uy += 22f; }
 
@@ -367,7 +376,9 @@ namespace Kilnwood.Game
                         int have = Mathf.Min(g.have, g.need);
                         if (done) have = g.need;
                         string letter = g.item != Item.None ? Items.Letter(g.item) + " " : "";
-                        GUI.Label(new Rect(nx + 12f, gy, nodeW - 24f, 22f), letter + g.name + "  " + (locked ? "0" : have.ToString()) + " / " + g.need, _tiny);
+                        string line = letter + g.name + "  " + (locked ? "0" : have.ToString()) + " / " + g.need;
+                        if (_tiny.CalcSize(new GUIContent(line)).x > nodeW - 24f) line = "<size=11>" + line + "</size>";   // totals never clip
+                        GUI.Label(new Rect(nx + 12f, gy, nodeW - 24f, 22f), line, _tiny);
                         var bar = new Rect(nx + 12f, gy + 20f, nodeW - 24f, 10f);
                         GUI.DrawTexture(bar, _barBack);
                         float f = locked ? 0f : have / (float)g.need;

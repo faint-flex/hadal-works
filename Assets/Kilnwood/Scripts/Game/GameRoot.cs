@@ -63,6 +63,8 @@ namespace Kilnwood.Game
         float _frameTime;
         float _worstFrame, _worstAt;
         int _worstFrameNo, _spikes;
+        int _lastShotFrame = -100, _spikeBuildings;
+        readonly StringBuilder _spikeNotes = new StringBuilder();   // what was going on in each frame over 50 ms
 
         void Awake()
         {
@@ -454,7 +456,14 @@ namespace Kilnwood.Game
             _frameTime += Time.unscaledDeltaTime;
             if (_frames > 30 && !_goalPanel)   // stop timing once the end-of-run save/load and final shots start
             {
-                if (Time.unscaledDeltaTime > 0.05f) _spikes++;
+                if (Time.unscaledDeltaTime > 0.05f)
+                {
+                    _spikes++;
+                    _spikeNotes.Append("  spike ").Append((Time.unscaledDeltaTime * 1000f).ToString("0.0")).Append(" ms at ").Append(W.Time.ToString("0"))
+                        .Append(" s: buildings ").Append(W.Buildings.Count).Append(" (+").Append(W.Buildings.Count - _spikeBuildings).Append(" since last frame)")
+                        .Append(_frames - _lastShotFrame <= 3 ? ", right after a screenshot" : "").Append(View != null && View.PlaneInFlight ? ", plane in flight" : "").Append('\n');
+                }
+                _spikeBuildings = W.Buildings.Count;
                 if (Time.unscaledDeltaTime > _worstFrame) { _worstFrame = Time.unscaledDeltaTime; _worstAt = W.Time; _worstFrameNo = _frames; }
             }
             _demo.BuildWhatYouCan(W);
@@ -575,7 +584,7 @@ namespace Kilnwood.Game
                 _flyShot++;
             }
             if (W.Tier >= 9 && _airAt <= 0f) _airAt = W.Time + 150f;
-            if (_airAt > 0f && _airShot < 2 && W.Time >= _airAt && (_airShot > 0 || W.Time >= _airAt + 60f || RadioOnBelt()))
+            if (_airAt > 0f && _airShot < 2 && W.Time >= _airAt && (_airShot > 0 || W.Time >= _airAt + 150f || RadioOnBelt()))
             {
                 // Tier 9 shots: the radio works between its glassworks and woodcutter, then the dam on the river.
                 string[] names = { "radio-works", "hydro-dam" };
@@ -637,6 +646,7 @@ namespace Kilnwood.Game
             yield return null;
             yield return new WaitForEndOfFrame();
             ScreenCapture.CaptureScreenshot(Path.Combine(_shotsDir, name + ".png"));
+            _lastShotFrame = _frames;
         }
 
         System.Collections.IEnumerator TierShot(string name)
@@ -688,6 +698,7 @@ namespace Kilnwood.Game
             sb.AppendLine("vehicles " + W.Vehicles.Count + ", dug tiles " + dugTiles + ", ore delivered " + W.Delivered[Item.Ore]);
             sb.AppendLine("buildings " + W.Buildings.Count + ", gears " + W.Delivered[Item.Gear] + ", bricks " + W.Delivered[Item.Brick] + ", wood in lodge " + W.Storage[Item.Wood]);
             sb.AppendLine("fps average " + (_frames / Mathf.Max(_frameTime, 1e-4f)).ToString("0") + ", worst frame " + (_worstFrame * 1000f).ToString("0.0") + " ms (frame " + _worstFrameNo + ", game time " + _worstAt.ToString("0") + " s), frames over 50 ms: " + _spikes);
+            sb.Append(_spikeNotes);
             foreach (var b in W.Buildings.Values)
                 if (b.Type != BuildingType.Belt && b.Type != BuildingType.Shaft && b.Type != BuildingType.Rail) sb.AppendLine("  " + b.Type + " at " + b.X + "," + b.Y + ": " + b.Status + " (fuel " + b.FuelCount + ", power " + b.Power.ToString("0.00") + ")");
             File.AppendAllText(Path.Combine(_shotsDir, "shots-result.txt"), sb.ToString());
