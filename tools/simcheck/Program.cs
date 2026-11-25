@@ -69,10 +69,10 @@ public static class Program
             var rng = new Random(seed);
             var b = new Balance();
             var w = MapGen.NewTier1(b);
-            var demo = new DemoFactory(false, true, tier2: true, tier3: true, tier4: true);
+            var demo = new DemoFactory(false, true, tier2: true, tier3: true, tier4: true, tier5: true);
             bool gift = false, gift3 = false;
             int samples = 0, crowded = 0; float nextCrowd = 0f;
-            while (w.Time < 4800f && w.Tier < 5)
+            while (w.Time < 5400f && w.Tier < 6)
             {
                 demo.BuildWhatYouCan(w);
                 demo.PitActions(w);
@@ -83,16 +83,16 @@ public static class Program
                 if (w.Time >= nextCrowd) { nextCrowd = w.Time + 5f; samples++; if (Crowded(w)) crowded++; }
                 if (seeds == 1 && w.Tier >= 3 && w.Time >= _trace) { _trace = w.Time + 60f; Trace(w); }
             }
-            if (w.Tier < 5) fails++;
+            if (w.Tier < 6) fails++;
             Console.WriteLine($"seed {seed}: pit vehicles crowded (two parked on one tile / excavators touching) in {crowded} of {samples} samples");
-            Console.Write($"seed {seed}: T1 {w.GoalReachedAt:0}  T2 {w.Tier2GoalAt:0}  T3 {w.Tier3GoalAt:0}  T4 {w.Tier4GoalAt:0} rail {w.RailHauled}  steel {w.Delivered[Item.Steel]} coal {w.Delivered[Item.Coal]} ore {w.Delivered[Item.Ore]} |");
+            Console.Write($"seed {seed}: T1 {w.GoalReachedAt:0}  T2 {w.Tier2GoalAt:0}  T3 {w.Tier3GoalAt:0}  T4 {w.Tier4GoalAt:0}  T5 {w.Tier5GoalAt:0} wire {w.Delivered[Item.Wire]} rail {w.RailHauled}  steel {w.Delivered[Item.Steel]} coal {w.Delivered[Item.Coal]} ore {w.Delivered[Item.Ore]} |");
             foreach (var v in w.Vehicles) Console.Write($" {v.Type} '{v.Status}';");
             Console.WriteLine();
             foreach (var bd in w.Buildings.Values)
                 if (w.Tier < 4 && (bd.Type == BuildingType.Furnace || bd.Type == BuildingType.Hopper || bd.Type == BuildingType.Smelter || bd.Type == BuildingType.TripHammer))
                     Console.WriteLine($"    {bd.Type} {bd.X},{bd.Y} f{bd.Facing}: {bd.Status}  in [{string.Join(",", System.Linq.Enumerable.Select(bd.Input, kv => kv.Key + "=" + kv.Value))}]" + (bd.Type == BuildingType.Hopper ? $" wantsOre {w.HopperWants(bd, Item.Ore)} wantsCoal {w.HopperWants(bd, Item.Coal)}" : ""));
         }
-        Console.WriteLine(fails == 0 ? "all seeds reached Tier 5" : fails + " seeds did NOT reach Tier 5");
+        Console.WriteLine(fails == 0 ? "all seeds reached Tier 6" : fails + " seeds did NOT reach Tier 6");
         return fails == 0 ? 0 : 1;
     }
 
@@ -101,11 +101,11 @@ public static class Program
     {
         var b = new Balance();
         var w = MapGen.NewTier1(b);
-        var demo = new DemoFactory(false, true, tier2: true, tier3: true, tier4: true);
+        var demo = new DemoFactory(false, true, tier2: true, tier3: true, tier4: true, tier5: true);
         bool gift3 = false;
         bool gift = false;
         float next = 0f;
-        while (w.Time < 4800f && w.Tier < 5)
+        while (w.Time < 5400f && w.Tier < 6)
         {
             demo.BuildWhatYouCan(w);
             demo.PitActions(w);
@@ -116,7 +116,8 @@ public static class Program
             if (w.Time >= next)
             {
                 int dug = 0; foreach (var u in w.Units) if (u < 0) dug++;
-                Console.Write($"{w.Time,5:0}s built {demo.Placed}/{demo.Total} ore@lodge {w.Delivered[Item.Ore],4} dugTiles {dug,3} gear {w.Delivered[Item.Gear],3} brick {w.Delivered[Item.Brick],3} T{w.Tier} plank {w.Delivered[Item.Plank],3} plate {w.Delivered[Item.Plate],3} steel {w.Delivered[Item.Steel],3} coal {w.Delivered[Item.Coal],3} |");
+                Console.Write($"{w.Time,5:0}s built {demo.Placed}/{demo.Total} ore@lodge {w.Delivered[Item.Ore],4} dugTiles {dug,3} gear {w.Delivered[Item.Gear],3} brick {w.Delivered[Item.Brick],3} T{w.Tier} plank {w.Delivered[Item.Plank],3} plate {w.Delivered[Item.Plate],3} steel {w.Delivered[Item.Steel],3} coal {w.Delivered[Item.Coal],3} wire {w.Delivered[Item.Wire],3} |");
+                foreach (var bd in w.Buildings.Values) if (w.Tier >= 5 && (bd.Type == BuildingType.WireMill || bd.Type == BuildingType.Furnace || bd.Type == BuildingType.Hopper)) Console.Write($" [{bd.Type} {bd.X},{bd.Y} {bd.Status} in {string.Join(",", System.Linq.Enumerable.Select(bd.Input, kv => kv.Key + "=" + kv.Value))}]");
                 foreach (var v in w.Vehicles) Console.Write($" {v.Type} {v.State} '{v.Status}' tank {v.Tank:0};");
                 Console.WriteLine();
                 next += 60f;
@@ -126,9 +127,10 @@ public static class Program
         Console.WriteLine(w.Tier >= 3 ? $"Tier 2 goal at {w.Tier2GoalAt:0}s" : "no tier 2 goal");
         Console.WriteLine(w.Tier >= 4 ? $"Tier 3 goal at {w.Tier3GoalAt:0}s" : "no tier 3 goal");
         Console.WriteLine(w.Tier >= 5 ? $"Tier 4 goal at {w.Tier4GoalAt:0}s" : $"no tier 4 goal (hauled {w.RailHauled})");
+        Console.WriteLine(w.Tier >= 6 ? $"Tier 5 goal at {w.Tier5GoalAt:0}s" : $"no tier 5 goal (wire {w.Delivered[Item.Wire]}, built {demo.Placed}/{demo.Total})");
         foreach (var bd in w.Buildings.Values)
-            if (bd.Type == BuildingType.Waterwheel || bd.Type == BuildingType.Sawmill || bd.Type == BuildingType.TripHammer || bd.Type == BuildingType.SteamEngine || bd.Type == BuildingType.Furnace || bd.Type == BuildingType.Hopper)
-                Console.WriteLine($"  {bd.Type} at {bd.X},{bd.Y}: {bd.Status} power {bd.Power:0.00}");
+            if (bd.Type == BuildingType.Waterwheel || bd.Type == BuildingType.Sawmill || bd.Type == BuildingType.TripHammer || bd.Type == BuildingType.SteamEngine || bd.Type == BuildingType.Furnace || bd.Type == BuildingType.Hopper || bd.Type == BuildingType.Dynamo || bd.Type == BuildingType.Pole || bd.Type == BuildingType.WireMill)
+                Console.WriteLine($"  {bd.Type} at {bd.X},{bd.Y}: {bd.Status} power {bd.Power:0.00} elec {bd.Elec:0.00}");
         foreach (var gb in w.Buildings.Values) if (gb.Type == BuildingType.Garage) Console.WriteLine("  CanBuy excavator: " + (w.CanBuy(gb, VehicleType.Excavator) ?? "ok") + " iron " + w.Storage[Item.Iron]);
         if (map) PrintMap(w);
         return 0;

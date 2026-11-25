@@ -350,7 +350,7 @@ namespace Kilnwood.Game
                     {
                         float f = Fbm(x / (float)n, y / (float)n, 4);
                         float shade = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((f - 0.52f) * 5f));   // clouds cover roughly a third
-                        byte a = (byte)(255f * (1f - 0.42f * shade));
+                        byte a = (byte)(255f * (1f - 0.58f * shade));
                         px[y * n + x] = new Color32(a, a, a, a);
                     }
                 _cloud.SetPixels32(px);

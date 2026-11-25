@@ -78,6 +78,7 @@ namespace Kilnwood.Game
                 case Item.Plate: return new Color(0.5f, 0.54f, 0.6f);
                 case Item.Coal: return new Color(0.09f, 0.09f, 0.1f);
                 case Item.Steel: return new Color(0.72f, 0.76f, 0.82f);
+                case Item.Wire: return new Color(0.42f, 0.44f, 0.47f);
                 default: return Color.white;
             }
         }
@@ -535,6 +536,9 @@ namespace Kilnwood.Game
                 case BuildingType.Furnace: MakeFurnace(B, s, v); break;
                 case BuildingType.Rail: break;   // track pieces come from RefreshRails
                 case BuildingType.Station: MakeStation(b, B, s, v); break;
+                case BuildingType.Dynamo: MakeDynamo(B, s, v); break;
+                case BuildingType.Pole: MakePole(v); break;
+                case BuildingType.WireMill: MakeWireMill(B, s, v); break;
                 case BuildingType.Lodge:
                 {
                     float fz = (s - 2.2f) / 2f;   // front wall
@@ -584,7 +588,7 @@ namespace Kilnwood.Game
             // Machines only smoke while they burn; the lodge (and cabins) always have a hearth going.
             if (v.Smoke != null && b.Type != BuildingType.Lodge && b.Type != BuildingType.Cabin) SetSmoke(v.Smoke, false);
             // Belts, splitters and cabins have no floating label: their shapes say what they are (click for details).
-            if (b.Type != BuildingType.Belt && b.Type != BuildingType.Splitter && b.Type != BuildingType.Cabin && b.Type != BuildingType.Shaft && b.Type != BuildingType.Rail)
+            if (b.Type != BuildingType.Belt && b.Type != BuildingType.Splitter && b.Type != BuildingType.Cabin && b.Type != BuildingType.Shaft && b.Type != BuildingType.Rail && b.Type != BuildingType.Pole)
             {
                 // One upright label per machine: name on top, status (and fuel) underneath.
                 // Neighbouring machines alternate label heights so their names don't stack on each other.
@@ -678,6 +682,8 @@ namespace Kilnwood.Game
                 case BuildingType.SteamEngine: return "STEAM ENGINE " + _w.B.Defs[b.Type].Hp + " hp";
                 case BuildingType.Furnace: return "STEEL FURNACE T";
                 case BuildingType.Station: return _w.IsYard(b) ? "STATION (lodge yard)" : "STATION";
+                case BuildingType.Dynamo: return "DYNAMO " + _w.B.Defs[b.Type].Kw + " kW";
+                case BuildingType.WireMill: return "WIRE MILL E";
                 default: return "";
             }
         }
@@ -701,7 +707,7 @@ namespace Kilnwood.Game
                 if (v.Title != null)
                 {
                     // Calm machines show only their name (fire glow shows they're busy); problems get a "!" line.
-                    string status = b.Type == BuildingType.Lodge || b.Type == BuildingType.Cabin || string.IsNullOrEmpty(b.Status) || b.Status == "Working" || b.Status.StartsWith("Full") || b.Status.StartsWith("Empty") || b.Status.StartsWith("Turning") || b.Status == "Running" || b.Status.StartsWith("Splitting") || b.Status.StartsWith("Lodge yard") || b.Status.EndsWith("waiting to load") ? "" : b.Status;
+                    string status = b.Type == BuildingType.Lodge || b.Type == BuildingType.Cabin || string.IsNullOrEmpty(b.Status) || b.Status == "Working" || b.Status.StartsWith("Full") || b.Status.StartsWith("Empty") || b.Status.StartsWith("Turning") || b.Status == "Running" || b.Status.StartsWith("Splitting") || b.Status.StartsWith("Making") || b.Status.StartsWith("Live") || b.Status.StartsWith("Lodge yard") || b.Status.EndsWith("waiting to load") ? "" : b.Status;
                     string text = TitleFor(b) + (status.Length > 0 ? "\n<size=56><color=#FFB070>! " + status + "</color></size>" : "");
                     if (v.Shown != text) { Look.SetText(v.Title, text); v.Shown = text; v.Recipe = b.Recipe; }
                 }
@@ -748,6 +754,7 @@ namespace Kilnwood.Game
             UpdateVehicles();
             UpdatePowerViews(_w.Buildings.Count != _shaftArmsCount || gone != null);
             UpdateSteamViews();
+            UpdateElectricViews(_w.GridVersion != _gridCount);
             if (_w.Buildings.Count != _railCount || gone != null) { RefreshRails(); _railCount = _w.Buildings.Count; }
             foreach (var b in _w.Buildings.Values)
                 if (b.Type == BuildingType.Hopper)
@@ -1072,6 +1079,13 @@ namespace Kilnwood.Game
                     Art.Part("Bar", t, Art.Ingot, new Vector3(0f, 0f, 0f), new Vector3(0.3f, 0.16f, 0.8f), col);
                     Art.Part("Bar", t, Art.Ingot, new Vector3(0f, 0.16f, 0f), new Vector3(0.3f, 0.16f, 0.8f), col * 1.1f, new Vector3(0f, 90f, 0f));
                     top = 0.34f;
+                    break;
+                case Item.Wire:
+                    // A coil of wire on a little wooden spool, lying on its side.
+                    Art.Cyl("Coil", t, new Vector3(0f, 0.27f, -0.2f), 0.5f, 0.4f, col, new Vector3(90f, 0f, 0f));
+                    Art.Cyl("Spool end", t, new Vector3(0f, 0.27f, -0.25f), 0.56f, 0.05f, Look.Timber * 0.8f, new Vector3(90f, 0f, 0f));
+                    Art.Cyl("Spool end", t, new Vector3(0f, 0.27f, 0.2f), 0.56f, 0.05f, Look.Timber * 0.8f, new Vector3(90f, 0f, 0f));
+                    top = 0.56f;
                     break;
                 case Item.Fish:
                     Art.Ball("Body", t, new Vector3(0f, 0.13f, 0f), new Vector3(0.28f, 0.24f, 0.62f), col);

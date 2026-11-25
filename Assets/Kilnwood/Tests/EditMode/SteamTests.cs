@@ -40,7 +40,7 @@ namespace Kilnwood.Tests
         {
             var w = MapGen.NewTier1(B);
             int n = 0; foreach (var c in w.CoalSeam) if (c) n++;
-            Assert.AreEqual(49, n);
+            Assert.AreEqual(MapGen.CoalW * MapGen.CoalH, n);
         }
 
         [Test]

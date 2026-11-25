@@ -33,6 +33,9 @@ namespace Kilnwood.Sim
         public string Status = "";
         public int NetSupply, NetDemand;   // shafts and waterwheels: their network's hp given / wanted
         public float Power = -1f;          // 0..1 share of the power it needs on its shaft network; -1 = not on a powered network
+        public float Elec = -1f;           // 0..1 share of electricity on its grid; -1 = not on a grid
+        public float GridSupply;           // poles, dynamos, electric machines: their grid's kW made
+        public int GridDemand, GridId = -1;
 
         public bool Covers(int x, int y) => x >= X && x < X + Size && y >= Y && y < Y + Size;
     }
@@ -78,6 +81,7 @@ namespace Kilnwood.Sim
         public float Tier2GoalAt { get; private set; } = -1f;
         public float Tier3GoalAt { get; private set; } = -1f;
         public float Tier4GoalAt { get; private set; } = -1f;
+        public float Tier5GoalAt { get; private set; } = -1f;
 
         public World(Balance b)
         {
@@ -384,6 +388,11 @@ namespace Kilnwood.Sim
                 Tier = 5;
                 Tier4GoalAt = Time;
             }
+            if (Tier == 5 && Delivered[Item.Wire] >= B.GoalWire)
+            {
+                Tier = 6;
+                Tier5GoalAt = Time;
+            }
         }
 
         /// <summary>Homes, who works where (in build order), and eating fish from the lodge.</summary>
@@ -524,6 +533,8 @@ namespace Kilnwood.Sim
                 case BuildingType.Hopper:   // only trucks fill hoppers
                 case BuildingType.Shaft:
                 case BuildingType.Waterwheel:
+                case BuildingType.Dynamo:
+                case BuildingType.Pole:
                     return false;
                 case BuildingType.Garage:
                     if (!Balance.IsFuel(item) || m.FuelCount >= B.GarageFuelCap) return false;
@@ -579,7 +590,10 @@ namespace Kilnwood.Sim
                 case BuildingType.Workshop:
                 case BuildingType.Sawmill:
                 case BuildingType.TripHammer:
-                case BuildingType.Furnace: StepCrafter(m, dt); break;
+                case BuildingType.Furnace:
+                case BuildingType.WireMill: StepCrafter(m, dt); break;
+                case BuildingType.Dynamo: m.Status = DynamoStatus(m); return;
+                case BuildingType.Pole: m.Status = PoleStatus(m); return;
                 case BuildingType.SteamEngine: return;   // fired and its status set in StepPower
                 case BuildingType.Waterwheel: m.Status = WheelStatus(m); return;
                 case BuildingType.Shaft: m.Status = m.Power > 0f ? "Turning" : m.Power == 0f ? "Stopped (engine out of fuel)" : "Not turning (no waterwheel or engine)"; return;

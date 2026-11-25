@@ -4,9 +4,9 @@ namespace Kilnwood.Sim
 {
     public enum Terrain { Grass, Forest, IronOre, Stone, Water }
 
-    public enum Item { None, Wood, Ore, Stone, Charcoal, Iron, Brick, Gear, Fish, Dirt, Plank, Plate, Coal, Steel }
+    public enum Item { None, Wood, Ore, Stone, Charcoal, Iron, Brick, Gear, Fish, Dirt, Plank, Plate, Coal, Steel, Wire }
 
-    public enum BuildingType { Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Lodge, Fisher, Cabin, Splitter, Garage, Hopper, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station }
+    public enum BuildingType { Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Lodge, Fisher, Cabin, Splitter, Garage, Hopper, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station, Dynamo, Pole, WireMill }
 
     public enum VehicleType { Excavator, Truck, Train }
 
@@ -51,6 +51,8 @@ namespace Kilnwood.Sim
         public int Tier = 1;                 // unlocks at this tier
         public int Hp;                       // power it needs (or, for a waterwheel, gives)
         public bool NeedsPower;              // can't run at all without power (sawmill, trip hammer)
+        public int Kw;                       // electricity it needs (or, for a dynamo, gives at full speed)
+        public bool NeedsElectric;           // runs only on an electric grid (wire mill)
         public int Page => Tier;            // build bar page
 
         public string CostText()
@@ -80,6 +82,7 @@ namespace Kilnwood.Sim
                 case Item.Plate: return "Iron plate";
                 case Item.Coal: return "Coal";
                 case Item.Steel: return "Steel";
+                case Item.Wire: return "Steel wire";
                 default: return "-";
             }
         }
@@ -102,6 +105,7 @@ namespace Kilnwood.Sim
                 case Item.Plate: return "L";
                 case Item.Coal: return "K";
                 case Item.Steel: return "T";
+                case Item.Wire: return "E";
                 default: return "";
             }
         }
@@ -186,6 +190,14 @@ namespace Kilnwood.Sim
         public int GoalRail = 400;               // items hauled to the lodge by train
         public (Item item, int count)[] TrainCost = { (Item.Steel, 20), (Item.Plate, 10), (Item.Gear, 8) };
 
+        // 0.10 Tier 5 "Electricity": dynamos on the shaft network feed a grid of timber poles.
+        public int DynamoHp = 12;                // shaft power a dynamo takes
+        public int DynamoKw = 12;                // electricity it makes at full shaft speed
+        public int PoleReach = 8;                // poles (and dynamos) link up to this many tiles apart
+        public int PoleCover = 2;                // machines this close to a pole or dynamo join its grid
+        public int WireMillKw = 8;
+        public int GoalWire = 150;               // steel wire delivered to the lodge
+
         public (Item item, int count)[] VehicleCost(VehicleType t) => t == VehicleType.Excavator ? ExcavatorCost : t == VehicleType.Train ? TrainCost : TruckCost;
 
         public readonly Dictionary<BuildingType, BuildingDef> Defs = new Dictionary<BuildingType, BuildingDef>();
@@ -267,6 +279,18 @@ namespace Kilnwood.Sim
             });
             Add(new BuildingDef { Type = BuildingType.Rail, Name = "Rail", Size = 1, Key = '1', Tier = 4, Cost = new[] { (Item.Steel, 1), (Item.Wood, 1) } });
             Add(new BuildingDef { Type = BuildingType.Station, Name = "Station", Size = 2, Key = '2', Tier = 4, Cost = new[] { (Item.Plank, 12), (Item.Brick, 10), (Item.Steel, 6) } });
+            Add(new BuildingDef
+            {
+                Type = BuildingType.Dynamo, Name = "Dynamo", Size = 2, Key = '1', Tier = 5, Hp = DynamoHp, Kw = DynamoKw,
+                Cost = new[] { (Item.Plate, 20), (Item.Gear, 10), (Item.Steel, 10) },
+            });
+            Add(new BuildingDef { Type = BuildingType.Pole, Name = "Power pole", Size = 1, Key = '2', Tier = 5, Cost = new[] { (Item.Plank, 2), (Item.Steel, 1) } });
+            Add(new BuildingDef
+            {
+                Type = BuildingType.WireMill, Name = "Wire mill", Size = 2, Key = '3', Tier = 5, Kw = WireMillKw, NeedsElectric = true,
+                Cost = new[] { (Item.Plate, 10), (Item.Brick, 10), (Item.Steel, 6) },
+                Recipes = new[] { new Recipe { Name = "Steel wire", InItems = new[] { Item.Steel }, InCounts = new[] { 1 }, Out = Item.Wire, OutCount = 2, Seconds = 2.5f } },
+            });
             Add(new BuildingDef { Type = BuildingType.Hopper, Name = "Hopper", Size = 2, Cost = new[] { (Item.Wood, 10), (Item.Stone, 6) }, Key = '8' });
         }
 

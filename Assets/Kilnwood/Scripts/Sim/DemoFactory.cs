@@ -29,13 +29,16 @@ namespace Kilnwood.Sim
         readonly bool _tier3;
 
         readonly bool _tier4;
-        public const int FieldStationX = 54, FieldStationY = 7, YardStationX = 35, YardStationY = 26;
+        readonly bool _tier5;
+        readonly int _railsEnd;
+        public const int FieldStationX = 54, FieldStationY = 7, YardStationX = 35, YardStationY = 26, DynamoX = 42, DynamoY = 20;
 
-        public DemoFactory(bool people = false, bool pit = false, bool tier2 = false, bool tier3 = false, bool tier4 = false)
+        public DemoFactory(bool people = false, bool pit = false, bool tier2 = false, bool tier3 = false, bool tier4 = false, bool tier5 = false)
         {
             _pit = pit;
             _tier3 = tier3;
             _tier4 = tier4;
+            _tier5 = tier5;
             const int N = 0, E = 1, S = 2, W = 3;
             const int Charcoal = 0, Brick = 1;
             // Phase 1: wood into the lodge (pays for everything else).
@@ -139,12 +142,25 @@ namespace Kilnwood.Sim
                 for (int y = 15; y <= 25; y++) Add(BuildingType.Rail, 35, y, S);
                 Add(BuildingType.Station, YardStationX, YardStationY, N);
             }
+            _railsEnd = _steps.Count;
+
+            // Phase 9 (0.10 Tier 5 "Electricity"): a dynamo hangs off the shaft column, poles carry the line south-west,
+            // and a wire mill drops into the steel line between the furnace and the lodge.
+            if (tier5)
+            {
+                Add(BuildingType.Dynamo, DynamoX, DynamoY, W);
+                Add(BuildingType.Pole, 40, 23, N);
+                Add(BuildingType.Pole, 37, 28, N);
+                _steps.Add(new Step { Type = BuildingType.Belt, X = 37, Y = 30, Remove = true, MinTier = 5 });
+                _steps.Add(new Step { Type = BuildingType.Belt, X = 36, Y = 30, Remove = true, MinTier = 5 });
+                Add(BuildingType.WireMill, 36, 29, W);
+            }
         }
 
         /// <summary>Rails phase: buy trains at the yard once the line is finished.</summary>
         public void RailActions(World w)
         {
-            if (!_tier4 || !Done) return;
+            if (!_tier4 || _next < _railsEnd) return;
             var yard = w.At(YardStationX, YardStationY);
             if (yard == null || yard.Type != BuildingType.Station) return;
             int want = w.Storage[Item.Steel] >= 40 ? 2 : 1;
@@ -175,7 +191,7 @@ namespace Kilnwood.Sim
                 if (left < 6)
                 {
                     w.MarkDig(45, 27, 51, 38);                                                               // ore field, next layer down
-                    w.MarkDig(MapGen.CoalX0, MapGen.CoalY0, MapGen.CoalX0 + 6, MapGen.CoalY0 + 6);           // the whole seam
+                    w.MarkDig(MapGen.CoalX0, MapGen.CoalY0, MapGen.CoalX0 + MapGen.CoalW - 1, MapGen.CoalY0 + MapGen.CoalH - 1);   // the whole seam
                 }
                 int dumpLeft = 0;
                 for (int i = 0; i < w.DumpMark.Length; i++) if (w.DumpMark[i]) dumpLeft++;

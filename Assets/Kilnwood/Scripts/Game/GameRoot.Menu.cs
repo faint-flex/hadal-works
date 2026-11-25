@@ -14,8 +14,8 @@ namespace Kilnwood.Game
     public partial class GameRoot
     {
         bool _research;
-        static readonly string[] TierNames = { "", "First Fire", "Water Power", "Steam", "Rails", "Next era" };
-        static readonly string[] PageNames = { "", "BASICS", "WATER POWER", "STEAM", "RAILS" };
+        static readonly string[] TierNames = { "", "First Fire", "Water Power", "Steam", "Rails", "Electricity", "Next era" };
+        static readonly string[] PageNames = { "", "BASICS", "WATER POWER", "STEAM", "RAILS", "ELECTRICITY" };
         List<BuildingType> _iconTypes;
         GUIStyle _tile, _tileOn, _tileLocked, _tiny, _tinyDim, _tab, _tabOn, _tabLocked, _cardTitle;
         Texture2D _barBack, _barFill, _barDone, _line;
@@ -24,7 +24,7 @@ namespace Kilnwood.Game
         {
             if (_iconTypes != null) return _iconTypes;
             _iconTypes = new List<BuildingType>();
-            for (int p = 1; p <= 4; p++)
+            for (int p = 1; p <= 5; p++)
                 foreach (var t in PageTools(p)) _iconTypes.Add(TypeOf(t));
             _iconTypes.Add(BuildingType.Splitter);
             return _iconTypes;
@@ -88,11 +88,11 @@ namespace Kilnwood.Game
         {
             MenuStyles();
             const float tileW = 104f, tileH = 112f, gap = 5f;
-            int pages = 4;
+            int pages = 5;
             var bar = Panel(new Rect(Wd / 2f - 715f, Ht - 162f, 1430f, 152f));
 
             // Tabs: one per tier page; locked ones say which tier opens them.
-            float tabW = 262f;
+            float tabW = 246f;
             for (int p = 1; p <= pages; p++)
             {
                 bool open = W.Tier >= p;
@@ -232,6 +232,9 @@ namespace Kilnwood.Game
                 case BuildingType.Waterwheel: return "Must touch the river. Always turning.";
                 case BuildingType.Station: return "Beside the track. Near the lodge it unloads into the lodge. Click it to buy a train.";
                 case BuildingType.Rail: return "Drag a line of track. Trucks can cross it.";
+                case BuildingType.Dynamo: return "Touch it to a line shaft. Turns shaft power into electricity.";
+                case BuildingType.Pole: return "Carries electricity. Poles link up to 8 tiles apart; machines 2 tiles away join.";
+                case BuildingType.WireMill: return "Electric. Draws steel into wire. Needs a pole close by.";
                 default: return null;
             }
         }
@@ -246,6 +249,7 @@ namespace Kilnwood.Game
                 case 2: return new[] { ("planks", Item.Plank, W.Delivered[Item.Plank], B.GoalPlank), ("iron plates", Item.Plate, W.Delivered[Item.Plate], B.GoalPlate) };
                 case 3: return new[] { ("steel", Item.Steel, W.Delivered[Item.Steel], B.GoalSteel), ("coal", Item.Coal, W.Delivered[Item.Coal], B.GoalCoal) };
                 case 4: return new[] { ("hauled by train", Item.None, W.RailHauled, B.GoalRail) };
+                case 5: return new[] { ("steel wire", Item.Wire, W.Delivered[Item.Wire], B.GoalWire) };
                 default: return new (string, Item, int, int)[0];
             }
         }
@@ -257,6 +261,7 @@ namespace Kilnwood.Game
             "A waterwheel turns line shafts that power a sawmill and a trip hammer.",
             "Dig the coal seam. A steam engine and a steel furnace.",
             "Track, stations and trains haul from the far ore field.",
+            "Dynamos on the shafts, power poles, and an electric wire mill.",
             "Coming in a later build.",
         };
 
@@ -267,8 +272,8 @@ namespace Kilnwood.Game
             GUI.Label(new Rect(p.x + 20f, p.y + 10f, 700f, 34f), "<b>Research</b>   reach each tier's goal to unlock the next", _h2);
             if (GUI.Button(new Rect(p.xMax - 130f, p.y + 10f, 116f, 34f), "Close (T)", _btn)) _research = false;
 
-            const int tiers = 5;
-            float nodeW = 272f, gapX = 28f, top = p.y + 60f, nodeH = p.height - 76f;
+            const int tiers = 6;
+            float nodeW = 230f, gapX = 20f, top = p.y + 60f, nodeH = p.height - 76f;
             for (int n = 1; n <= tiers; n++)
             {
                 float nx = p.x + 20f + (n - 1) * (nodeW + gapX);
@@ -290,7 +295,7 @@ namespace Kilnwood.Game
                 // Unlocks: building pictures with names.
                 float uy = top + 118f;
                 var unlocks = new List<BuildingType>();
-                if (n <= 4) foreach (var t in PageTools(n)) unlocks.Add(TypeOf(t));
+                if (n <= 5) foreach (var t in PageTools(n)) unlocks.Add(TypeOf(t));
                 if (n == 1) unlocks.Add(BuildingType.Splitter);
                 if (unlocks.Count > 0) GUI.Label(new Rect(nx + 12f, uy, nodeW - 24f, 22f), "Unlocks", _tinyDim);
                 uy += 22f;
@@ -298,13 +303,13 @@ namespace Kilnwood.Game
                 foreach (var bt in unlocks)
                 {
                     var icon = View != null ? View.IconIfReady(bt) : null;
-                    var cell = new Rect(ux + col * 64f, uy, 62f, 62f);
-                    if (icon != null) GUI.DrawTexture(new Rect(cell.x + 6f, cell.y, 50f, 50f), icon, ScaleMode.ScaleToFit, true);
-                    GUI.Label(new Rect(cell.x - 2f, cell.y + 46f, 66f, 34f), "<size=11>" + B.Defs[bt].Name + "</size>", locked ? _tinyDim : _tiny);
+                    var cell = new Rect(ux + col * 72f, uy, 70f, 62f);
+                    if (icon != null) GUI.DrawTexture(new Rect(cell.x + 10f, cell.y, 50f, 50f), icon, ScaleMode.ScaleToFit, true);
+                    GUI.Label(new Rect(cell.x - 1f, cell.y + 46f, 72f, 34f), "<size=11>" + B.Defs[bt].Name + "</size>", locked ? _tinyDim : _tiny);
                     col++;
-                    if (col == 4) { col = 0; uy += 84f; }
+                    if (col == 3) { col = 0; uy += 80f; }
                 }
-                if (col > 0) uy += 84f;
+                if (col > 0) uy += 80f;
                 if (n == 1) { GUI.Label(new Rect(nx + 12f, uy, nodeW - 24f, 20f), "+ excavators and trucks (at the garage)", _tiny); uy += 22f; }
                 if (n == 4) { GUI.Label(new Rect(nx + 12f, uy, nodeW - 24f, 20f), "+ trains (at a station)", _tiny); uy += 22f; }
 

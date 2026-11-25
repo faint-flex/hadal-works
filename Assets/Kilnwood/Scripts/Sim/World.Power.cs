@@ -38,6 +38,7 @@ namespace Kilnwood.Sim
         void RebuildPower()
         {
             _powerDirty = false;
+            RebuildGrids();
             _nets.Clear();
             foreach (var b in Buildings.Values) { b.Power = -1f; b.NetSupply = b.NetDemand = 0; }
             _seen.Clear();
@@ -86,6 +87,7 @@ namespace Kilnwood.Sim
                 foreach (var p in net.Parts) { p.NetSupply = supply; p.NetDemand = net.Demand; p.Power = share; }
                 foreach (var m in net.Machines) m.Power = share;
             }
+            StepGrids();
         }
 
         /// <summary>Power or fuel for dt seconds of work. Powered machines run at their network's share (no fuel);
@@ -93,6 +95,12 @@ namespace Kilnwood.Sim
         bool Run(Building m, ref float dt, bool burnsFuel)
         {
             var def = B.Defs[m.Type];
+            if (def.NeedsElectric)
+            {
+                if (m.Elec <= 0f) { m.Status = m.Elec == 0f ? "No electricity: dynamo not turning" : "No electricity: needs a power pole within " + B.PoleCover + " tiles"; return false; }
+                dt *= m.Elec;
+                return true;
+            }
             if (def.NeedsPower)
             {
                 if (m.Power <= 0f) { m.Status = m.Power == 0f ? "No power: engine out of fuel" : "No power: needs a shaft"; return false; }
@@ -106,6 +114,11 @@ namespace Kilnwood.Sim
 
         void SetWorking(Building m)
         {
+            if (B.Defs[m.Type].NeedsElectric)
+            {
+                m.Status = m.Elec < 0.995f ? "Low electricity " + (int)Math.Round(m.Elec * 100f) + "%" : "Working";
+                return;
+            }
             m.Status = m.Power > 0f && m.Power < 0.995f && B.Defs[m.Type].Hp > 0
                 ? "Low power " + (int)Math.Round(m.Power * 100f) + "%"
                 : "Working";
