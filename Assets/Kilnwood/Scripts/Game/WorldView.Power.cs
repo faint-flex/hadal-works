@@ -97,18 +97,20 @@ namespace Kilnwood.Game
             Art.Cube("House", f, new Vector3(0f, 1.75f, -0.75f), new Vector3(s - 0.9f, 2.1f, 1.9f), timber);
             Art.RoofAt("Roof", f, new Vector3(0f, 2.8f, -0.75f), s - 0.5f, 2.4f, 1.0f, Look.Roof, 90f);
             Art.Cube("Door", f, new Vector3(-0.6f, 1.4f, -1.72f), new Vector3(0.7f, 1.3f, 0.05f), Look.Roof);
-            // Wheel: axle along x, centre out over the water.
+            // Wheel: it stands in the river beside the bank with its face along the current, the axle running
+            // from the house out over the water, so the flow pushes the bottom paddles downstream.
             const float R = 1.8f;
-            var hub = new Vector3(0f, 1.25f, s / 2f + 1.5f);
-            for (int side = -1; side <= 1; side += 2)
-            {
-                Art.Cube("Wheel post", f, new Vector3(side * 1.05f, 0.35f, hub.z), new Vector3(0.24f, 2.2f, 0.24f), timber * 0.8f);
-                Art.Cube("Post beam", f, new Vector3(side * 1.05f, 1.05f, (hub.z + s / 2f) / 2f), new Vector3(0.2f, 0.2f, hub.z - s / 2f + 0.3f), timber * 0.8f);
-            }
-            Art.Log("Axle", f, hub, 2.6f, 0.22f, Look.Iron);
+            var hub = new Vector3(0f, 1.25f, s / 2f + 1.05f);
+            var mount = new GameObject("Wheel mount").transform;
+            mount.SetParent(f, false);
+            mount.localPosition = hub;
+            mount.localRotation = Quaternion.Euler(0f, 90f, 0f);   // wheel-local x (the axle) now points at the water
+            Art.Cube("Outer post", f, new Vector3(-R - 0.2f, 0.35f, hub.z + 0.95f), new Vector3(0.24f, 2.2f, 0.24f), timber * 0.8f);
+            Art.Cube("Outer post 2", f, new Vector3(R + 0.2f, 0.35f, hub.z + 0.95f), new Vector3(0.24f, 2.2f, 0.24f), timber * 0.8f);
+            Art.Cube("Outer beam", f, new Vector3(0f, 1.25f, hub.z + 0.95f), new Vector3(2f * R + 0.6f, 0.2f, 0.2f), timber * 0.8f);
+            Art.Log("Axle", f, new Vector3(0f, 1.25f, (s / 2f - 0.4f + hub.z + 1.0f) / 2f), hub.z + 1.0f - (s / 2f - 0.4f), 0.22f, Look.Iron, 90f);
             var wheel = new GameObject("Wheel").transform;
-            wheel.SetParent(f, false);
-            wheel.localPosition = hub;
+            wheel.SetParent(mount, false);
             const int paddles = 16;
             for (int i = 0; i < paddles; i++)
             {
@@ -126,7 +128,7 @@ namespace Kilnwood.Game
             Art.Cyl("Hub", wheel, new Vector3(0.8f, 0f, 0f), 0.55f, 1.6f, timber * 0.7f, new Vector3(0f, 0f, 90f));
             v.Anim = wheel;
             // Splash where the paddles meet the river.
-            var splash = Art.Smoke(f, new Vector3(0f, -0.2f, hub.z + 0.9f), 0.5f);
+            var splash = Art.Smoke(f, new Vector3(0f, -0.2f, hub.z), 0.5f);
             var main = splash.main;
             main.startColor = new Color(0.85f, 0.92f, 1f, 0.5f);
             main.startSizeMultiplier = 0.6f;
@@ -213,7 +215,10 @@ namespace Kilnwood.Game
                     case BuildingType.Waterwheel:
                         // Always turning with the river; a little slower when the load is heavy.
                         float load = b.NetSupply > 0 ? Mathf.Clamp01(b.NetDemand / (float)b.NetSupply) : 0f;
-                        v.AnimAngle -= dt * (40f - 12f * load);
+                        // Turn so the bottom paddles move downstream (the river flows south, world -z).
+                        var axle = v.Anim.parent.TransformDirection(Vector3.right);
+                        float with = Vector3.Dot(-Vector3.Cross(axle, Vector3.down), Vector3.back) >= 0f ? 1f : -1f;
+                        v.AnimAngle -= dt * (40f - 12f * load) * with;
                         v.Anim.localRotation = Quaternion.Euler(v.AnimAngle, 0f, 0f);
                         break;
                     case BuildingType.Shaft:

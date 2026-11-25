@@ -10,7 +10,7 @@ namespace Kilnwood.Game
     /// The game loop and gray-box UI. Creates itself in any scene (the build has one empty scene).
     /// IMGUI is temporary; the UI Builder replaces it in the art pass.
     /// </summary>
-    public class GameRoot : MonoBehaviour
+    public partial class GameRoot : MonoBehaviour
     {
         enum State { Title, Playing }
         enum Tool { Select, Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Fisher, Cabin, Splitter, Garage, Hopper, Dig, Dump, Demolish, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station }
@@ -139,12 +139,15 @@ namespace Kilnwood.Game
             _uiRectsLast.Clear();
             _uiRectsLast.AddRange(_uiRects);
 
-            if (_shotsDir != null) { UpdateShots(); return; }
+            if (_shotsDir != null) { WarmIcons(); UpdateShots(); return; }
             if (_state != State.Playing) return;
 
+            WarmIcons();
+            if (GameInput.Down(GameKey.T) && !_menu) _research = !_research;
             if (GameInput.Down(GameKey.Escape))
             {
-                if (_tool != Tool.Select || _dragging) { _tool = Tool.Select; _dragging = false; }
+                if (_research) _research = false;
+                else if (_tool != Tool.Select || _dragging) { _tool = Tool.Select; _dragging = false; }
                 else _menu = !_menu;
             }
             Rig.InputEnabled = !_menu && !_goalPanel;
@@ -542,6 +545,14 @@ namespace Kilnwood.Game
             yield return null;
             yield return new WaitForEndOfFrame();
             ScreenCapture.CaptureScreenshot(Path.Combine(_shotsDir, "29-final.png"));
+            // The research panel over the finished valley.
+            yield return null;
+            _research = true;
+            yield return null;
+            yield return new WaitForEndOfFrame();
+            ScreenCapture.CaptureScreenshot(Path.Combine(_shotsDir, "28-research.png"));
+            yield return null;
+            _research = false;
             var sb = new StringBuilder();
             sb.AppendLine("goal reached: " + W.GoalReached + " at " + W.GoalReachedAt.ToString("0") + " s game time");
             sb.AppendLine("tier " + W.Tier + (W.Tier >= 3 ? ", tier 2 goal at " + W.Tier2GoalAt.ToString("0") + " s" : ", tier 2 goal NOT reached") +
@@ -615,11 +626,12 @@ namespace Kilnwood.Game
             if (_state == State.Title && _shotsDir == null) { DrawTitle(Wd, Ht); return; }
             DrawHud(Wd, Ht);
             if (_menu) DrawMenu(Wd, Ht);
+            if (_research) DrawResearch(Wd, Ht);
             if (_goalPanel && _shotsDir == null) DrawGoal(Wd, Ht);
 
             if (_toast != null && Time.unscaledTime < _toastUntil)
             {
-                var r = new Rect(Wd / 2f - 420f, Ht - 200f, 840f, 48f);
+                var r = new Rect(Wd / 2f - 420f, Ht - 250f, 840f, 48f);
                 GUI.Box(r, GUIContent.none, _panel);
                 GUI.Label(r, _toast, _toastStyle);
             }
@@ -678,10 +690,10 @@ namespace Kilnwood.Game
                 if (GUI.Button(new Rect(bx + 224f, top.y + 9f, 105f, 40f), "Menu", _btn)) _menu = true;
             }
 
-            DrawBuildBar(Wd, Ht);
+            DrawBuildMenu(Wd, Ht);
             if (_selected >= 0 && W.Buildings.TryGetValue(_selected, out var b)) DrawBuildingPanel(b, Wd, Ht);
 
-            var hint = _tool == Tool.Select ? "Click a building to inspect it.  1-8 build, 9 splitter" + (W.Tier >= 2 ? ", Tab next build page" : "") + "  ·  G dig  ·  V dump  ·  X demolish  ·  Space pause  ·  F fast  ·  WASD/edge pan  ·  scroll zoom  ·  Q/E rotate view"
+            var hint = _tool == Tool.Select ? "Click a building to inspect it.  1-8 build, 9 splitter" + (W.Tier >= 2 ? ", Tab next build page" : "") + ", T research" + "  ·  G dig  ·  V dump  ·  X demolish  ·  Space pause  ·  F fast  ·  WASD/edge pan  ·  scroll zoom  ·  Q/E rotate view"
                 : _tool == Tool.Demolish ? "DEMOLISH: click to remove (full refund). Hold and drag over belts. Right click or Esc to stop."
                 : _tool == Tool.Dig ? "DIG: drag over ore, stone or grass. Excavators dig it layer by layer; trucks carry it off. Hold Shift while dragging to clear marks."
                 : _tool == Tool.Dump ? "DUMP: drag an area where trucks may drop dirt (raises the ground up to 2 levels). Hold Shift to clear marks."
@@ -695,45 +707,9 @@ namespace Kilnwood.Game
                 : "Click to place  ·  R turns it (the yellow side is the output)  ·  right click to stop.";
             // Help line sits on its own dark strip so it reads over bright ground.
             float hintW = Mathf.Min(Wd - 20f, _small.CalcSize(new GUIContent(hint)).x + 24f);
-            GUI.Box(new Rect(Wd / 2f - hintW / 2f, Ht - 132f, hintW, 30f), GUIContent.none, _panel);
-            GUI.Label(new Rect(Wd / 2f - hintW / 2f + 12f, Ht - 128f, hintW - 16f, 24f), hint, _small);
+            GUI.Box(new Rect(Wd / 2f - hintW / 2f, Ht - 196f, hintW, 30f), GUIContent.none, _panel);
+            GUI.Label(new Rect(Wd / 2f - hintW / 2f + 12f, Ht - 192f, hintW - 16f, 24f), hint, _small);
             if (_paused) GUI.Label(new Rect(Wd / 2f - 60f, 80f, 200f, 30f), "<b>PAUSED</b>", _body);
-        }
-
-        void DrawBuildBar(float Wd, float Ht)
-        {
-            var bar = Panel(new Rect(Wd / 2f - 715f, Ht - 100f, 1430f, 90f));
-            // Page switch on the left: the second page is the Tier 2 water power buildings.
-            string pageLabel = "Tab  page " + _page + "/" + Mathf.Clamp(W.Tier, 1, 4) + "\n" + (_page == 1 ? "Tier 1" : _page == 2 ? "Water power" : _page == 3 ? "Steam" : "Rails") + (W.Tier < 2 ? "\n(Tier 2 locked)" : "");
-            if (GUI.Button(new Rect(bar.x + 8f, bar.y + 8f, 110f, 74f), pageLabel, W.Tier >= 2 ? _btnSmallOn : _btnSmall)) SwitchPage();
-            var list = new List<Tool>(PageTools(_page));
-            if (_page == 1) list.Add(Tool.Splitter);
-            if (!B.PeopleEnabled) { list.Add(Tool.Dig); list.Add(Tool.Dump); }
-            list.Add(Tool.Demolish);
-            var tools = list.ToArray();
-            float x0 = bar.x + 122f;
-            float w = (bar.width - 130f) / 12f - 4f;
-            for (int i = 0; i < tools.Length; i++)
-            {
-                var t = tools[i];
-                string label;
-                if (t == Tool.Demolish) label = "X  Demolish\nfull refund";
-                else if (t == Tool.Dig) label = "G  Dig\ndrag an area";
-                else if (t == Tool.Dump) label = "V  Dump\ndirt goes here";
-                else
-                {
-                    var d = B.Defs[TypeOf(t)];
-                    var cost = new StringBuilder();
-                    foreach (var c in d.Cost) cost.Append(cost.Length > 0 ? " + " : "").Append(c.count).Append(' ').Append(Items.Letter(c.item));
-                    bool fuel = d.BurnsFuel || System.Array.Exists(d.Recipes, rc => rc.BurnsFuel);
-                    string key = t == Tool.Splitter ? "9" : (System.Array.IndexOf(PageTools(_page), t) + 1).ToString();
-                    string power = t == Tool.Waterwheel ? " · gives " + d.Hp + " hp" : d.NeedsPower ? " · " + d.Hp + " hp" : "";
-                    label = (d.Tier > W.Tier ? "LOCKED  " : key + "  ") + d.Name + "\n" + cost + (fuel ? " · fuel" : "") + power +
-                            (!B.PeopleEnabled ? "" : d.Workers > 0 ? "\n" + d.Workers + (d.Workers == 1 ? " worker" : " workers") : d.Homes > 0 ? "\nhomes " + d.Homes : "");
-                }
-                if (GUI.Button(new Rect(x0 + i * (w + 4f), bar.y + 8f, w, 74f), (_tool == t ? "> " : "") + label, _tool == t ? _btnSmallOn : _btnSmall))
-                    SetTool(_tool == t ? Tool.Select : t);
-            }
         }
 
         void DrawBuildingPanel(Building b, float Wd, float Ht)
