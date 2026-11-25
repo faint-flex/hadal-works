@@ -14,8 +14,8 @@ namespace Kilnwood.Game
     public partial class GameRoot
     {
         bool _research;
-        static readonly string[] TierNames = { "", "First Fire", "Water Power", "Steam", "Rails", "Electricity", "Machine Age", "Assembly Line", "Flight", "Next era" };
-        static readonly string[] PageNames = { "", "BASICS", "WATER POWER", "STEAM", "RAILS", "ELECTRICITY", "MACHINES", "ASSEMBLY", "FLIGHT" };
+        static readonly string[] TierNames = { "", "First Fire", "Water Power", "Steam", "Rails", "Electricity", "Machine Age", "Assembly Line", "Flight", "Airwaves", "Next era" };
+        static readonly string[] PageNames = { "", "BASICS", "WATER POWER", "STEAM", "RAILS", "ELECTRICITY", "MACHINES", "ASSEMBLY", "FLIGHT", "AIRWAVES" };
         List<BuildingType> _iconTypes;
         GUIStyle _tile, _tileOn, _tileLocked, _tiny, _tinyDim, _tab, _tabOn, _tabLocked, _cardTitle;
         Texture2D _barBack, _barFill, _barDone, _line;
@@ -88,7 +88,7 @@ namespace Kilnwood.Game
         {
             MenuStyles();
             const float tileW = 104f, tileH = 112f, gap = 5f;
-            int pages = 8;
+            int pages = 9;
             float bw = Mathf.Min(1800f, Wd - 40f);
             var bar = Panel(new Rect(Wd / 2f - bw / 2f, Ht - 162f, bw, 152f));
 
@@ -101,6 +101,7 @@ namespace Kilnwood.Game
                 string label = open ? (_page == p ? "> " : "") + PageNames[p] : "LOCKED: " + PageNames[p] + " (T" + p + ")";
                 var tabStyle = !open ? _tabLocked : _page == p ? _tabOn : _tab;
                 if (tabStyle.CalcSize(new GUIContent(label)).x > tabW - 6f) label = "<size=12>" + label + "</size>";   // long locked names still fit
+                if (tabStyle.CalcSize(new GUIContent(label)).x > tabW - 6f) label = label.Replace("<size=12>", "<size=11>").Replace("LOCKED: ", "");
                 if (GUI.Button(r, label, tabStyle))
                 {
                     if (open) { _page = p; SetTool(Tool.Select); }
@@ -245,6 +246,9 @@ namespace Kilnwood.Game
                 case BuildingType.Assembly: return "Electric. Builds tractors from motors and steel.";
                 case BuildingType.RollingMill: return "Electric. Rolls 1 steel into 2 iron plates.";
                 case BuildingType.Hangar: return "Electric. Builds aeroplanes from motors and plates. They fly off its front.";
+                case BuildingType.HydroDam: return "Sits on the river bank. Electricity all day and night, no fuel.";
+                case BuildingType.Glassworks: return "Electric. Melts stone into glass.";
+                case BuildingType.RadioWorks: return "Electric. Builds radio sets from glass valves and a wooden cabinet.";
                 default: return null;
             }
         }
@@ -263,35 +267,37 @@ namespace Kilnwood.Game
                 case 6: return new[] { ("motors", Item.Motor, W.Delivered[Item.Motor], B.GoalMotor) };
                 case 7: return new[] { ("tractors", Item.Tractor, W.Delivered[Item.Tractor], B.GoalTractor) };
                 case 8: return new[] { ("aeroplanes flown", Item.Plane, W.Delivered[Item.Plane], B.GoalPlane) };
+                case 9: return new[] { ("radio sets", Item.Radio, W.Delivered[Item.Radio], B.GoalRadio) };
                 default: return new (string, Item, int, int)[0];
             }
         }
 
         GUIStyle _cardTitleOneLine;
 
-        /// <summary>"Tier n  Name" on one line: the name steps down a font size at a time until it fits the column.</summary>
-        string FitTitle(int n, float width)
+        /// <summary>The tier's name on its own line: steps down a font size at a time until it fits with a margin.</summary>
+        string FitName(int n, float width)
         {
             if (_cardTitleOneLine == null) _cardTitleOneLine = new GUIStyle(_cardTitle) { wordWrap = false, clipping = TextClipping.Clip };
-            foreach (int size in new[] { 20, 17, 15, 13, 12 })
+            foreach (int size in new[] { 18, 16, 15, 14, 13, 12, 11 })
             {
-                string t = "<b>Tier " + n + "</b>  " + (size == 20 ? TierNames[n] : "<size=" + size + ">" + TierNames[n] + "</size>");
-                if (_cardTitleOneLine.CalcSize(new GUIContent(t)).x <= width) return t;
+                string t = "<size=" + size + ">" + TierNames[n] + "</size>";
+                if (_cardTitleOneLine.CalcSize(new GUIContent(t)).x <= width - 8f) return t;
             }
-            return "<b>Tier " + n + "</b>  <size=12>" + TierNames[n] + "</size>";
+            return "<size=11>" + TierNames[n] + "</size>";
         }
 
         static readonly string[] TierBlurb =
         {
             "",
-            "Wood, stone and ore. Charcoal kilns, smelters and a workshop. Excavators and trucks.",
+            "Wood, stone and ore: kilns, smelters and a workshop.",
             "A waterwheel turns line shafts that power a sawmill and a trip hammer.",
             "Dig the coal seam. A steam engine and a steel furnace.",
             "Track, stations and trains haul from the far ore field.",
             "Dynamos on the shafts, power poles, and an electric wire mill.",
             "Electric mines and a machine shop that builds motors.",
             "A steam turbine, an electric furnace, and an assembly plant that builds tractors.",
-            "A rolling mill for plates and a hangar whose aeroplanes fly. The pit can dig deeper.",
+            "A rolling mill and a hangar whose aeroplanes fly. Deeper pit.",
+            "A hydro dam on the river, a glassworks and a radio works.",
             "Coming in a later build.",
         };
 
@@ -303,8 +309,8 @@ namespace Kilnwood.Game
             GUI.Label(new Rect(p.x + 20f, p.y + 10f, 700f, 34f), "<b>Research</b>   reach each tier's goal to unlock the next", _h2);
             if (GUI.Button(new Rect(p.xMax - 130f, p.y + 10f, 116f, 34f), "Close (T)", _btn)) _research = false;
 
-            const int tiers = 9;
-            float gapX = 16f, nodeW = Mathf.Floor((pw - 40f - (tiers - 1) * gapX) / tiers), top = p.y + 60f, nodeH = p.height - 76f;
+            const int tiers = 10;
+            float gapX = 12f, nodeW = Mathf.Floor((pw - 40f - (tiers - 1) * gapX) / tiers), top = p.y + 60f, nodeH = p.height - 76f;
             for (int n = 1; n <= tiers; n++)
             {
                 float nx = p.x + 20f + (n - 1) * (nodeW + gapX);
@@ -318,15 +324,20 @@ namespace Kilnwood.Game
                     GUI.DrawTexture(new Rect(node.xMax + 2f, top + 40f, gapX - 8f, 3f), _line);
                     GUI.Label(new Rect(node.xMax + gapX - 18f, top + 26f, 24f, 28f), ">", _cardTitle);
                 }
+                // "Tier n" and its state on the first line, the tier's name under it, then the blurb.
                 string state = done ? "DONE" : now ? "NOW" : "LOCKED";
-                GUI.Label(new Rect(nx + 12f, top + 8f, nodeW - 24f, 30f), FitTitle(n, nodeW - 24f), _cardTitleOneLine);
-                GUI.Label(new Rect(nx + 12f, top + 38f, nodeW - 24f, 22f), state, now ? _btnSmallOn : _tiny);
-                GUI.Label(new Rect(nx + 12f, top + 60f, nodeW - 24f, 54f), TierBlurb[n], locked ? _tinyDim : _tiny);
+                GUI.Label(new Rect(nx + 12f, top + 6f, nodeW - 24f, 30f), "<b>Tier " + n + "</b>", _cardTitleOneLine ?? _cardTitle);
+                GUI.Label(new Rect(node.xMax - 12f - 66f, top + 10f, 66f, 22f), state, now ? _btnSmallOn : _tiny);
+                GUI.Label(new Rect(nx + 12f, top + 34f, nodeW - 24f, 26f), FitName(n, nodeW - 24f), _cardTitleOneLine);
+                string blurb = "<size=12>" + TierBlurb[n] + "</size>";
+                var blurbStyle = locked ? _tinyDim : _tiny;
+                float blurbH = blurbStyle.CalcHeight(new GUIContent(blurb), nodeW - 24f);
+                GUI.Label(new Rect(nx + 12f, top + 62f, nodeW - 24f, blurbH + 2f), blurb, blurbStyle);
 
-                // Unlocks: building pictures with names.
-                float uy = top + 118f;
+                // Unlocks: building pictures with names, always below the blurb.
+                float uy = Mathf.Max(top + 118f, top + 62f + blurbH + 8f);
                 var unlocks = new List<BuildingType>();
-                if (n <= 8) foreach (var t in PageTools(n)) unlocks.Add(TypeOf(t));
+                if (n <= 9) foreach (var t in PageTools(n)) unlocks.Add(TypeOf(t));
                 if (n == 1) unlocks.Add(BuildingType.Splitter);
                 if (unlocks.Count > 0) GUI.Label(new Rect(nx + 12f, uy, nodeW - 24f, 22f), "Unlocks", _tinyDim);
                 uy += 22f;
@@ -337,11 +348,11 @@ namespace Kilnwood.Game
                     float cw = Mathf.Min(66f, Mathf.Floor((nodeW - 14f) / 3f)), isz = cw - 16f;
                     var cell = new Rect(ux + col * cw, uy, cw - 2f, 62f);
                     if (icon != null) GUI.DrawTexture(new Rect(cell.x + (cw - isz) / 2f, cell.y, isz, isz), icon, ScaleMode.ScaleToFit, true);
-                    GUI.Label(new Rect(cell.x + 1f, cell.y + 46f, cw - 4f, 34f), "<size=" + (cw < 64f ? 10 : 11) + ">" + B.Defs[bt].Name + "</size>", locked ? _tinyDim : _tiny);
+                    GUI.Label(new Rect(cell.x + 1f, cell.y + isz + 2f, cw - 4f, 34f), "<size=" + (cw < 64f ? 10 : 11) + ">" + B.Defs[bt].Name + "</size>", locked ? _tinyDim : _tiny);
                     col++;
-                    if (col == 3) { col = 0; uy += 80f; }
+                    if (col == 3) { col = 0; uy += isz + 38f; }
                 }
-                if (col > 0) uy += 80f;
+                if (col > 0) uy += Mathf.Min(66f, Mathf.Floor((nodeW - 14f) / 3f)) + 22f;
                 if (n == 1) { GUI.Label(new Rect(nx + 12f, uy, nodeW - 24f, 20f), "+ excavators and trucks (at the garage)", _tiny); uy += 22f; }
                 if (n == 4) { GUI.Label(new Rect(nx + 12f, uy, nodeW - 24f, 20f), "+ trains (at a station)", _tiny); uy += 22f; }
 

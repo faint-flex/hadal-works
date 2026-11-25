@@ -87,6 +87,9 @@ public static class Program
             case BuildingType.SteamEngine: return "X";
             case BuildingType.Furnace: return "F";
             case BuildingType.ElectricMine: return "Z";
+            case BuildingType.HydroDam: return "D";
+            case BuildingType.Glassworks: return "g";
+            case BuildingType.RadioWorks: return "r";
             default: return t.ToString().Substring(0, 1);
         }
     }
@@ -99,10 +102,10 @@ public static class Program
             var rng = new Random(seed);
             var b = new Balance();
             var w = MapGen.NewTier1(b);
-            var demo = new DemoFactory(false, true, tier2: true, tier3: true, tier4: true, tier5: true, tier6: true, tier7: true, tier8: true);
+            var demo = new DemoFactory(false, true, tier2: true, tier3: true, tier4: true, tier5: true, tier6: true, tier7: true, tier8: true, tier9: true);
             bool gift = false, gift3 = false;
             int samples = 0, crowded = 0, onBelt = 0; float nextCrowd = 0f;
-            while (w.Time < 9000f && w.Tier < 9)
+            while (w.Time < 9000f && w.Tier < 10)
             {
                 demo.BuildWhatYouCan(w);
                 demo.PitActions(w);
@@ -115,16 +118,16 @@ public static class Program
             }
             if (Environment.GetEnvironmentVariable("BELTDBG") != null)
                 for (int y = w.H - 1; y >= 0; y--) { var line = y.ToString("00") + " "; for (int x = 0; x < w.W; x++) { var bb = w.AtOrShaft(x, y); var gt = w.Ground[y * w.W + x]; line += bb != null ? MapChar(bb.Type) : gt == Terrain.Water ? "~" : gt == Terrain.IronOre ? "o" : gt == Terrain.Stone ? "s" : w.CoalSeam[y * w.W + x] ? "k" : w.Units[y * w.W + x] < 0 ? "_" : w.Logs[y * w.W + x] > 0 ? "t" : "."; } Console.WriteLine(line); }
-            if (w.Tier < 9) { fails++; Console.WriteLine($"seed {seed}: demo stuck on {demo.Waiting(w)}"); }
+            if (w.Tier < 10) { fails++; Console.WriteLine($"seed {seed}: demo stuck on {demo.Waiting(w)}"); }
             Console.WriteLine($"seed {seed}: pit vehicles crowded (two parked on one tile / excavators touching) in {crowded} of {samples} samples, truck stopped on a belt in {onBelt}");
-            Console.Write($"seed {seed}: T1 {w.GoalReachedAt:0}  T2 {w.Tier2GoalAt:0}  T3 {w.Tier3GoalAt:0}  T4 {w.Tier4GoalAt:0}  T5 {w.Tier5GoalAt:0} wire {w.Delivered[Item.Wire]}  T6 {w.Tier6GoalAt:0} motor {w.Delivered[Item.Motor]}  T7 {w.Tier7GoalAt:0} tractor {w.Delivered[Item.Tractor]}  T8 {w.Tier8GoalAt:0} plane {w.Delivered[Item.Plane]} rail {w.RailHauled}  steel {w.Delivered[Item.Steel]} coal {w.Delivered[Item.Coal]} ore {w.Delivered[Item.Ore]} |");
+            Console.Write($"seed {seed}: T1 {w.GoalReachedAt:0}  T2 {w.Tier2GoalAt:0}  T3 {w.Tier3GoalAt:0}  T4 {w.Tier4GoalAt:0}  T5 {w.Tier5GoalAt:0} wire {w.Delivered[Item.Wire]}  T6 {w.Tier6GoalAt:0} motor {w.Delivered[Item.Motor]}  T7 {w.Tier7GoalAt:0} tractor {w.Delivered[Item.Tractor]}  T8 {w.Tier8GoalAt:0} plane {w.Delivered[Item.Plane]}  T9 {w.Tier9GoalAt:0} radio {w.Delivered[Item.Radio]} rail {w.RailHauled}  steel {w.Delivered[Item.Steel]} coal {w.Delivered[Item.Coal]} ore {w.Delivered[Item.Ore]} |");
             foreach (var v in w.Vehicles) Console.Write($" {v.Type} '{v.Status}';");
             Console.WriteLine();
             foreach (var bd in w.Buildings.Values)
                 if (w.Tier < 4 && (bd.Type == BuildingType.Furnace || bd.Type == BuildingType.Hopper || bd.Type == BuildingType.Smelter || bd.Type == BuildingType.TripHammer))
                     Console.WriteLine($"    {bd.Type} {bd.X},{bd.Y} f{bd.Facing}: {bd.Status}  in [{string.Join(",", System.Linq.Enumerable.Select(bd.Input, kv => kv.Key + "=" + kv.Value))}]" + (bd.Type == BuildingType.Hopper ? $" wantsOre {w.HopperWants(bd, Item.Ore)} wantsCoal {w.HopperWants(bd, Item.Coal)}" : ""));
         }
-        Console.WriteLine(fails == 0 ? "all seeds reached Tier 9 (aeroplane goal)" : fails + " seeds did NOT reach Tier 9");
+        Console.WriteLine(fails == 0 ? "all seeds reached Tier 10 (radio goal)" : fails + " seeds did NOT reach Tier 10");
         return fails == 0 ? 0 : 1;
     }
 
@@ -133,11 +136,11 @@ public static class Program
     {
         var b = new Balance();
         var w = MapGen.NewTier1(b);
-        var demo = new DemoFactory(false, true, tier2: true, tier3: true, tier4: true, tier5: true, tier6: true, tier7: true, tier8: true);
+        var demo = new DemoFactory(false, true, tier2: true, tier3: true, tier4: true, tier5: true, tier6: true, tier7: true, tier8: true, tier9: true);
         bool gift3 = false;
         bool gift = false;
         float next = 0f;
-        while (w.Time < 9000f && w.Tier < 9)
+        while (w.Time < 9000f && w.Tier < 10)
         {
             demo.BuildWhatYouCan(w);
             demo.PitActions(w);
@@ -159,7 +162,7 @@ public static class Program
         Console.WriteLine(w.Tier >= 3 ? $"Tier 2 goal at {w.Tier2GoalAt:0}s" : "no tier 2 goal");
         Console.WriteLine(w.Tier >= 4 ? $"Tier 3 goal at {w.Tier3GoalAt:0}s" : "no tier 3 goal");
         Console.WriteLine(w.Tier >= 5 ? $"Tier 4 goal at {w.Tier4GoalAt:0}s" : $"no tier 4 goal (hauled {w.RailHauled})");
-        Console.WriteLine(w.Tier >= 9 ? $"Tier 8 goal at {w.Tier8GoalAt:0}s, Tier 7 at {w.Tier7GoalAt:0}s, Tier 6 at {w.Tier6GoalAt:0}s" : w.Tier >= 8 ? $"Tier 7 goal at {w.Tier7GoalAt:0}s, NO tier 8 goal (planes {w.Delivered[Item.Plane]}, built {demo.Placed}/{demo.Total})" : w.Tier >= 7 ? $"Tier 6 goal at {w.Tier6GoalAt:0}s, NO tier 7 goal (tractors {w.Delivered[Item.Tractor]}, built {demo.Placed}/{demo.Total})" : $"no tier 6 goal (motor {w.Delivered[Item.Motor]}, built {demo.Placed}/{demo.Total})");
+        Console.WriteLine(w.Tier >= 10 ? $"Tier 9 goal at {w.Tier9GoalAt:0}s, " : "NO tier 9 goal, "); Console.WriteLine(w.Tier >= 9 ? $"Tier 8 goal at {w.Tier8GoalAt:0}s, Tier 7 at {w.Tier7GoalAt:0}s, Tier 6 at {w.Tier6GoalAt:0}s" : w.Tier >= 8 ? $"Tier 7 goal at {w.Tier7GoalAt:0}s, NO tier 8 goal (planes {w.Delivered[Item.Plane]}, built {demo.Placed}/{demo.Total})" : w.Tier >= 7 ? $"Tier 6 goal at {w.Tier6GoalAt:0}s, NO tier 7 goal (tractors {w.Delivered[Item.Tractor]}, built {demo.Placed}/{demo.Total})" : $"no tier 6 goal (motor {w.Delivered[Item.Motor]}, built {demo.Placed}/{demo.Total})");
         Console.WriteLine(w.Tier >= 6 ? $"Tier 5 goal at {w.Tier5GoalAt:0}s" : $"no tier 5 goal (wire {w.Delivered[Item.Wire]}, built {demo.Placed}/{demo.Total})");
         foreach (var bd in w.Buildings.Values)
             if (bd.Type == BuildingType.Waterwheel || bd.Type == BuildingType.Sawmill || bd.Type == BuildingType.TripHammer || bd.Type == BuildingType.SteamEngine || bd.Type == BuildingType.Furnace || bd.Type == BuildingType.Hopper || bd.Type == BuildingType.Dynamo || bd.Type == BuildingType.Pole || bd.Type == BuildingType.WireMill || bd.Type == BuildingType.MachineShop || bd.Type == BuildingType.ElectricMine || bd.Type == BuildingType.Smelter || bd.Type == BuildingType.Mine || bd.Type == BuildingType.Kiln || bd.Type == BuildingType.Turbine || bd.Type == BuildingType.ArcFurnace || bd.Type == BuildingType.Assembly || bd.Type == BuildingType.RollingMill || bd.Type == BuildingType.Hangar || bd.Type == BuildingType.Splitter)

@@ -82,6 +82,8 @@ namespace Kilnwood.Game
                 case Item.Motor: return new Color(0.22f, 0.44f, 0.3f);
                 case Item.Tractor: return new Color(0.86f, 0.46f, 0.16f);
                 case Item.Plane: return new Color(0.72f, 0.74f, 0.76f);
+                case Item.Glass: return new Color(0.66f, 0.84f, 0.86f);
+                case Item.Radio: return new Color(0.5f, 0.32f, 0.18f);
                 default: return Color.white;
             }
         }
@@ -549,6 +551,9 @@ namespace Kilnwood.Game
                 case BuildingType.Assembly: MakeAssembly(B, s, v); break;
                 case BuildingType.RollingMill: MakeRollingMill(B, s, v); break;
                 case BuildingType.Hangar: MakeHangar(B, s, v); break;
+                case BuildingType.HydroDam: MakeHydroDam(B, s, v); break;
+                case BuildingType.Glassworks: MakeGlassworks(B, s, v); break;
+                case BuildingType.RadioWorks: MakeRadioWorks(B, s, v); break;
                 case BuildingType.Lodge:
                 {
                     float fz = (s - 2.2f) / 2f;   // front wall
@@ -612,7 +617,7 @@ namespace Kilnwood.Game
                 // Neighbouring machines alternate label heights so their names don't stack on each other.
                 // Three label heights in a pattern, so any two neighbouring 2x2 machines get different heights.
                 float top = b.Type == BuildingType.Assembly ? 9.6f   // big hall: one height just over the roof lantern, so the label stays on it
-                    : (b.Type == BuildingType.SteamEngine || b.Type == BuildingType.Furnace || b.Type == BuildingType.ArcFurnace || b.Type == BuildingType.Turbine ? 7.4f : b.Type == BuildingType.Mine || b.Type == BuildingType.ElectricMine || b.Type == BuildingType.Smelter ? 6.0f : 4.4f) + ((b.X / 2 + 2 * (b.Y / 2)) % 3) * 1.8f;
+                    : (b.Type == BuildingType.SteamEngine || b.Type == BuildingType.Furnace || b.Type == BuildingType.ArcFurnace || b.Type == BuildingType.Turbine || b.Type == BuildingType.Glassworks || b.Type == BuildingType.RadioWorks ? 7.4f : b.Type == BuildingType.Mine || b.Type == BuildingType.ElectricMine || b.Type == BuildingType.Smelter ? 6.0f : 4.4f) + ((b.X / 2 + 2 * (b.Y / 2)) % 3) * 1.8f;
                 if (b.Type == BuildingType.Lodge)
                 {
                     // Lodge name sits in front (south side), clear of the machines behind it.
@@ -711,6 +716,9 @@ namespace Kilnwood.Game
                 case BuildingType.Assembly: return "ASSEMBLY PLANT R";
                 case BuildingType.RollingMill: return "ROLLING MILL L";
                 case BuildingType.Hangar: return "HANGAR A";
+                case BuildingType.HydroDam: return "HYDRO DAM";
+                case BuildingType.Glassworks: return "GLASSWORKS Y";
+                case BuildingType.RadioWorks: return "RADIO WORKS V";
                 default: return "";
             }
         }
@@ -752,7 +760,7 @@ namespace Kilnwood.Game
                     bool lit = (working && (_w.BurnsFuel(b) || b.Type == BuildingType.Kiln || b.Type == BuildingType.Smelter || b.Type == BuildingType.Furnace))
                         || (b.Type == BuildingType.SteamEngine && b.Status == "Running")
                         || (b.Type == BuildingType.Turbine && b.Fired && b.GridDemand > 0)
-                        || (b.Type == BuildingType.ArcFurnace && (working || b.Status.StartsWith("Low electricity")));
+                        || ((b.Type == BuildingType.ArcFurnace || b.Type == BuildingType.Glassworks) && (working || b.Status.StartsWith("Low electricity")));
                     if (v.Fire.activeSelf != lit) { v.Fire.SetActive(lit); v.FireLight.enabled = lit; }
                     if (lit) v.FireLight.intensity = 1.2f + 0.8f * Mathf.PerlinNoise(now * 5f, v.Seed);
                     if (v.Smoke != null) SetSmoke(v.Smoke, lit);
@@ -786,6 +794,7 @@ namespace Kilnwood.Game
             UpdateSteamViews();
             UpdateElectricViews(_w.GridVersion != _gridCount);
             UpdateFlights();
+            UpdateAirwavesViews();
             if (_w.Buildings.Count != _railCount || gone != null) { RefreshRails(); _railCount = _w.Buildings.Count; }
             foreach (var b in _w.Buildings.Values)
                 if (b.Type == BuildingType.Hopper)
@@ -1142,6 +1151,22 @@ namespace Kilnwood.Game
                     pl.localScale = Vector3.one * 0.8f;
                     BuildPlane(pl, col);
                     top = 0.5f;
+                    break;
+                }
+                case Item.Glass:
+                    // A small crate of glass panes standing on edge.
+                    Art.Cube("Crate", t, new Vector3(0f, 0.08f, 0f), new Vector3(0.6f, 0.16f, 0.4f), Look.Timber);
+                    for (int k = 0; k < 4; k++)
+                        Art.Cube("Pane", t, new Vector3(-0.21f + k * 0.14f, 0.3f, 0f), new Vector3(0.03f, 0.36f, 0.34f), col * (1f - 0.04f * k));
+                    top = 0.5f;
+                    break;
+                case Item.Radio:
+                {
+                    var rd = new GameObject("Radio").transform;
+                    rd.SetParent(t, false);
+                    rd.localScale = Vector3.one * 0.6f;
+                    BuildRadio(rd, col);
+                    top = 0.6f;
                     break;
                 }
                 case Item.Fish:

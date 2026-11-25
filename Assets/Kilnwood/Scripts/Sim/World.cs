@@ -87,6 +87,7 @@ namespace Kilnwood.Sim
         public float Tier6GoalAt { get; private set; } = -1f;
         public float Tier7GoalAt { get; private set; } = -1f;
         public float Tier8GoalAt { get; private set; } = -1f;
+        public float Tier9GoalAt { get; private set; } = -1f;
 
         public World(Balance b)
         {
@@ -214,6 +215,7 @@ namespace Kilnwood.Sim
                 }
             if (!ignoreCost && def.Tier > Tier) return "Unlocks at Tier " + def.Tier;
             if (type == BuildingType.Waterwheel && !TouchesWater(x, y, s)) return "Waterwheels must touch the river";
+            if (type == BuildingType.HydroDam && !TouchesWater(x, y, s)) return "Hydro dams must touch the river";
             if (def.SitsOn != null && ExtractorResource(type, x, y, out _) == Item.None)
                 return type == BuildingType.Woodcutter ? "Woodcutters must sit on forest" : "Mines must sit on iron ore or stone";
             if (type == BuildingType.Fisher && !TouchesWater(x, y, s)) return "Fishers must touch the river";
@@ -415,6 +417,11 @@ namespace Kilnwood.Sim
                 Tier = 9;
                 Tier8GoalAt = Time;
             }
+            if (Tier == 9 && Delivered[Item.Radio] >= B.GoalRadio)
+            {
+                Tier = 10;
+                Tier9GoalAt = Time;
+            }
         }
 
         /// <summary>Homes, who works where (in build order), and eating fish from the lodge.</summary>
@@ -557,6 +564,7 @@ namespace Kilnwood.Sim
                 case BuildingType.Waterwheel:
                 case BuildingType.Dynamo:
                 case BuildingType.Pole:
+                case BuildingType.HydroDam:
                     return false;
                 case BuildingType.Garage:
                     if (!Balance.IsFuel(item) || m.FuelCount >= B.GarageFuelCap) return false;
@@ -619,7 +627,9 @@ namespace Kilnwood.Sim
                 case BuildingType.MachineShop:
                 case BuildingType.ArcFurnace:
                 case BuildingType.Assembly:
-                case BuildingType.RollingMill: StepCrafter(m, dt); break;
+                case BuildingType.RollingMill:
+                case BuildingType.Glassworks:
+                case BuildingType.RadioWorks: StepCrafter(m, dt); break;
                 case BuildingType.Hangar:
                     StepCrafter(m, dt);
                     // A finished aeroplane doesn't go on a belt: it taxis out and flies away (that is the delivery).
@@ -627,6 +637,7 @@ namespace Kilnwood.Sim
                     return;
                 case BuildingType.Turbine: m.Status = TurbineStatus(m); return;   // fired in StepGrids
                 case BuildingType.Dynamo: m.Status = DynamoStatus(m); return;
+                case BuildingType.HydroDam: m.Status = HydroStatus(m); return;
                 case BuildingType.Pole: m.Status = PoleStatus(m); return;
                 case BuildingType.SteamEngine: return;   // fired and its status set in StepPower
                 case BuildingType.Waterwheel: m.Status = WheelStatus(m); return;

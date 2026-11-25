@@ -117,6 +117,20 @@ namespace Kilnwood.Game
         class Flight { public Transform Plane, Prop; public Vector3 From, Dir; public float Age; }
         readonly List<Flight> _flights = new List<Flight>();
         readonly Dictionary<int, int> _launchSeen = new Dictionary<int, int>();
+        readonly Stack<Flight> _sparePlanes = new Stack<Flight>();   // landed (hidden) planes, reused: building one mid-game made frame spikes
+        int _planesBuilt;
+
+        Flight NewFlightPlane()
+        {
+            var plane = new GameObject("Aeroplane").transform;
+            plane.SetParent(transform, false);
+            plane.localScale = Vector3.one * 2.2f;
+            var f = new Flight { Plane = plane, Prop = BuildPlane(plane, PlaneSilver) };
+            Texturize(plane);
+            plane.gameObject.SetActive(false);
+            _planesBuilt++;
+            return f;
+        }
 
         /// <summary>True while an aeroplane is in the air (the screenshot run waits for one).</summary>
         public bool PlaneInFlight => _flights.Count > 0;
@@ -127,20 +141,20 @@ namespace Kilnwood.Game
             foreach (var b in _w.Buildings.Values)
             {
                 if (b.Type != BuildingType.Hangar || !_views.TryGetValue(b.Id, out var v)) continue;
+                if (_planesBuilt == 0) _sparePlanes.Push(NewFlightPlane());   // ready before the first launch
                 _launchSeen.TryGetValue(b.Id, out int seen);
                 if (b.Launched > seen)
                 {
                     _launchSeen[b.Id] = b.Launched;
                     if (seen == 0 && b.Launched > 1) continue;   // a loaded game: don't fly the whole history
-                    var plane = new GameObject("Aeroplane").transform;
-                    plane.SetParent(transform, false);
-                    plane.localScale = Vector3.one * 2.2f;
-                    var f = new Flight { Plane = plane, Prop = BuildPlane(plane, PlaneSilver) };
+                    var f = _sparePlanes.Count > 0 ? _sparePlanes.Pop() : NewFlightPlane();
+                    var plane = f.Plane;
+                    f.Age = 0f;
+                    plane.gameObject.SetActive(true);
                     var fwd = v.Body.forward;
                     f.Dir = new Vector3(fwd.x, 0f, fwd.z).normalized;
                     f.From = v.Root.transform.position + f.Dir * (b.Size * T / 2f - 0.5f);
                     plane.rotation = Quaternion.LookRotation(f.Dir) * Quaternion.Euler(0f, -90f, 0f);   // model nose is +x
-                    Texturize(plane);
                     _flights.Add(f);
                 }
             }
@@ -156,7 +170,7 @@ namespace Kilnwood.Game
                 float pitch = a < 3f ? 0f : Mathf.Min(14f, (a - 3f) * 10f);
                 f.Plane.rotation = Quaternion.LookRotation(f.Dir) * Quaternion.Euler(0f, -90f, pitch);   // nose up about the wing axis
                 if (f.Prop != null) f.Prop.localRotation = Quaternion.Euler(f.Age * 2400f, 0f, 0f);
-                if (a > 14f) { Destroy(f.Plane.gameObject); _flights.RemoveAt(i); }
+                if (a > 14f) { f.Plane.gameObject.SetActive(false); _sparePlanes.Push(f); _flights.RemoveAt(i); }
             }
         }
     }

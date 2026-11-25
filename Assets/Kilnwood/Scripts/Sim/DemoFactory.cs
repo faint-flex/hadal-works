@@ -36,11 +36,11 @@ namespace Kilnwood.Sim
         readonly bool _tier3;
 
         readonly bool _tier4;
-        readonly bool _tier5, _tier6, _tier7, _tier8;
+        readonly bool _tier5, _tier6, _tier7, _tier8, _tier9;
         readonly int _railsEnd;
-        public const int FieldStationX = 54, FieldStationY = 7, YardStationX = 35, YardStationY = 26, DynamoX = 42, DynamoY = 20, ShopX = 36, ShopY = 32, TurbineX = 48, TurbineY = 20, AssemblyX = 31, AssemblyY = 35, HangarX = 37, HangarY = 39;
+        public const int FieldStationX = 54, FieldStationY = 7, YardStationX = 35, YardStationY = 26, DynamoX = 42, DynamoY = 20, ShopX = 36, ShopY = 32, TurbineX = 48, TurbineY = 20, AssemblyX = 31, AssemblyY = 35, HangarX = 37, HangarY = 39, DamX = 6, DamY = 46, GlassX = 10, GlassY = 46, RadioX = 10, RadioY = 44;
 
-        public DemoFactory(bool people = false, bool pit = false, bool tier2 = false, bool tier3 = false, bool tier4 = false, bool tier5 = false, bool tier6 = false, bool tier7 = false, bool tier8 = false)
+        public DemoFactory(bool people = false, bool pit = false, bool tier2 = false, bool tier3 = false, bool tier4 = false, bool tier5 = false, bool tier6 = false, bool tier7 = false, bool tier8 = false, bool tier9 = false)
         {
             _pit = pit;
             _tier3 = tier3;
@@ -49,6 +49,7 @@ namespace Kilnwood.Sim
             _tier6 = tier6;
             _tier7 = tier7;
             _tier8 = tier8;
+            _tier9 = tier9;
             const int N = 0, E = 1, S = 2, W = 3;
             const int Charcoal = 0, Brick = 1;
             // Phase 1: wood into the lodge (pays for everything else).
@@ -229,6 +230,27 @@ namespace Kilnwood.Sim
                 Add(BuildingType.Belt, 37, 38, N);
                 _steps.Add(new Step { Type = BuildingType.Belt, X = 35, Y = 35, Remove = true, MinTier = 8 });
                 Add(BuildingType.Splitter, 35, 35, N);   // motors: left to the assembly plant, right to the hangar
+            }
+
+            // Phase 13 (0.16 Tier 9 "Airwaves"): a hydro dam on the west river powers a little glass-and-radio works on the
+            // far stone field. An electric mine drops stone into the glassworks, the glass drops into the radio works,
+            // a woodcutter sends cabinet timber up from the west woods, and the radio sets run east along y = 44 to join
+            // the brick line into the lodge. Three poles tie the dam into the main grid as well.
+            if (tier9)
+            {
+                Add(BuildingType.HydroDam, DamX, DamY, E);   // first: Tier 9 gates the rest of the phase
+                Add(BuildingType.Pole, 12, 47, N);
+                Add(BuildingType.ElectricMine, 10, 48, S);
+                Add(BuildingType.Glassworks, GlassX, GlassY, S);
+                Add(BuildingType.RadioWorks, RadioX, RadioY, E);
+                Add(BuildingType.Woodcutter, 10, 40, N);
+                Add(BuildingType.Belt, 10, 42, N);
+                Add(BuildingType.Belt, 10, 43, N);
+                for (int x = 12; x <= 28; x++) Add(BuildingType.Belt, x, 44, E);
+                Add(BuildingType.Belt, 29, 44, S);
+                Add(BuildingType.Belt, 29, 43, E);   // side-loads onto the brick line
+                Add(BuildingType.Pole, 19, 46, N);
+                Add(BuildingType.Pole, 26, 46, N);
             }
         }
 

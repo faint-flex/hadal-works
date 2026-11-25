@@ -4,9 +4,9 @@ namespace Kilnwood.Sim
 {
     public enum Terrain { Grass, Forest, IronOre, Stone, Water }
 
-    public enum Item { None, Wood, Ore, Stone, Charcoal, Iron, Brick, Gear, Fish, Dirt, Plank, Plate, Coal, Steel, Wire, Motor, Tractor, Plane }
+    public enum Item { None, Wood, Ore, Stone, Charcoal, Iron, Brick, Gear, Fish, Dirt, Plank, Plate, Coal, Steel, Wire, Motor, Tractor, Plane, Glass, Radio }
 
-    public enum BuildingType { Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Lodge, Fisher, Cabin, Splitter, Garage, Hopper, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station, Dynamo, Pole, WireMill, ElectricMine, MachineShop, Turbine, ArcFurnace, Assembly, RollingMill, Hangar }
+    public enum BuildingType { Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Lodge, Fisher, Cabin, Splitter, Garage, Hopper, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station, Dynamo, Pole, WireMill, ElectricMine, MachineShop, Turbine, ArcFurnace, Assembly, RollingMill, Hangar, HydroDam, Glassworks, RadioWorks }
 
     public enum VehicleType { Excavator, Truck, Train }
 
@@ -86,6 +86,8 @@ namespace Kilnwood.Sim
                 case Item.Motor: return "Motor";
                 case Item.Tractor: return "Tractor";
                 case Item.Plane: return "Aeroplane";
+                case Item.Glass: return "Glass";
+                case Item.Radio: return "Radio set";
                 default: return "-";
             }
         }
@@ -112,6 +114,8 @@ namespace Kilnwood.Sim
                 case Item.Motor: return "M";
                 case Item.Tractor: return "R";
                 case Item.Plane: return "A";
+                case Item.Glass: return "Y";
+                case Item.Radio: return "V";
                 default: return "";
             }
         }
@@ -222,6 +226,12 @@ namespace Kilnwood.Sim
         public int RollingMillKw = 10;
         public int HangarKw = 20;
         public int GoalPlane = 15;               // aeroplanes flown from a hangar
+
+        // 0.16 Tier 9 "Airwaves": a hydro dam on the river, a glassworks for valve glass, and a radio works.
+        public int HydroKw = 40;                 // a hydro dam makes this all the time: the river never stops
+        public int GlassworksKw = 10;
+        public int RadioWorksKw = 12;
+        public int GoalRadio = 100;              // radio sets delivered to the lodge
 
         public (Item item, int count)[] VehicleCost(VehicleType t) => t == VehicleType.Excavator ? ExcavatorCost : t == VehicleType.Train ? TrainCost : TruckCost;
 
@@ -356,6 +366,23 @@ namespace Kilnwood.Sim
                 Type = BuildingType.Hangar, Name = "Hangar", Size = 3, Key = '2', Tier = 8, Kw = HangarKw, NeedsElectric = true,
                 Cost = new[] { (Item.Plank, 40), (Item.Plate, 20), (Item.Brick, 20), (Item.Motor, 6) },   // no steel: by now it all goes to wire and tractors
                 Recipes = new[] { new Recipe { Name = "Aeroplane", InItems = new[] { Item.Motor, Item.Plate }, InCounts = new[] { 2, 4 }, Out = Item.Plane, Seconds = 12f } },
+            });
+            Add(new BuildingDef
+            {
+                Type = BuildingType.HydroDam, Name = "Hydro dam", Size = 2, Key = '1', Tier = 9, Kw = HydroKw,
+                Cost = new[] { (Item.Brick, 40), (Item.Plank, 20), (Item.Plate, 10), (Item.Motor, 2) },
+            });
+            Add(new BuildingDef
+            {
+                Type = BuildingType.Glassworks, Name = "Glassworks", Size = 2, Key = '2', Tier = 9, Kw = GlassworksKw, NeedsElectric = true,
+                Cost = new[] { (Item.Brick, 20), (Item.Plate, 10) },
+                Recipes = new[] { new Recipe { Name = "Glass", InItems = new[] { Item.Stone }, InCounts = new[] { 2 }, Out = Item.Glass, Seconds = 3f } },
+            });
+            Add(new BuildingDef
+            {
+                Type = BuildingType.RadioWorks, Name = "Radio works", Size = 2, Key = '3', Tier = 9, Kw = RadioWorksKw, NeedsElectric = true,
+                Cost = new[] { (Item.Plank, 20), (Item.Brick, 10), (Item.Plate, 10), (Item.Motor, 2) },
+                Recipes = new[] { new Recipe { Name = "Radio set", InItems = new[] { Item.Glass, Item.Wood }, InCounts = new[] { 2, 1 }, Out = Item.Radio, Seconds = 6f } },   // valves in a timber cabinet
             });
             Add(new BuildingDef { Type = BuildingType.Hopper, Name = "Hopper", Size = 2, Cost = new[] { (Item.Wood, 10), (Item.Stone, 6) }, Key = '8' });
         }

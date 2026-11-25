@@ -19,7 +19,7 @@ namespace Kilnwood.Sim
         readonly List<Grid> _grids = new List<Grid>();
         public IReadOnlyList<Grid> Grids => _grids;
 
-        static bool IsNode(Building b) => b.Type == BuildingType.Pole || b.Type == BuildingType.Dynamo || b.Type == BuildingType.Turbine;
+        static bool IsNode(Building b) => b.Type == BuildingType.Pole || b.Type == BuildingType.Dynamo || b.Type == BuildingType.Turbine || b.Type == BuildingType.HydroDam;
 
         /// <summary>Tiles between two footprints along the longer axis (0 if they overlap, 1 if they touch).</summary>
         public static int Gap(Building a, Building b)
@@ -89,6 +89,7 @@ namespace Kilnwood.Sim
                 foreach (var n in g.Nodes)
                 {
                     if (n.Type == BuildingType.Dynamo && n.Power > 0f) supply += B.Defs[n.Type].Kw * n.Power;
+                    else if (n.Type == BuildingType.HydroDam) supply += B.Defs[n.Type].Kw;   // the river never stops
                     else if (n.Type == BuildingType.Turbine)
                     {
                         // Burns only while something on its grid wants electricity.
@@ -123,9 +124,17 @@ namespace Kilnwood.Sim
                 : "Making " + B.Defs[t.Type].Kw + " kW, grid uses " + t.GridDemand + " of " + Kw(t.GridSupply);
         }
 
+        string HydroStatus(Building d)
+        {
+            if (d.GridDemand == 0) return "Making " + B.Defs[d.Type].Kw + " kW, nothing connected";
+            return d.GridDemand > d.GridSupply + 0.01f
+                ? "Overloaded: " + d.GridDemand + " kW wanted, " + Kw(d.GridSupply) + " kW made"
+                : "Making " + B.Defs[d.Type].Kw + " kW, grid uses " + d.GridDemand + " of " + Kw(d.GridSupply);
+        }
+
         string PoleStatus(Building p)
         {
-            if (p.GridSupply <= 0f) return p.GridDemand > 0 ? "No electricity: no dynamo turning or turbine fired on this grid" : "Not linked to a dynamo or turbine";
+            if (p.GridSupply <= 0f) return p.GridDemand > 0 ? "No electricity: no dynamo turning, turbine fired or dam on this grid" : "Not linked to a dynamo, turbine or dam";
             return p.GridDemand == 0 ? "Live, nothing connected" : "Live: " + p.GridDemand + " of " + Kw(p.GridSupply) + " kW used";
         }
 
