@@ -37,3 +37,4 @@ sysinfo.txt
 !/tools/simcheck/SimCheck.csproj
 # QA screenshot runs
 /shots/
+.claude/worktrees/

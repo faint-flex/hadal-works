@@ -285,7 +285,7 @@ namespace Kilnwood.Game
         {
             var (tree, stump) = _trees[key];
             int x = key % _w.W, y = key / _w.W;
-            bool clear = NeedsClearing(x, y);
+            bool clear = NeedsClearing(x, y) || _w.Ground[key] != Terrain.Forest;   // 0.22: a bulldozer pushed it down
             int logs = _w.Logs[key];
             bool showTree = !clear && logs > 0;
             if (tree.gameObject.activeSelf != showTree) tree.gameObject.SetActive(showTree);

@@ -15,6 +15,7 @@ namespace Kilnwood.Game
 
         static readonly Color DigCol = new Color(0.98f, 0.62f, 0.2f);
         static readonly Color DumpCol = new Color(0.45f, 0.7f, 0.95f);
+        static readonly Color LevelCol = new Color(0.62f, 0.9f, 0.42f);
         readonly Dictionary<int, GameObject> _marks = new Dictionary<int, GameObject>();
         readonly List<GameObject> _markLabels = new List<GameObject>();
         Transform _markRoot;
@@ -27,15 +28,25 @@ namespace Kilnwood.Game
             bool changedSet = false;
             for (int i = 0; i < _w.DigMark.Length; i++)
             {
-                bool dig = _w.DigMark[i], dump = _w.DumpMark[i];
+                bool dig = _w.DigMark[i], dump = _w.DumpMark[i], level = _w.LevelMark[i];
                 _marks.TryGetValue(i, out var go);
-                int want = dig ? 1 : dump ? 2 : 0;
-                int have = go == null ? 0 : go.name == "Dig mark" ? 1 : 2;
+                int want = dig ? 1 : dump ? 2 : level ? 3 : 0;
+                int have = go == null ? 0 : go.name == "Dig mark" ? 1 : go.name == "Level mark" ? 3 : 2;
                 if (want != have)
                 {
                     changedSet = true;
                     if (go != null) { Destroy(go); _marks.Remove(i); }
-                    if (want != 0)
+                    if (want == 3)
+                    {
+                        // Level: a flat bar with a short post at each end (a spirit level), not an arrow.
+                        go = new GameObject("Level mark");
+                        go.transform.SetParent(_markRoot, false);
+                        Art.Part("Level bar", go.transform, Art.Prim(PrimitiveType.Cube), Vector3.zero, new Vector3(1.2f, 0.16f, 0.32f), LevelCol, default, false);
+                        for (int sd = -1; sd <= 1; sd += 2)
+                            Art.Part("Level post", go.transform, Art.Prim(PrimitiveType.Cube), new Vector3(sd * 0.55f, 0.18f, 0f), new Vector3(0.12f, 0.36f, 0.32f), LevelCol, default, false);
+                        _marks[i] = go;
+                    }
+                    else if (want != 0)
                     {
                         go = new GameObject(want == 1 ? "Dig mark" : "Dump mark");
                         go.transform.SetParent(_markRoot, false);
@@ -52,7 +63,7 @@ namespace Kilnwood.Game
                 {
                     var c = TileCenter(i % _w.W, i / _w.W);
                     float y = GroundHeight(c.x, c.z);
-                    go.transform.localPosition = new Vector3(c.x, y + (want == 1 ? 1.1f : 0.75f), c.z);
+                    go.transform.localPosition = new Vector3(c.x, y + (want == 1 ? 1.1f : want == 3 ? 0.9f : 0.75f), c.z);
                 }
             }
             if (changedSet) RebuildMarkLabels();
@@ -66,8 +77,8 @@ namespace Kilnwood.Game
             var stack = new Stack<int>();
             for (int s = 0; s < seen.Length; s++)
             {
-                if (seen[s] || (!_w.DigMark[s] && !_w.DumpMark[s])) continue;
-                bool dig = _w.DigMark[s];
+                if (seen[s] || (!_w.DigMark[s] && !_w.DumpMark[s] && !_w.LevelMark[s])) continue;
+                bool dig = _w.DigMark[s], lvl = _w.LevelMark[s];
                 // Flood fill the area of the same mark; label at its middle.
                 float sx = 0f, sy = 0f; int n = 0;
                 stack.Push(s); seen[s] = true;
@@ -80,13 +91,13 @@ namespace Kilnwood.Game
                         int nx = c % _w.W + Dir.DX[d], ny = c / _w.W + Dir.DY[d];
                         if (!_w.InBounds(nx, ny)) continue;
                         int k = ny * _w.W + nx;
-                        if (seen[k] || (dig ? !_w.DigMark[k] : !_w.DumpMark[k])) continue;
+                        if (seen[k] || (dig ? !_w.DigMark[k] : lvl ? !_w.LevelMark[k] : !_w.DumpMark[k])) continue;
                         seen[k] = true;
                         stack.Push(k);
                     }
                 }
                 var pos = new Vector3((sx / n + 0.5f) * T, 3.2f, (sy / n + 0.5f) * T);
-                var label = Look.Billboard(dig ? "DIG" : "DUMP", transform, pos, 1.6f, dig ? new Color(1f, 0.85f, 0.6f) : new Color(0.75f, 0.88f, 1f));
+                var label = Look.Billboard(dig ? "DIG" : lvl ? "LEVEL" : "DUMP", transform, pos, 1.6f, dig ? new Color(1f, 0.85f, 0.6f) : lvl ? new Color(0.82f, 1f, 0.7f) : new Color(0.75f, 0.88f, 1f));
                 _markLabels.Add(label.gameObject);
             }
         }
@@ -96,7 +107,7 @@ namespace Kilnwood.Game
         GameObject _area;
         TextMesh _areaText;
 
-        public void ShowAreaGhost(int x0, int y0, int x1, int y1, bool dig, string note)
+        public void ShowAreaGhost(int x0, int y0, int x1, int y1, bool dig, string note, bool level = false)
         {
             HideGhost();
             if (_area == null)
@@ -113,9 +124,9 @@ namespace Kilnwood.Game
             var fill = _area.transform.GetChild(0);
             fill.localScale = new Vector3(w - 0.2f, 0.12f, h - 0.2f);
             fill.localPosition = new Vector3(0f, 0.1f, 0f);
-            fill.GetComponent<Renderer>().sharedMaterial = Look.Mat(note != null && x0 == x1 && y0 == y1 ? Look.Bad : dig ? DigCol : DumpCol);
+            fill.GetComponent<Renderer>().sharedMaterial = Look.Mat(note != null && x0 == x1 && y0 == y1 ? Look.Bad : level ? LevelCol : dig ? DigCol : DumpCol);
             int tiles = (bx - ax + 1) * (by - ay + 1);
-            _areaText.text = (dig ? "DIG " : "DUMP ") + (bx - ax + 1) + " x " + (by - ay + 1) + (note != null ? "\n" + note : tiles == 1 ? "\ndrag to mark an area" : "\nrelease to mark");
+            _areaText.text = (level ? "LEVEL " : dig ? "DIG " : "DUMP ") + (bx - ax + 1) + " x " + (by - ay + 1) + (note != null ? "\n" + note : tiles == 1 ? "\ndrag to mark an area" : "\nrelease to mark");
         }
 
         void HideArea() { if (_area != null) _area.SetActive(false); }
@@ -147,7 +158,7 @@ namespace Kilnwood.Game
         {
             UpdateTrains();
             foreach (var v in _w.Vehicles)
-                if (v.Type != VehicleType.Train && !_vviews.ContainsKey(v.Id)) _vviews[v.Id] = v.Type == VehicleType.Excavator ? MakeExcavator() : MakeTruck();
+                if (v.Type != VehicleType.Train && !_vviews.ContainsKey(v.Id)) _vviews[v.Id] = MakeVehicle(v.Type);
             List<int> gone = null;
             // 0.20: a new era refits the whole fleet (and the buy-button pictures).
             foreach (var kv in _vviews)
@@ -157,7 +168,7 @@ namespace Kilnwood.Game
             {
                 foreach (int id in gone) { Destroy(_vviews[id].Root.gameObject); _vviews.Remove(id); }
                 foreach (var v in _w.Vehicles)
-                    if (v.Type != VehicleType.Train && !_vviews.ContainsKey(v.Id)) _vviews[v.Id] = v.Type == VehicleType.Excavator ? MakeExcavator() : MakeTruck();
+                    if (v.Type != VehicleType.Train && !_vviews.ContainsKey(v.Id)) _vviews[v.Id] = MakeVehicle(v.Type);
             }
 
             float dt = Time.deltaTime;
@@ -204,7 +215,7 @@ namespace Kilnwood.Game
                 if (vv.Exhaust != null) SetSmoke(vv.Exhaust, moving || v.State == VehicleState.Digging);
                 if (vv.Wheels != null && moving)
                 {
-                    float spin = (v.Type == VehicleType.Truck ? _w.B.TruckSpeed : _w.B.ExcavatorSpeed) * _w.B.EraWork[_w.Era] * T / (Mathf.PI * 0.9f) * 360f * dt;
+                    float spin = (v.Type == VehicleType.Truck ? _w.B.TruckSpeed : v.Type == VehicleType.Dozer ? _w.B.DozerSpeed : _w.B.ExcavatorSpeed) * _w.B.EraWork[_w.Era] * T / (Mathf.PI * 0.9f) * 360f * dt;
                     foreach (var wh in vv.Wheels) wh.Rotate(Vector3.up, spin, Space.Self);
                 }
 
@@ -218,6 +229,16 @@ namespace Kilnwood.Game
                     vv.Arm.localRotation = Quaternion.Euler(70f - 30f * s, 0f, 0f);
                     vv.Bucket.localRotation = Quaternion.Euler(-40f + 60f * Mathf.Sin(p - 0.8f), 0f, 0f);
                     SetCargo(vv, v.BucketCount > 0 ? v.Bucket : Item.None, v.BucketCount / (float)_w.B.BucketCap);
+                }
+                else if (v.Type == VehicleType.Dozer)
+                {
+                    // Blade: carried up while driving empty, down while pushing; the dirt heap in front shows the load.
+                    bool working = v.State == VehicleState.Digging || v.State == VehicleState.Tipping || (v.State == VehicleState.Driving && v.BucketCount > 0);
+                    vv.Phase = Mathf.MoveTowards(vv.Phase, working ? 0f : 1f, dt * 2f);
+                    vv.Boom.localRotation = Quaternion.Euler(-14f * vv.Phase, 0f, 0f);
+                    bool clearing = v.State == VehicleState.Digging && v.Status.StartsWith("Clearing");
+                    vv.Bucket.localPosition = new Vector3(0f, 0f, clearing ? Mathf.PingPong(Time.time * 0.8f, 0.35f) : 0f);   // shoving at the trunks
+                    SetCargo(vv, v.BucketCount > 0 ? Item.Dirt : Item.None, v.BucketCount / (float)_w.B.DozerBlade);
                 }
                 else
                 {
@@ -249,6 +270,8 @@ namespace Kilnwood.Game
                 vv.CargoLetter.transform.localPosition = new Vector3(0f, h + 0.06f, 0f);
             }
         }
+
+        VView MakeVehicle(VehicleType t, int era = -1) => t == VehicleType.Excavator ? MakeExcavator(era) : t == VehicleType.Dozer ? MakeDozer(era) : MakeTruck(era);
 
         // 0.20 machine eras: the same rig (tracks, turning body, boom, arm, bucket / chassis, cab, tipping bed) dressed
         // for its era. Era 0 steam shovel and chain-drive lorry, era 1 diesel shovel and tipper truck, era 2 hydraulic
@@ -436,6 +459,89 @@ namespace Kilnwood.Game
             // Letter badge riding on the load: white letter on a dark disc, like the belt items.
             vv.CargoBadge = Art.Cyl("Badge", vv.Cargo, new Vector3(0f, 0.75f, 0f), 0.5f, 0.04f, new Color(0.1f, 0.1f, 0.1f));
             vv.CargoLetter = Look.Label("", vv.Cargo, new Vector3(0f, 0.81f, 0f), 0.6f, Color.white);
+            vv.CargoLetter.fontStyle = FontStyle.Bold;
+            vv.CargoLetter.GetComponent<MeshRenderer>().sharedMaterial = ItemTextMat;
+            vv.Cargo.gameObject.SetActive(false);
+            return vv;
+        }
+
+        /// <summary>0.22 bulldozer, nose toward +z. Era 0 steam crawler (boiler, tall stack, open canopy), era 1 diesel
+        /// (long bonnet, closed cab), era 2 hydraulic (big cab with a roll cage, rams on the blade, rear ripper). Boom = the
+        /// push frame that lifts the blade; Bucket = the blade itself (shoves forward when clearing trees); Cargo = the dirt
+        /// rolling in front of the blade, with its letter badge.</summary>
+        VView MakeDozer(int era = -1)
+        {
+            if (era < 0) era = _w.Era;
+            var vv = new VView { Era = era };
+            vv.Root = new GameObject(World.VehicleName(VehicleType.Dozer, era)).transform;
+            vv.Root.SetParent(transform, false);
+            var r = vv.Root;
+            var iron = new Color(0.3f, 0.3f, 0.3f);
+            Color paint = era == 0 ? SteamRed : era == 1 ? DieselYellow : MachineOrange;
+            // Crawler tracks with rollers and a sprocket at the back.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                Art.Cube("Track", r, new Vector3(side * 0.6f, 0.27f, -0.1f), new Vector3(0.38f, 0.5f, 1.9f), MachineDark);
+                for (int k = -1; k <= 1; k++) Art.Cyl("Roller", r, new Vector3(side * 0.6f, 0.25f, -0.1f + k * 0.62f), 0.32f, 0.42f, iron, new Vector3(0f, 0f, 90f));
+                Art.Cyl("Sprocket", r, new Vector3(side * 0.6f, 0.36f, -0.95f), 0.5f, 0.44f, iron * 0.9f, new Vector3(0f, 0f, 90f));
+            }
+            Art.Cube("Frame", r, new Vector3(0f, 0.55f, -0.1f), new Vector3(0.85f, 0.3f, 1.8f), MachineDark);
+            if (era == 0)
+            {
+                Art.Cyl("Boiler", r, new Vector3(0f, 0.95f, 0.15f), 0.75f, 1.3f, MachineDark, new Vector3(90f, 0f, 0f));
+                Art.Cube("Boiler band", r, new Vector3(0f, 0.95f, 0.5f), new Vector3(0.8f, 0.8f, 0.06f), paint);
+                Art.Cyl("Stack", r, new Vector3(0f, 1.7f, 0.65f), 0.2f, 0.9f, MachineDark);
+                Art.Cyl("Stack cap", r, new Vector3(0f, 2.15f, 0.65f), 0.3f, 0.08f, MachineDark);
+                vv.Exhaust = Art.Smoke(r, new Vector3(0f, 2.25f, 0.65f), 0.5f);
+                Art.Cube("Footplate", r, new Vector3(0f, 0.75f, -0.75f), new Vector3(1.1f, 0.1f, 0.6f), paint);
+                Art.Cube("Coal bunker", r, new Vector3(0.38f, 1.0f, -0.85f), new Vector3(0.3f, 0.45f, 0.4f), paint * 0.85f);
+                for (int sd = -1; sd <= 1; sd += 2)
+                    for (int fz = 0; fz < 2; fz++)
+                        Art.Cube("Post", r, new Vector3(sd * 0.5f, 1.35f, -0.55f - fz * 0.45f), new Vector3(0.04f, 1.1f, 0.04f), MachineDark);
+                Art.Cube("Canopy", r, new Vector3(0f, 1.92f, -0.78f), new Vector3(1.15f, 0.05f, 0.65f), MachineDark);
+                Art.Cube("Seat", r, new Vector3(-0.15f, 1.0f, -0.8f), new Vector3(0.35f, 0.12f, 0.3f), Look.Timber);
+            }
+            else
+            {
+                Art.Cube("Bonnet", r, new Vector3(0f, 0.95f, 0.3f), new Vector3(0.75f, 0.6f, 1.1f), paint);
+                Art.Cube("Grille", r, new Vector3(0f, 0.92f, 0.86f), new Vector3(0.62f, 0.48f, 0.04f), MachineDark);
+                Art.Cube("Cab", r, new Vector3(0f, era == 2 ? 1.45f : 1.4f, -0.55f), new Vector3(era == 2 ? 1.05f : 0.9f, era == 2 ? 1.0f : 0.9f, 0.8f), paint);
+                Art.Cube("Windscreen", r, new Vector3(0f, era == 2 ? 1.55f : 1.5f, -0.14f), new Vector3(era == 2 ? 0.9f : 0.75f, 0.5f, 0.03f), Glass);
+                for (int sd = -1; sd <= 1; sd += 2) Art.Cube("Side window", r, new Vector3(sd * (era == 2 ? 0.53f : 0.46f), era == 2 ? 1.55f : 1.5f, -0.55f), new Vector3(0.03f, 0.45f, 0.6f), Glass);
+                if (era == 2)
+                {
+                    Art.Cube("Roll cage", r, new Vector3(0f, 2.0f, -0.55f), new Vector3(1.15f, 0.08f, 0.9f), MachineDark);
+                    // Ripper at the back.
+                    Art.Cube("Ripper beam", r, new Vector3(0f, 0.7f, -1.25f), new Vector3(0.9f, 0.18f, 0.2f), paint * 0.85f);
+                    Art.Cube("Ripper shank", r, new Vector3(0f, 0.35f, -1.35f), new Vector3(0.12f, 0.6f, 0.12f), MachineDark, new Vector3(-15f, 0f, 0f));
+                }
+                Art.Cyl("Exhaust pipe", r, new Vector3(0.25f, 1.45f, 0.6f), 0.09f, 0.8f, MachineDark);
+                vv.Exhaust = Art.Smoke(r, new Vector3(0.25f, 1.9f, 0.6f), 0.3f);
+            }
+            { var main = vv.Exhaust.main; main.startSizeMultiplier = era == 0 ? 0.5f : 0.3f; main.startLifetimeMultiplier = 0.5f; }
+            // Push frame pivots near the middle of the tracks; the blade rides on its front.
+            vv.Boom = new GameObject("Push frame").transform;
+            vv.Boom.SetParent(r, false);
+            vv.Boom.localPosition = new Vector3(0f, 0.45f, 0.0f);
+            for (int sd = -1; sd <= 1; sd += 2) Art.Cube("Push arm", vv.Boom, new Vector3(sd * 0.82f, 0f, 0.6f), new Vector3(0.1f, 0.14f, 1.2f), era == 0 ? iron : paint * 0.85f);
+            vv.Bucket = new GameObject("Blade pivot").transform;
+            vv.Bucket.SetParent(vv.Boom, false);
+            var blade = new GameObject("Blade").transform;
+            blade.SetParent(vv.Bucket, false);
+            blade.localPosition = new Vector3(0f, 0f, 1.25f);
+            float bw = era == 2 ? 2.1f : 1.9f;
+            Art.Cube("Blade face", blade, new Vector3(0f, 0.12f, 0f), new Vector3(bw, era == 2 ? 0.75f : 0.6f, 0.1f), era == 0 ? iron : paint, new Vector3(-10f, 0f, 0f));
+            Art.Cube("Cutting edge", blade, new Vector3(0f, -0.2f, 0.06f), new Vector3(bw, 0.06f, 0.1f), new Color(0.55f, 0.55f, 0.55f));
+            for (int k = -1; k <= 1; k += 2) Art.Cube("Blade rib", blade, new Vector3(k * 0.4f, 0.12f, -0.07f), new Vector3(0.06f, 0.5f, 0.08f), MachineDark);
+            if (era == 2) for (int sd = -1; sd <= 1; sd += 2) Art.Cyl("Lift ram", r, new Vector3(sd * 0.45f, 0.95f, 0.85f), 0.1f, 0.75f, new Color(0.7f, 0.7f, 0.72f), new Vector3(55f, 0f, 0f));
+            // Dirt rolling ahead of the blade (on the ground, so it stays put when the blade lifts).
+            vv.Cargo = new GameObject("Load").transform;
+            vv.Cargo.SetParent(r, false);
+            vv.Cargo.localPosition = new Vector3(0f, 0.05f, 1.75f);
+            Art.Part("Heap", vv.Cargo, Art.Rock, Vector3.zero, new Vector3(bw - 0.3f, 0.6f, 0.7f), Color.gray);
+            vv.HeapH = 0.6f;
+            vv.CargoBadge = Art.Cyl("Badge", vv.Cargo, new Vector3(0f, 0.65f, 0f), 0.45f, 0.04f, new Color(0.1f, 0.1f, 0.1f));
+            vv.CargoLetter = Look.Label("", vv.Cargo, new Vector3(0f, 0.71f, 0f), 0.55f, Color.white);
             vv.CargoLetter.fontStyle = FontStyle.Bold;
             vv.CargoLetter.GetComponent<MeshRenderer>().sharedMaterial = ItemTextMat;
             vv.Cargo.gameObject.SetActive(false);

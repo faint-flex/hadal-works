@@ -144,20 +144,21 @@ namespace Kilnwood.Game
             }
 
             // Earthworks and demolish, always on the right.
-            var tools = new[] { (Tool.Dig, "G  Dig", "mark ground"), (Tool.Dump, "V  Dump", "dirt goes here"), (Tool.Demolish, "X  Demolish", "full refund") };
+            var tools = new[] { (Tool.Dig, "G  Dig", "mark ground"), (Tool.Dump, "V  Dump", "dirt goes here"), (Tool.Level, "L  Level", "flatten, clear trees"), (Tool.Demolish, "X  Demolish", "full refund") };
             float rx = bar.xMax - 8f - tools.Length * (tileW + gap) + gap;
             for (int i = 0; i < tools.Length; i++)
             {
                 var (t, name, sub) = tools[i];
                 var r = new Rect(rx + i * (tileW + gap), y, tileW, tileH);
                 if (GUI.Button(r, name + "\n<size=12>" + sub + "</size>", _tool == t ? _tileOn : _tile)) SetTool(_tool == t ? Tool.Select : t);
-                var ti = t == Tool.Demolish || View == null ? null : View.ToolIcon(t == Tool.Dig);
+                var ti = t == Tool.Demolish || View == null ? null : t == Tool.Level ? View.DozerIcon : View.ToolIcon(t == Tool.Dig);
                 if (ti != null) GUI.DrawTexture(new Rect(r.x + (r.width - 66f) / 2f, r.y + 3f, 66f, 66f), ti, ScaleMode.ScaleToFit, true);
                 else if (t == Tool.Demolish) GUI.Label(new Rect(r.x, r.y + 2f, r.width, 64f), "X", DemolishGlyph());
                 if (_tool == t) GUI.Box(new Rect(r.x, r.yMax - 3f, r.width, 3f), GUIContent.none, Underline());
                 if (r.Contains(Event.current.mousePosition))
                     hoverCard = t == Tool.Dig ? "<b>Dig</b>\nDrag over ore, coal, stone or grass. Excavators dig it layer by layer and trucks carry it to hoppers, the lodge or a dump."
                         : t == Tool.Dump ? "<b>Dump</b>\nDrag an area where trucks may drop dirt. It raises the ground up to 2 levels."
+                        : t == Tool.Level ? "<b>Level</b>\nDrag over spoil heaps, old pits or woods. A bulldozer (buy one at a garage) clears the trees, shaves heaps and pushes the dirt into holes until the ground is flat enough to build on."
                         : "<b>Demolish</b>\nClick a building to remove it and get everything back. Drag over belts.";
             }
 

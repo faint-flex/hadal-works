@@ -104,7 +104,9 @@ namespace Kilnwood.Game
             return tex;
         }
 
-        Texture2D _excavatorIcon, _truckIcon;
+        Texture2D _excavatorIcon, _truckIcon, _dozerIcon;
+        /// <summary>Bulldozer picture for the Level tool (null until made).</summary>
+        public Texture2D DozerIcon => _dozerIcon;
         bool _vehicleIconsTried;
 
         /// <summary>Excavator and truck pictures for the Dig and Dump tools (null until made).</summary>
@@ -114,18 +116,19 @@ namespace Kilnwood.Game
         {
             if (_vehicleIconsTried) return;
             _vehicleIconsTried = true;
-            foreach (bool ex in new[] { true, false })
+            foreach (int kind in new[] { 0, 1, 2 })
             {
+                bool ex = kind == 0;
                 VView vv = null;
                 try
                 {
-                    vv = ex ? MakeExcavator() : MakeTruck();
+                    vv = kind == 0 ? MakeExcavator() : kind == 1 ? MakeTruck() : MakeDozer();
                     vv.Root.position = new Vector3(-1200f, 0f, -1200f);
                     vv.Root.rotation = Quaternion.Euler(0f, ex ? 200f : 160f, 0f);
                     foreach (var ps in vv.Root.GetComponentsInChildren<ParticleSystem>(true)) ps.gameObject.SetActive(false);
                     foreach (var tm in vv.Root.GetComponentsInChildren<TextMesh>(true)) tm.gameObject.SetActive(false);
                     var tex = Snapshot(vv.Root.gameObject, 128);
-                    if (ex) _excavatorIcon = tex; else _truckIcon = tex;
+                    if (kind == 0) _excavatorIcon = tex; else if (kind == 1) _truckIcon = tex; else _dozerIcon = tex;
                 }
                 catch (System.Exception e) { Debug.LogWarning("Kilnwood vehicle icon: " + e.Message); }
                 finally { if (vv != null) { vv.Root.gameObject.SetActive(false); Destroy(vv.Root.gameObject); } }

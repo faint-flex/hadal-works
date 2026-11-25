@@ -13,7 +13,7 @@ namespace Kilnwood.Game
     public partial class GameRoot : MonoBehaviour
     {
         enum State { Title, Playing }
-        enum Tool { Select, Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Fisher, Cabin, Splitter, Garage, Hopper, Dig, Dump, Demolish, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station, Dynamo, Pole, WireMill, ElectricMine, MachineShop, Turbine, ArcFurnace, Assembly, RollingMill, Hangar, HydroDam, Glassworks, RadioWorks, DroneWorks, DronePort }
+        enum Tool { Select, Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Fisher, Cabin, Splitter, Garage, Hopper, Dig, Dump, Demolish, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station, Dynamo, Pole, WireMill, ElectricMine, MachineShop, Turbine, ArcFurnace, Assembly, RollingMill, Hangar, HydroDam, Glassworks, RadioWorks, DroneWorks, DronePort, Level }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
@@ -164,6 +164,7 @@ namespace Kilnwood.Game
                 if (GameInput.Down(digits[k]) && k < pageTools.Length) SetTool(pageTools[k]);
             if (GameInput.Down(GameKey.G)) SetTool(_tool == Tool.Dig ? Tool.Select : Tool.Dig);
             if (GameInput.Down(GameKey.V)) SetTool(_tool == Tool.Dump ? Tool.Select : Tool.Dump);
+            if (GameInput.Down(GameKey.L)) SetTool(_tool == Tool.Level ? Tool.Select : Tool.Level);
             if (GameInput.Down(GameKey.Alpha9) && _page == 1) SetTool(Tool.Splitter);
             if (GameInput.Down(GameKey.X)) SetTool(_tool == Tool.Demolish ? Tool.Select : Tool.Demolish);
             if (GameInput.Down(GameKey.R))
@@ -319,23 +320,26 @@ namespace Kilnwood.Game
 
                 case Tool.Dig:
                 case Tool.Dump:
+                case Tool.Level:
                 {
-                    bool dig = _tool == Tool.Dig;
+                    bool dig = _tool == Tool.Dig, level = _tool == Tool.Level;
                     if (!_dragging)
                     {
-                        View.ShowAreaGhost(tx, ty, tx, ty, dig, dig ? W.CanMarkDig(tx, ty) : W.CanMarkDump(tx, ty));
+                        View.ShowAreaGhost(tx, ty, tx, ty, dig, level ? W.CanMarkLevel(tx, ty) : dig ? W.CanMarkDig(tx, ty) : W.CanMarkDump(tx, ty), level);
                         if (GameInput.LeftDown) { _dragging = true; _dragX = tx; _dragY = ty; }
                     }
                     if (_dragging)
                     {
                         bool clear = GameInput.Held(GameKey.Shift);
-                        View.ShowAreaGhost(_dragX, _dragY, tx, ty, dig, clear ? "Shift: clearing marks" : null);
+                        View.ShowAreaGhost(_dragX, _dragY, tx, ty, dig, clear ? "Shift: clearing marks" : null, level);
                         if (!GameInput.LeftHeld)
                         {
                             int n = clear ? W.ClearMarks(_dragX, _dragY, tx, ty)
-                                  : dig ? W.MarkDig(_dragX, _dragY, tx, ty) : W.MarkDump(_dragX, _dragY, tx, ty);
+                                  : level ? W.MarkLevel(_dragX, _dragY, tx, ty) : dig ? W.MarkDig(_dragX, _dragY, tx, ty) : W.MarkDump(_dragX, _dragY, tx, ty);
                             int total = (Mathf.Abs(tx - _dragX) + 1) * (Mathf.Abs(ty - _dragY) + 1);
                             if (clear) Toast("Cleared " + n + " marked tiles");
+                            else if (n == 0 && level) Toast("Nothing here needs levelling (already flat, built on, or river)");
+                            else if (level && W.CountVehicles(VehicleType.Dozer) == 0) Toast("Marked " + n + " tiles. Buy a bulldozer at a garage to level them");
                             else if (n == 0) Toast(dig ? "Nothing here can be dug (water, trees, buildings or already at the bottom)" : "Nothing here can take dirt");
                             else if (dig && W.CountVehicles(VehicleType.Excavator) == 0) Toast("Marked " + n + " tiles. Build a garage (7) and buy an excavator and a truck to dig them");
                             else if (n < total) Toast("Marked " + n + " of " + total + " tiles (skipped water, trees and buildings)");
@@ -532,6 +536,16 @@ namespace Kilnwood.Game
                 File.AppendAllText(Path.Combine(_shotsDir, "shots-result.txt"), "tier 1 goal at " + W.GoalReachedAt.ToString("0") + " s game time\n");
             }
             if (W.Tier >= 3 && W.Tier2GoalAt > 0f && !_tier2Shot) { _tier2Shot = true; StartCoroutine(TierShot("19-tier2-goal-t" + Mathf.RoundToInt(W.Time) + "s")); }
+            // 0.22: the bulldozer pushing down the woods north of the pit (from Tier 6 in the demo).
+            if (!_dozerShot && W.TreesCleared >= 4)
+                foreach (var dz in W.Vehicles)
+                    if (dz.Type == VehicleType.Dozer && dz.State == VehicleState.Digging)
+                    {
+                        _dozerShot = true;
+                        Rig.Frame(WorldView.FootCenter(dz.TileX, dz.TileY, 1), 200f, 32f, 16f);
+                        StartCoroutine(ShotNextFrame("49-dozer-clearing-t" + Mathf.RoundToInt(W.Time) + "s"));
+                        break;
+                    }
             if (W.Tier >= 6 && W.Era == 1 && !_dieselShot) { _dieselShot = true; StartCoroutine(PitShot("46-era-diesel-t" + Mathf.RoundToInt(W.Time) + "s")); }
             if (W.Tier >= 4 && _railAt <= 0f) _railAt = W.Time + 150f;
             bool trainOut = false;
@@ -678,13 +692,13 @@ namespace Kilnwood.Game
             View.OnlyTitle = null;
         }
 
-        bool _dieselShot;
+        bool _dieselShot, _dozerShot;
 
         /// <summary>0.20: the pit fleet where it is working (shows the diesel-era shovel and tipper in Tiers 4-6).</summary>
         System.Collections.IEnumerator PitShot(string name)
         {
             Vector3 sum = Vector3.zero; int n = 0;
-            foreach (var veh in W.Vehicles) if (veh.Type != VehicleType.Train) { sum += new Vector3(veh.X * WorldView.T, 0f, veh.Y * WorldView.T); n++; }
+            foreach (var veh in W.Vehicles) if (veh.Type != VehicleType.Train && veh.Type != VehicleType.Dozer) { sum += new Vector3(veh.X * WorldView.T, 0f, veh.Y * WorldView.T); n++; }
             if (n == 0) yield break;
             Rig.Frame(sum / n, 215f, 32f, 24f);
             for (int k = 0; k < 3; k++) yield return null;
@@ -925,6 +939,7 @@ namespace Kilnwood.Game
             var hint = _tool == Tool.Select ? "Click a building to inspect it.  1-8 build, 9 splitter" + (W.Tier >= 2 ? ", Tab next build page" : "") + ", T research" + "  ·  G dig  ·  V dump  ·  X demolish  ·  Space pause  ·  F fast  ·  WASD/edge pan  ·  scroll zoom  ·  Q/E rotate view"
                 : _tool == Tool.Demolish ? "DEMOLISH: click to remove (full refund). Hold and drag over belts. Right click or Esc to stop."
                 : _tool == Tool.Dig ? "DIG: drag over ore, stone or grass. Excavators dig it layer by layer; trucks carry it off. Hold Shift while dragging to clear marks."
+                : _tool == Tool.Level ? "LEVEL: drag over spoil heaps, holes or woods. A bulldozer pushes the ground back to flat and clears the trees, so you can build there. Hold Shift to clear marks."
                 : _tool == Tool.Dump ? "DUMP: drag an area where trucks may drop dirt (raises the ground up to 2 levels). Hold Shift to clear marks."
                 : _tool == Tool.Belt ? "BELTS: click and drag to lay a line; items flow toward where you drag. R turns a single belt. Right click to stop."
                 : _tool == Tool.Shaft ? "LINE SHAFTS: drag a line from a waterwheel to machines. They run overhead, so they can cross belts. Machines touching a shaft share its power."
@@ -1079,12 +1094,12 @@ namespace Kilnwood.Game
         {
             GUILayout.Label("Machine era: " + World.EraName(W.Era) + " (dig x" + B.EraWork[W.Era].ToString("0.##") + ", truck load " + W.TruckCapacity + "). New eras arrive at Tier " + B.Era1Tier + " and Tier " + B.Era2Tier + ".", _small);
             GUILayout.Label("Vehicle fuel: W wood " + g.FuelWood + "   C charcoal " + g.FuelCharcoal + "  (holds " + B.GarageFuelCap + "). Belt wood or charcoal in.", _small);
-            foreach (VehicleType t in new[] { VehicleType.Excavator, VehicleType.Truck })
+            foreach (VehicleType t in new[] { VehicleType.Excavator, VehicleType.Truck, VehicleType.Dozer })
             {
                 var cost = new StringBuilder();
                 foreach (var c in B.VehicleCost(t)) cost.Append(cost.Length > 0 ? " + " : "").Append(c.count).Append(' ').Append(Items.Letter(c.item));
                 string why = W.CanBuy(g, t);
-                string name = t == VehicleType.Excavator ? "Buy excavator" : "Buy truck";
+                string name = t == VehicleType.Excavator ? "Buy excavator" : t == VehicleType.Dozer ? "Buy bulldozer" : "Buy truck";
                 if (GUILayout.Button(name + "  (" + cost + ")" + (why != null ? "\n" + why : ""), why == null ? _btn : _btnSmall, GUILayout.Height(why == null ? 38f : 46f)))
                 {
                     if (why != null) Toast(why); else W.Buy(g.Id, t);
