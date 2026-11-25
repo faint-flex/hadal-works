@@ -241,6 +241,8 @@ namespace Kilnwood.Game
                 case BuildingType.MachineShop: return v.Body.TransformPoint(new Vector3(-1.95f, 3.85f, -1.2f));
                 case BuildingType.Turbine: return v.Body.TransformPoint(new Vector3(-0.85f + k * ArmHalf, 2.68f, -0.85f) * T);
                 case BuildingType.ArcFurnace: return v.Body.TransformPoint(new Vector3(0.75f, 3.32f, -0.7f) * T);
+                case BuildingType.RollingMill: return v.Body.TransformPoint(new Vector3(0.7f, 2.02f, -0.75f) * T);
+                case BuildingType.Hangar: return v.Body.TransformPoint(new Vector3(-1.3f, 2.27f, -1.3f) * T);
                 case BuildingType.Assembly: return v.Body.TransformPoint(new Vector3(-1.4f, 4.52f, -1.42f) * T);
                 default: return v.Body.TransformPoint(new Vector3(-2.0f, 4.1f, -0.75f));
             }
@@ -334,7 +336,7 @@ namespace Kilnwood.Game
             float dt = Time.deltaTime;
             foreach (var b in _w.Buildings.Values)
             {
-                if (b.Type != BuildingType.Dynamo && b.Type != BuildingType.Pole && b.Type != BuildingType.WireMill && b.Type != BuildingType.ElectricMine && b.Type != BuildingType.Turbine) continue;
+                if (b.Type != BuildingType.Dynamo && b.Type != BuildingType.Pole && b.Type != BuildingType.WireMill && b.Type != BuildingType.ElectricMine && b.Type != BuildingType.Turbine && b.Type != BuildingType.RollingMill) continue;
                 if (!_views.TryGetValue(b.Id, out var v)) continue;
                 switch (b.Type)
                 {
@@ -343,6 +345,12 @@ namespace Kilnwood.Game
                         bool turning = b.Power > 0f;
                         if (v.Extra != null && v.Extra.activeSelf != turning) v.Extra.SetActive(turning);
                         if (turning && v.Anim != null) { v.AnimAngle += dt * 260f * b.Power; v.Anim.localRotation = Quaternion.Euler(0f, 0f, v.AnimAngle); }
+                        break;
+                    }
+                    case BuildingType.RollingMill:
+                    {
+                        bool running = b.Status == "Working" || b.Status.StartsWith("Low electricity");
+                        if (running && v.Anim != null) { v.AnimAngle += dt * 240f * Mathf.Max(0.2f, b.Elec); v.Anim.localRotation = Quaternion.Euler(v.AnimAngle, 0f, 0f); }
                         break;
                     }
                     case BuildingType.Turbine:

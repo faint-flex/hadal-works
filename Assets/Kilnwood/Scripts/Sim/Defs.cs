@@ -4,9 +4,9 @@ namespace Kilnwood.Sim
 {
     public enum Terrain { Grass, Forest, IronOre, Stone, Water }
 
-    public enum Item { None, Wood, Ore, Stone, Charcoal, Iron, Brick, Gear, Fish, Dirt, Plank, Plate, Coal, Steel, Wire, Motor, Tractor }
+    public enum Item { None, Wood, Ore, Stone, Charcoal, Iron, Brick, Gear, Fish, Dirt, Plank, Plate, Coal, Steel, Wire, Motor, Tractor, Plane }
 
-    public enum BuildingType { Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Lodge, Fisher, Cabin, Splitter, Garage, Hopper, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station, Dynamo, Pole, WireMill, ElectricMine, MachineShop, Turbine, ArcFurnace, Assembly }
+    public enum BuildingType { Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Lodge, Fisher, Cabin, Splitter, Garage, Hopper, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station, Dynamo, Pole, WireMill, ElectricMine, MachineShop, Turbine, ArcFurnace, Assembly, RollingMill, Hangar }
 
     public enum VehicleType { Excavator, Truck, Train }
 
@@ -85,6 +85,7 @@ namespace Kilnwood.Sim
                 case Item.Wire: return "Steel wire";
                 case Item.Motor: return "Motor";
                 case Item.Tractor: return "Tractor";
+                case Item.Plane: return "Aeroplane";
                 default: return "-";
             }
         }
@@ -110,6 +111,7 @@ namespace Kilnwood.Sim
                 case Item.Wire: return "E";
                 case Item.Motor: return "M";
                 case Item.Tractor: return "R";
+                case Item.Plane: return "A";
                 default: return "";
             }
         }
@@ -155,6 +157,7 @@ namespace Kilnwood.Sim
 
         // 0.5 "Open Pit": digging, excavators and trucks.
         public int MaxDigDepth = 4;              // levels below the surface (1 level = 1 m)
+        public int DeepPitDepth = 8;             // 0.15: from Tier 8 the pit can go this deep (the shallow ore runs out)
         public int MaxDumpHeight = 2;            // levels above the surface
         public int UnitsPerLevel = 8;            // items in one level of one tile
         public float DigSeconds = 1.5f;          // excavator: one unit every 1.5 s
@@ -214,6 +217,11 @@ namespace Kilnwood.Sim
         public int ArcFurnaceKw = 12;
         public int AssemblyKw = 16;
         public int GoalTractor = 30;             // tractors delivered to the lodge
+
+        // 0.15 Tier 8 "Flight": the rolling mill's plates and the hangar's aeroplanes, which fly away from its runway.
+        public int RollingMillKw = 10;
+        public int HangarKw = 20;
+        public int GoalPlane = 15;               // aeroplanes flown from a hangar
 
         public (Item item, int count)[] VehicleCost(VehicleType t) => t == VehicleType.Excavator ? ExcavatorCost : t == VehicleType.Train ? TrainCost : TruckCost;
 
@@ -336,6 +344,18 @@ namespace Kilnwood.Sim
                 Type = BuildingType.Assembly, Name = "Assembly plant", Size = 3, Key = '3', Tier = 7, Kw = AssemblyKw, NeedsElectric = true,
                 Cost = new[] { (Item.Brick, 30), (Item.Plate, 20), (Item.Steel, 10), (Item.Motor, 6) },
                 Recipes = new[] { new Recipe { Name = "Tractor", InItems = new[] { Item.Motor, Item.Steel }, InCounts = new[] { 2, 2 }, Out = Item.Tractor, Seconds = 8f } },
+            });
+            Add(new BuildingDef
+            {
+                Type = BuildingType.RollingMill, Name = "Rolling mill", Size = 2, Key = '1', Tier = 8, Kw = RollingMillKw, NeedsElectric = true,
+                Cost = new[] { (Item.Brick, 20), (Item.Plate, 10), (Item.Motor, 4) },
+                Recipes = new[] { new Recipe { Name = "Iron plate", InItems = new[] { Item.Steel }, InCounts = new[] { 1 }, Out = Item.Plate, OutCount = 2, Seconds = 2f } },
+            });
+            Add(new BuildingDef
+            {
+                Type = BuildingType.Hangar, Name = "Hangar", Size = 3, Key = '2', Tier = 8, Kw = HangarKw, NeedsElectric = true,
+                Cost = new[] { (Item.Plank, 40), (Item.Plate, 20), (Item.Brick, 20), (Item.Motor, 6) },   // no steel: by now it all goes to wire and tractors
+                Recipes = new[] { new Recipe { Name = "Aeroplane", InItems = new[] { Item.Motor, Item.Plate }, InCounts = new[] { 2, 4 }, Out = Item.Plane, Seconds = 12f } },
             });
             Add(new BuildingDef { Type = BuildingType.Hopper, Name = "Hopper", Size = 2, Cost = new[] { (Item.Wood, 10), (Item.Stone, 6) }, Key = '8' });
         }

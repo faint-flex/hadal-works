@@ -98,5 +98,53 @@ namespace Kilnwood.Tests
             Assert.AreEqual(Item.Tractor, a.OutItem);
             Assert.AreEqual(1, a.OutCount);
         }
+
+        [Test]
+        public void Tier8_rolling_mill_makes_two_plates_per_steel()
+        {
+            var w = Valley(tier: 8);
+            w.Storage[Item.Motor] = 500;
+            var t = w.Place(BuildingType.Turbine, 10, 10, 0);
+            t.FuelCoal = 5;
+            var m = w.Place(BuildingType.RollingMill, 13, 10, 1);
+            Assert.IsNotNull(m);
+            m.Input[Item.Steel] = 1;
+            for (int i = 0; i < 25; i++) w.Tick(0.1f);
+            Assert.AreEqual(Item.Plate, m.OutItem);
+            Assert.AreEqual(2, m.OutCount);
+        }
+
+        [Test]
+        public void Hangar_flies_its_aeroplanes_away_and_they_open_tier9()
+        {
+            var w = Valley(tier: 7);
+            Assert.AreEqual("Unlocks at Tier 8", w.CanPlace(BuildingType.Hangar, 13, 10));
+            w.UnlockTier(8);
+            var t = w.Place(BuildingType.Turbine, 10, 10, 0);
+            t.FuelCoal = 5;
+            var h = w.Place(BuildingType.Hangar, 13, 10, 0);
+            Assert.IsNotNull(h);
+            h.Input[Item.Motor] = 2;
+            h.Input[Item.Plate] = 4;
+            for (int i = 0; i < 125; i++) w.Tick(0.1f);
+            Assert.AreEqual(1, h.Launched);
+            Assert.AreEqual(1, w.Delivered[Item.Plane]);
+            Assert.AreEqual(0, h.OutCount);   // nothing waits on a belt: it flew
+            w.Delivered[Item.Plane] = B.GoalPlane;
+            w.Tick(0.1f);
+            Assert.AreEqual(9, w.Tier);
+        }
+
+        [Test]
+        public void Tier8_lets_the_pit_dig_deeper()
+        {
+            var w = Valley(tier: 7);
+            w.SetGround(20, 20, Terrain.IronOre);
+            int i = 20 * w.W + 20;
+            w.Units[i] = -B.UnitsPerLevel * B.MaxDigDepth;
+            Assert.AreEqual(Item.None, w.MaterialAt(i));
+            w.UnlockTier(8);
+            Assert.AreEqual(Item.Ore, w.MaterialAt(i));
+        }
     }
 }

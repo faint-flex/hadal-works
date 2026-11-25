@@ -66,12 +66,15 @@ namespace Kilnwood.Sim
         // ------------------------------------------------------------------ what's under the ground
 
         /// <summary>What digging this tile gives next, or None when it can't be dug any further.</summary>
+        /// <summary>How many levels down the pit may go: deeper once Tier 8 opens.</summary>
+        public int DigDepth => Tier >= 8 ? B.DeepPitDepth : B.MaxDigDepth;
+
         public Item MaterialAt(int i)
         {
             int u = Units[i];
             if (u > 0) return Item.Dirt;
             int level = -u / B.UnitsPerLevel;
-            if (level >= B.MaxDigDepth) return Item.None;
+            if (level >= DigDepth) return Item.None;
             if (CoalSeam[i] && level >= B.CoalFromLevel && (Ground[i] == Terrain.Grass || Ground[i] == Terrain.Stone)) return Item.Coal;
             switch (Ground[i])
             {

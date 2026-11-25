@@ -14,8 +14,8 @@ namespace Kilnwood.Game
     public partial class GameRoot
     {
         bool _research;
-        static readonly string[] TierNames = { "", "First Fire", "Water Power", "Steam", "Rails", "Electricity", "Machine Age", "Assembly Line", "Next era" };
-        static readonly string[] PageNames = { "", "BASICS", "WATER POWER", "STEAM", "RAILS", "ELECTRICITY", "MACHINES", "ASSEMBLY" };
+        static readonly string[] TierNames = { "", "First Fire", "Water Power", "Steam", "Rails", "Electricity", "Machine Age", "Assembly Line", "Flight", "Next era" };
+        static readonly string[] PageNames = { "", "BASICS", "WATER POWER", "STEAM", "RAILS", "ELECTRICITY", "MACHINES", "ASSEMBLY", "FLIGHT" };
         List<BuildingType> _iconTypes;
         GUIStyle _tile, _tileOn, _tileLocked, _tiny, _tinyDim, _tab, _tabOn, _tabLocked, _cardTitle;
         Texture2D _barBack, _barFill, _barDone, _line;
@@ -24,7 +24,7 @@ namespace Kilnwood.Game
         {
             if (_iconTypes != null) return _iconTypes;
             _iconTypes = new List<BuildingType>();
-            for (int p = 1; p <= 7; p++)
+            for (int p = 1; p <= 8; p++)
                 foreach (var t in PageTools(p)) _iconTypes.Add(TypeOf(t));
             _iconTypes.Add(BuildingType.Splitter);
             return _iconTypes;
@@ -88,8 +88,9 @@ namespace Kilnwood.Game
         {
             MenuStyles();
             const float tileW = 104f, tileH = 112f, gap = 5f;
-            int pages = 7;
-            var bar = Panel(new Rect(Wd / 2f - 780f, Ht - 162f, 1560f, 152f));
+            int pages = 8;
+            float bw = Mathf.Min(1800f, Wd - 40f);
+            var bar = Panel(new Rect(Wd / 2f - bw / 2f, Ht - 162f, bw, 152f));
 
             // Tabs: one per tier page; locked ones say which tier opens them.
             float tabW = Mathf.Floor((bar.width - 16f - 158f - (pages - 1) * 4f) / pages);
@@ -242,6 +243,8 @@ namespace Kilnwood.Game
                 case BuildingType.Turbine: return "Burns wood, charcoal or coal for electricity. No shaft needed. A woodcutter can feed it.";
                 case BuildingType.ArcFurnace: return "Electric. Melts iron ore into steel with no coal.";
                 case BuildingType.Assembly: return "Electric. Builds tractors from motors and steel.";
+                case BuildingType.RollingMill: return "Electric. Rolls 1 steel into 2 iron plates.";
+                case BuildingType.Hangar: return "Electric. Builds aeroplanes from motors and plates. They fly off its front.";
                 default: return null;
             }
         }
@@ -259,6 +262,7 @@ namespace Kilnwood.Game
                 case 5: return new[] { ("steel wire", Item.Wire, W.Delivered[Item.Wire], B.GoalWire) };
                 case 6: return new[] { ("motors", Item.Motor, W.Delivered[Item.Motor], B.GoalMotor) };
                 case 7: return new[] { ("tractors", Item.Tractor, W.Delivered[Item.Tractor], B.GoalTractor) };
+                case 8: return new[] { ("aeroplanes flown", Item.Plane, W.Delivered[Item.Plane], B.GoalPlane) };
                 default: return new (string, Item, int, int)[0];
             }
         }
@@ -287,6 +291,7 @@ namespace Kilnwood.Game
             "Dynamos on the shafts, power poles, and an electric wire mill.",
             "Electric mines and a machine shop that builds motors.",
             "A steam turbine, an electric furnace, and an assembly plant that builds tractors.",
+            "A rolling mill for plates and a hangar whose aeroplanes fly. The pit can dig deeper.",
             "Coming in a later build.",
         };
 
@@ -298,7 +303,7 @@ namespace Kilnwood.Game
             GUI.Label(new Rect(p.x + 20f, p.y + 10f, 700f, 34f), "<b>Research</b>   reach each tier's goal to unlock the next", _h2);
             if (GUI.Button(new Rect(p.xMax - 130f, p.y + 10f, 116f, 34f), "Close (T)", _btn)) _research = false;
 
-            const int tiers = 8;
+            const int tiers = 9;
             float gapX = 16f, nodeW = Mathf.Floor((pw - 40f - (tiers - 1) * gapX) / tiers), top = p.y + 60f, nodeH = p.height - 76f;
             for (int n = 1; n <= tiers; n++)
             {
@@ -321,7 +326,7 @@ namespace Kilnwood.Game
                 // Unlocks: building pictures with names.
                 float uy = top + 118f;
                 var unlocks = new List<BuildingType>();
-                if (n <= 7) foreach (var t in PageTools(n)) unlocks.Add(TypeOf(t));
+                if (n <= 8) foreach (var t in PageTools(n)) unlocks.Add(TypeOf(t));
                 if (n == 1) unlocks.Add(BuildingType.Splitter);
                 if (unlocks.Count > 0) GUI.Label(new Rect(nx + 12f, uy, nodeW - 24f, 22f), "Unlocks", _tinyDim);
                 uy += 22f;
@@ -345,7 +350,7 @@ namespace Kilnwood.Game
                 if (goals.Length > 0)
                 {
                     float gy = node.yMax - 22f - 2 * 40f;   // goals line up across tiers
-                    GUI.Label(new Rect(nx + 12f, gy - 24f, nodeW - 24f, 22f), "Goal: deliver to the lodge", _tinyDim);
+                    GUI.Label(new Rect(nx + 12f, gy - 24f, nodeW - 24f, 22f), n == 8 ? "Goal: fly from a hangar" : "Goal: deliver to the lodge", _tinyDim);
                     foreach (var g in goals)
                     {
                         int have = Mathf.Min(g.have, g.need);

@@ -22,6 +22,13 @@ namespace Kilnwood.Sim
         public bool Done => _next >= _steps.Count;
         public int Total => _steps.Count;
         public int Placed => _next;
+        /// <summary>The step it is waiting on, and why (for simcheck).</summary>
+        public string Waiting(World w)
+        {
+            if (Done) return "done";
+            var s = _steps[_next];
+            return s.Type + " at " + s.X + "," + s.Y + (s.Remove ? " (remove)" : ": " + (w.CanPlace(s.Type, s.X, s.Y) ?? "ok"));
+        }
 
         readonly bool _pit;
         bool _marked, _marked3;
@@ -29,11 +36,11 @@ namespace Kilnwood.Sim
         readonly bool _tier3;
 
         readonly bool _tier4;
-        readonly bool _tier5, _tier6, _tier7;
+        readonly bool _tier5, _tier6, _tier7, _tier8;
         readonly int _railsEnd;
-        public const int FieldStationX = 54, FieldStationY = 7, YardStationX = 35, YardStationY = 26, DynamoX = 42, DynamoY = 20, ShopX = 36, ShopY = 32, TurbineX = 48, TurbineY = 20, AssemblyX = 31, AssemblyY = 35;
+        public const int FieldStationX = 54, FieldStationY = 7, YardStationX = 35, YardStationY = 26, DynamoX = 42, DynamoY = 20, ShopX = 36, ShopY = 32, TurbineX = 48, TurbineY = 20, AssemblyX = 31, AssemblyY = 35, HangarX = 37, HangarY = 39;
 
-        public DemoFactory(bool people = false, bool pit = false, bool tier2 = false, bool tier3 = false, bool tier4 = false, bool tier5 = false, bool tier6 = false, bool tier7 = false)
+        public DemoFactory(bool people = false, bool pit = false, bool tier2 = false, bool tier3 = false, bool tier4 = false, bool tier5 = false, bool tier6 = false, bool tier7 = false, bool tier8 = false)
         {
             _pit = pit;
             _tier3 = tier3;
@@ -41,6 +48,7 @@ namespace Kilnwood.Sim
             _tier5 = tier5;
             _tier6 = tier6;
             _tier7 = tier7;
+            _tier8 = tier8;
             const int N = 0, E = 1, S = 2, W = 3;
             const int Charcoal = 0, Brick = 1;
             // Phase 1: wood into the lodge (pays for everything else).
@@ -200,6 +208,27 @@ namespace Kilnwood.Sim
                 Add(BuildingType.Belt, 35, 34, N);
                 Add(BuildingType.Belt, 35, 35, W);
                 Add(BuildingType.Belt, 34, 35, W);
+            }
+
+            // Phase 12 (0.15 Tier 8 "Flight"): a rolling mill turns steel from a second electric furnace into plates for a
+            // hangar east of the assembly plant; a splitter shares the machine shop's motors between the two. Aeroplanes
+            // fly off the hangar's runway to the north. Two more wood-fired turbines carry the extra load.
+            if (tier8)
+            {
+                Add(BuildingType.RollingMill, 39, 37, N);   // first: Tier 8 gates the rest of the phase
+                Add(BuildingType.Turbine, TurbineX + 3, TurbineY, N);
+                Add(BuildingType.Woodcutter, TurbineX + 3, TurbineY + 2, S);
+                Add(BuildingType.Turbine, TurbineX + 6, TurbineY, N);
+                Add(BuildingType.Woodcutter, TurbineX + 6, TurbineY + 2, S);
+                Add(BuildingType.Pole, 41, 38, N);
+                Add(BuildingType.ArcFurnace, 39, 35, N);
+                Add(BuildingType.Hopper, 37, 36, E);
+                Add(BuildingType.Hangar, HangarX, HangarY, N);
+                for (int y = 35; y <= 37; y++) Add(BuildingType.Belt, 36, y, N);
+                Add(BuildingType.Belt, 36, 38, E);
+                Add(BuildingType.Belt, 37, 38, N);
+                _steps.Add(new Step { Type = BuildingType.Belt, X = 35, Y = 35, Remove = true, MinTier = 8 });
+                Add(BuildingType.Splitter, 35, 35, N);   // motors: left to the assembly plant, right to the hangar
             }
         }
 

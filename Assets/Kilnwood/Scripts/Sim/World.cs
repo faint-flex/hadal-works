@@ -15,6 +15,7 @@ namespace Kilnwood.Sim
         // Belt state
         public Item BeltItem;
         public bool Fired;                   // steam turbine: has fire this tick
+        public int Launched;                 // hangar: aeroplanes flown so far (the view flies one away for each)
         public float BeltProgress;
 
         // Machine state
@@ -85,6 +86,7 @@ namespace Kilnwood.Sim
         public float Tier5GoalAt { get; private set; } = -1f;
         public float Tier6GoalAt { get; private set; } = -1f;
         public float Tier7GoalAt { get; private set; } = -1f;
+        public float Tier8GoalAt { get; private set; } = -1f;
 
         public World(Balance b)
         {
@@ -408,6 +410,11 @@ namespace Kilnwood.Sim
                 Tier = 8;
                 Tier7GoalAt = Time;
             }
+            if (Tier == 8 && Delivered[Item.Plane] >= B.GoalPlane)
+            {
+                Tier = 9;
+                Tier8GoalAt = Time;
+            }
         }
 
         /// <summary>Homes, who works where (in build order), and eating fish from the lodge.</summary>
@@ -611,7 +618,13 @@ namespace Kilnwood.Sim
                 case BuildingType.WireMill:
                 case BuildingType.MachineShop:
                 case BuildingType.ArcFurnace:
-                case BuildingType.Assembly: StepCrafter(m, dt); break;
+                case BuildingType.Assembly:
+                case BuildingType.RollingMill: StepCrafter(m, dt); break;
+                case BuildingType.Hangar:
+                    StepCrafter(m, dt);
+                    // A finished aeroplane doesn't go on a belt: it taxis out and flies away (that is the delivery).
+                    if (m.OutCount > 0) { Delivered[m.OutItem] += m.OutCount; m.Launched += m.OutCount; m.OutCount = 0; m.OutItem = Item.None; }
+                    return;
                 case BuildingType.Turbine: m.Status = TurbineStatus(m); return;   // fired in StepGrids
                 case BuildingType.Dynamo: m.Status = DynamoStatus(m); return;
                 case BuildingType.Pole: m.Status = PoleStatus(m); return;

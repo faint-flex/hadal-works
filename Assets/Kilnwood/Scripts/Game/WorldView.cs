@@ -81,6 +81,7 @@ namespace Kilnwood.Game
                 case Item.Wire: return new Color(0.42f, 0.44f, 0.47f);
                 case Item.Motor: return new Color(0.22f, 0.44f, 0.3f);
                 case Item.Tractor: return new Color(0.86f, 0.46f, 0.16f);
+                case Item.Plane: return new Color(0.72f, 0.74f, 0.76f);
                 default: return Color.white;
             }
         }
@@ -546,6 +547,8 @@ namespace Kilnwood.Game
                 case BuildingType.Turbine: MakeTurbine(B, s, v); break;
                 case BuildingType.ArcFurnace: MakeArcFurnace(B, s, v); break;
                 case BuildingType.Assembly: MakeAssembly(B, s, v); break;
+                case BuildingType.RollingMill: MakeRollingMill(B, s, v); break;
+                case BuildingType.Hangar: MakeHangar(B, s, v); break;
                 case BuildingType.Lodge:
                 {
                     float fz = (s - 2.2f) / 2f;   // front wall
@@ -706,6 +709,8 @@ namespace Kilnwood.Game
                 case BuildingType.Turbine: return "STEAM TURBINE " + _w.B.Defs[b.Type].Kw + " kW";
                 case BuildingType.ArcFurnace: return "ELECTRIC FURNACE T";
                 case BuildingType.Assembly: return "ASSEMBLY PLANT R";
+                case BuildingType.RollingMill: return "ROLLING MILL L";
+                case BuildingType.Hangar: return "HANGAR A";
                 default: return "";
             }
         }
@@ -780,6 +785,7 @@ namespace Kilnwood.Game
             UpdatePowerViews(_w.Buildings.Count != _shaftArmsCount || gone != null);
             UpdateSteamViews();
             UpdateElectricViews(_w.GridVersion != _gridCount);
+            UpdateFlights();
             if (_w.Buildings.Count != _railCount || gone != null) { RefreshRails(); _railCount = _w.Buildings.Count; }
             foreach (var b in _w.Buildings.Values)
                 if (b.Type == BuildingType.Hopper)
@@ -1127,6 +1133,15 @@ namespace Kilnwood.Game
                     tr.localScale = Vector3.one * 1.15f;
                     BuildTractor(tr, col);
                     top = 0.56f;
+                    break;
+                }
+                case Item.Plane:
+                {
+                    var pl = new GameObject("Aeroplane").transform;
+                    pl.SetParent(t, false);
+                    pl.localScale = Vector3.one * 0.8f;
+                    BuildPlane(pl, col);
+                    top = 0.5f;
                     break;
                 }
                 case Item.Fish:
