@@ -537,12 +537,12 @@ namespace Kilnwood.Game
             }
             if (W.Tier >= 3 && W.Tier2GoalAt > 0f && !_tier2Shot) { _tier2Shot = true; StartCoroutine(TierShot("19-tier2-goal-t" + Mathf.RoundToInt(W.Time) + "s")); }
             // 0.22: the bulldozer pushing down the woods north of the pit (from Tier 6 in the demo).
-            if (!_dozerShot && W.TreesCleared >= 4)
+            if (!_dozerShot && W.TreesCleared >= 12)   // 0.22.1: half the strip is bare by then, so the dozer stands in the open
                 foreach (var dz in W.Vehicles)
                     if (dz.Type == VehicleType.Dozer && dz.State == VehicleState.Digging)
                     {
                         _dozerShot = true;
-                        Rig.Frame(WorldView.FootCenter(dz.TileX, dz.TileY, 1), 200f, 32f, 16f);
+                        Rig.Frame(WorldView.FootCenter(dz.TileX, dz.TileY, 1), 200f, 52f, 18f);
                         StartCoroutine(ShotNextFrame("49-dozer-clearing-t" + Mathf.RoundToInt(W.Time) + "s"));
                         break;
                     }
@@ -785,6 +785,7 @@ namespace Kilnwood.Game
             sb.AppendLine(W.Tier >= 9 ? "tier 8 goal at " + W.Tier8GoalAt.ToString("0") + " s, aeroplanes " + W.Delivered[Item.Plane] : "tier 8 goal NOT reached, aeroplanes " + W.Delivered[Item.Plane]);
             sb.AppendLine(W.Tier >= 10 ? "tier 9 goal at " + W.Tier9GoalAt.ToString("0") + " s, radio sets " + W.Delivered[Item.Radio] : "tier 9 goal NOT reached, radio sets " + W.Delivered[Item.Radio]);
             sb.AppendLine((W.Tier >= 11 ? "tier 10 goal at " + W.Tier10GoalAt.ToString("0") + " s" : "tier 10 goal NOT reached") + ", drones " + W.Delivered[Item.Drone] + ", flown by drone port " + W.DroneFlown);
+            sb.AppendLine("bulldozers " + W.CountVehicles(VehicleType.Dozer) + ", trees cleared " + W.TreesCleared + ", dirt moved " + W.DozerMoved + ", level marks left " + W.CountLevelMarks());
             int dugTiles = 0; foreach (var u in W.Units) if (u < 0) dugTiles++;
             sb.AppendLine("vehicles " + W.Vehicles.Count + ", dug tiles " + dugTiles + ", ore delivered " + W.Delivered[Item.Ore]);
             sb.AppendLine("buildings " + W.Buildings.Count + ", gears " + W.Delivered[Item.Gear] + ", bricks " + W.Delivered[Item.Brick] + ", wood in lodge " + W.Storage[Item.Wood]);
