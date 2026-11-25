@@ -84,7 +84,7 @@ namespace Kilnwood.Game
                 Directory.CreateDirectory(_shotsDir);
                 SaveSystem.PathOverride = Path.Combine(_shotsDir, "save-shots.json");
                 StartWorld(MapGen.NewTier1(B));
-                _demo = new DemoFactory(B.PeopleEnabled, pit: true, tier2: true, tier3: true, tier4: true, tier5: true, tier6: true, tier7: true, tier8: true, tier9: true);
+                _demo = new DemoFactory(B.PeopleEnabled, pit: true, tier2: true, tier3: true, tier4: true, tier5: true, tier6: true, tier7: true, tier8: true, tier9: true, tier10: true);
                 _speed = 8;
                 File.WriteAllText(Path.Combine(_shotsDir, "shots-result.txt"), "Kilnwood autopilot run\n");
             }

@@ -174,12 +174,12 @@ namespace Kilnwood.Game
                         if (o == v || o.Type == VehicleType.Train) continue;
                         var d = new Vector2(v.X - o.X, v.Y - o.Y);
                         float m = d.magnitude;
-                        float clear = v.Type == VehicleType.Excavator && o.Type == VehicleType.Excavator ? 2.3f : 1.9f;
+                        float clear = v.Type == VehicleType.Excavator && o.Type == VehicleType.Excavator ? 3.0f : 2.0f;   // 0.21.1: shovels need room for the swinging house
                         if (m < 1e-3f) d = new Vector2(Mathf.Sin(v.Id * 2.4f), Mathf.Cos(v.Id * 2.4f)) * 1e-3f;   // same spot: split by id
                         m = d.magnitude;
-                        if (m < clear) want += d / m * Mathf.Min(0.75f, clear - m) * (v.Type == VehicleType.Excavator && o.Type != VehicleType.Excavator ? 0.3f : 1f);
+                        if (m < clear) want += d / m * Mathf.Min(1.2f, clear - m) * (v.Type == VehicleType.Excavator && o.Type != VehicleType.Excavator ? 0.3f : 1f);
                     }
-                vv.Nudge = Vector2.Lerp(vv.Nudge, Vector2.ClampMagnitude(want, 0.75f), 1f - Mathf.Exp(-4f * dt));
+                vv.Nudge = Vector2.Lerp(vv.Nudge, Vector2.ClampMagnitude(want, 1.2f), 1f - Mathf.Exp(-4f * dt));
                 float wx = (v.X + vv.Nudge.x) * T, wz = (v.Y + vv.Nudge.y) * T;
                 // Lean with the slope: compare the ground ahead and behind.
                 var fwd = Quaternion.Euler(0f, v.Heading, 0f) * Vector3.forward;
