@@ -92,7 +92,7 @@ namespace Kilnwood.Game
             var bar = Panel(new Rect(Wd / 2f - 780f, Ht - 162f, 1560f, 152f));
 
             // Tabs: one per tier page; locked ones say which tier opens them.
-            float tabW = 232f;
+            float tabW = 228f;
             for (int p = 1; p <= pages; p++)
             {
                 bool open = W.Tier >= p;
@@ -104,7 +104,7 @@ namespace Kilnwood.Game
                     else Toast(PageNames[p] + " opens at Tier " + p + ": press T to see the goal");
                 }
             }
-            var researchR = new Rect(bar.xMax - 128f, bar.y + 6f, 120f, 28f);
+            var researchR = new Rect(bar.xMax - 140f, bar.y + 6f, 132f, 28f);
             if (GUI.Button(researchR, (_research ? "> " : "") + "RESEARCH (T)", _research ? _tabOn : _tab)) _research = !_research;
 
             // Building tiles for this page.
@@ -292,7 +292,7 @@ namespace Kilnwood.Game
                     GUI.Label(new Rect(node.xMax + gapX - 18f, top + 26f, 24f, 28f), ">", _cardTitle);
                 }
                 string state = done ? "DONE" : now ? "NOW" : "LOCKED";
-                GUI.Label(new Rect(nx + 12f, top + 8f, nodeW - 24f, 30f), "<b>Tier " + n + "</b>  " + TierNames[n], _cardTitle);
+                GUI.Label(new Rect(nx + 12f, top + 8f, nodeW - 24f, 30f), "<b>Tier " + n + "</b>  " + (_cardTitle.CalcSize(new GUIContent("Tier " + n + "  " + TierNames[n])).x > nodeW - 24f ? "<size=15>" + TierNames[n] + "</size>" : TierNames[n]), _cardTitle);
                 GUI.Label(new Rect(nx + 12f, top + 38f, nodeW - 24f, 22f), state, now ? _btnSmallOn : _tiny);
                 GUI.Label(new Rect(nx + 12f, top + 60f, nodeW - 24f, 54f), TierBlurb[n], locked ? _tinyDim : _tiny);
 

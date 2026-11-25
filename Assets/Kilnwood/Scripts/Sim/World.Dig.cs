@@ -193,6 +193,9 @@ namespace Kilnwood.Sim
             return n;
         }
 
+        /// <summary>True for open ground: no belt, splitter or track on it (vehicles cross those but never stop there).</summary>
+        bool OffRoad(int tile) => _occ[tile] < 0;
+
         /// <summary>Vehicles drive on any land tile that has no machine on it (they cross belts).</summary>
         public bool Drivable(int x, int y)
         {
@@ -591,12 +594,18 @@ namespace Kilnwood.Sim
                         int d = Math.Abs(ex.TileX - v.TileX) + Math.Abs(ex.TileY - v.TileY);
                         if (wait < bestWait || (wait == bestWait && d < bestD)) { pick = ex; bestWait = wait; bestD = d; }
                     }
-                    if (pick == null) { v.Status = "Waiting for an excavator"; v.State = VehicleState.Waiting; return; }
+                    if (pick == null)
+                    {
+                        // Don't wait on a belt or a track: pull off onto open ground first.
+                        if (!OffRoad(TileOf(v)) && Go(v, n => OffRoad(n) && !Occupied(n, v), VehicleState.Waiting)) { v.Status = "Pulling off the belt"; return; }
+                        v.Status = "Waiting for an excavator"; v.State = VehicleState.Waiting; return;
+                    }
                     v.Serving = pick.Id;
                     int at = TileOf(pick), dig = pick.DigTile;
                     if (Near(TileOf(v), at, W) && TileOf(v) != at && TileOf(v) != dig) { v.State = VehicleState.Loading; return; }
                     // Park beside the excavator, away from the hole it is digging (its arm swings that way).
-                    if (!Go(v, n => n != at && n != dig && Near(n, at, W) && (dig < 0 || !Near(n, dig, W)) && !Occupied(n, v), VehicleState.Loading)
+                    if (!Go(v, n => n != at && n != dig && Near(n, at, W) && (dig < 0 || !Near(n, dig, W)) && !Occupied(n, v) && OffRoad(n), VehicleState.Loading)
+                        && !Go(v, n => n != at && n != dig && Near(n, at, W) && (dig < 0 || !Near(n, dig, W)) && !Occupied(n, v), VehicleState.Loading)
                         && !Go(v, n => n != at && n != dig && Near(n, at, W) && !Occupied(n, v), VehicleState.Loading)
                         && !Go(v, n => n != at && n != dig && Near(n, at, W) && (dig < 0 || !Near(n, dig, W)), VehicleState.Loading)
                         && !Go(v, n => n != at && n != dig && Near(n, at, W), VehicleState.Loading)) { v.Serving = 0; v.Status = "Can't reach the excavator"; v.State = VehicleState.Waiting; return; }

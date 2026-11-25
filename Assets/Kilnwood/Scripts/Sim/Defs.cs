@@ -194,7 +194,7 @@ namespace Kilnwood.Sim
 
         // 0.10 Tier 5 "Electricity": dynamos on the shaft network feed a grid of timber poles.
         public int DynamoHp = 12;                // shaft power a dynamo takes
-        public int DynamoKw = 12;                // electricity it makes at full shaft speed
+        public int DynamoKw = 15;                // electricity it makes at full shaft speed
         public int PoleReach = 8;                // poles (and dynamos) link up to this many tiles apart
         public int PoleCover = 2;                // machines this close to a pole or dynamo join its grid
         public int WireMillKw = 8;
