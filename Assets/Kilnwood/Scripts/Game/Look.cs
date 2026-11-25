@@ -118,7 +118,7 @@ namespace Kilnwood.Game
         }
 
         /// <summary>Surface patterns for building parts (projected in world space by the KW_Tri material).</summary>
-        public enum Surface { Plain, Wood, Brick, Stone, Shingle }
+        public enum Surface { Plain, Wood, Brick, Stone, Shingle, Weathered }
 
         static readonly Dictionary<(Color, Surface), Material> _surf = new Dictionary<(Color, Surface), Material>();
         static Material _triBase;

@@ -50,10 +50,10 @@ Shader "Kilnwood/Triplanar"
             float wall = saturate(1.0 - n.y);
             c *= lerp(1.0, 0.68 + 0.64 * blot, _GrimeAmount);
             float st = smoothstep(0.35, 0.75, streak);
-            c *= lerp(1.0, 1.08 - 0.42 * st, wall * _GrimeAmount);
+            c *= lerp(1.0, 1.1 - 0.55 * st, wall * _GrimeAmount);
             float dirt = saturate(1.0 - (wp.y + (blot - 0.5) * 0.7) / 1.5);
             dirt = dirt * dirt * (3.0 - 2.0 * dirt) * _GroundDirt;
-            c = lerp(c, c * fixed3(0.5, 0.42, 0.31), dirt);
+            c = lerp(c, c * fixed3(0.42, 0.34, 0.24), dirt);
             c *= lerp(1.0, 0.7, saturate(1.0 - wp.y / 0.35) * _GroundDirt);   // dark damp line right at the ground
             o.Albedo = c;
             o.Metallic = 0;

@@ -630,6 +630,9 @@ namespace Kilnwood.Game
                     r.sharedMaterial = Look.SurfMat(c, surf);
                     break;
                 }
+                // Everything else on a building (painted parts, metal, roofs of other colours) weathers too,
+                // except the yellow output-side cue, which stays clean so it always reads.
+                if (r.sharedMaterial == m && c != Look.Accent) r.sharedMaterial = Look.SurfMat(c, Look.Surface.Weathered);
             }
         }
 

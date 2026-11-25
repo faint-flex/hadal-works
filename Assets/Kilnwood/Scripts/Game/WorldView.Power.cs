@@ -17,15 +17,13 @@ namespace Kilnwood.Game
         void MakeShaft(BView v)
         {
             var r = v.Root.transform;
-            // Portal frame: two posts on opposite corners of the tile and a beam across the top carrying the bearing,
-            // so trucks and belt items pass underneath instead of through a post in the middle.
-            const float c = 0.8f;   // post offset from the centre along x and z (tile half-width is 1)
-            for (int k = -1; k <= 1; k += 2)
-            {
-                Art.Cube("Post", r, new Vector3(c * k, ShaftHeight / 2f, c * k), new Vector3(0.18f, ShaftHeight, 0.18f), Look.Timber * 0.85f);
-                Art.Cube("Foot", r, new Vector3(c * k, 0.08f, c * k), new Vector3(0.36f, 0.16f, 0.36f), Look.StoneWall);
-            }
-            Art.Cube("Beam", r, new Vector3(0f, ShaftHeight - 0.2f, 0f), new Vector3(0.16f, 0.16f, c * 2f * 1.4142f + 0.18f), Look.Timber * 0.8f, new Vector3(0f, 45f, 0f));
+            // Bracket post: one post on a corner of the tile and a short arm out to the bearing over the centre,
+            // so trucks and belt items pass underneath without a forest of portals.
+            const float c = 0.72f;
+            Art.Cube("Post", r, new Vector3(c, ShaftHeight / 2f, -c), new Vector3(0.2f, ShaftHeight + 0.15f, 0.2f), Look.Timber * 0.85f);
+            Art.Cube("Foot", r, new Vector3(c, 0.08f, -c), new Vector3(0.4f, 0.16f, 0.4f), Look.StoneWall);
+            Art.Cube("Bracket", r, new Vector3(c / 2f, ShaftHeight + 0.05f, -c / 2f), new Vector3(0.16f, 0.16f, c * 1.4142f + 0.16f), Look.Timber * 0.8f, new Vector3(0f, -45f, 0f));
+            Art.Cube("Brace", r, new Vector3(c * 0.75f, ShaftHeight - 0.35f, -c * 0.75f), new Vector3(0.1f, 0.1f, 0.75f), Look.Timber * 0.8f, new Vector3(-45f, -45f, 0f));
             Art.Cube("Bearing", r, new Vector3(0f, ShaftHeight, 0f), new Vector3(0.36f, 0.3f, 0.36f), Look.Iron);
             v.Anim = new GameObject("Spin").transform;   // rotating parts live under per-arm spinners
             v.Anim.SetParent(r, false);

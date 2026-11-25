@@ -519,6 +519,10 @@ namespace Kilnwood.Game
                             if (!mortar && (ry < 5 || rx < 5)) v *= 0.9f;   // soft edge shading
                             break;
                         }
+                        case Look.Surface.Weathered:
+                            // Plain painted / bare parts: almost flat, the shader adds the wear.
+                            v = 0.83f + (Mathf.PerlinNoise(x * 0.05f, y * 0.05f) - 0.5f) * 0.06f;
+                            break;
                         case Look.Surface.Shingle:
                         {
                             int row = y / 12, ry = y % 12;
