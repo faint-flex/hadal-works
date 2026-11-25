@@ -128,11 +128,32 @@ namespace Kilnwood.Game
                     foreach (var ps in vv.Root.GetComponentsInChildren<ParticleSystem>(true)) ps.gameObject.SetActive(false);
                     foreach (var tm in vv.Root.GetComponentsInChildren<TextMesh>(true)) tm.gameObject.SetActive(false);
                     var tex = Snapshot(vv.Root.gameObject, 128);
+                    if (tex != null && _w.Era == 0) Lift(tex);   // 0.23.1: dark iron steam machines read as a greyed-out button
                     if (kind == 0) _excavatorIcon = tex; else if (kind == 1) _truckIcon = tex; else _dozerIcon = tex;
                 }
                 catch (System.Exception e) { Debug.LogWarning("Kilnwood vehicle icon: " + e.Message); }
                 finally { if (vv != null) { vv.Root.gameObject.SetActive(false); Destroy(vv.Root.gameObject); } }
             }
+        }
+
+        /// <summary>Brightens the shadows of an icon (keeps its alpha) so a dark machine doesn't look disabled.</summary>
+        static void Lift(Texture2D tex)
+        {
+            var px = tex.GetPixels32();
+            for (int i = 0; i < px.Length; i++)
+            {
+                if (px[i].a == 0) continue;
+                px[i].r = LiftByte(px[i].r); px[i].g = LiftByte(px[i].g); px[i].b = LiftByte(px[i].b);
+            }
+            tex.SetPixels32(px);
+            tex.Apply();
+        }
+
+        static byte LiftByte(byte v)
+        {
+            float f = v / 255f;
+            f = 1f - (1f - f) * (1f - f);   // shadows up a lot, highlights barely
+            return (byte)Mathf.Clamp(Mathf.RoundToInt(f * 255f), 0, 255);
         }
 
         static void SetLayer(Transform t, int layer)
