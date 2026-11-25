@@ -239,7 +239,8 @@ namespace Kilnwood.Sim
             if (tier9)
             {
                 Add(BuildingType.HydroDam, DamX, DamY, E);   // first: Tier 9 gates the rest of the phase
-                Add(BuildingType.Pole, 12, 47, N);
+                // 0.18.4: the works sit within reach of the dam itself; the grid-link poles (1 steel each) come last,
+                // because the lodge is often out of steel here and the pole used to block the whole phase.
                 Add(BuildingType.ElectricMine, 10, 48, S);
                 Add(BuildingType.Glassworks, GlassX, GlassY, S);
                 Add(BuildingType.RadioWorks, RadioX, RadioY, E);
@@ -249,6 +250,7 @@ namespace Kilnwood.Sim
                 for (int x = 12; x <= 28; x++) Add(BuildingType.Belt, x, 44, E);
                 Add(BuildingType.Belt, 29, 44, S);
                 Add(BuildingType.Belt, 29, 43, E);   // side-loads onto the brick line
+                Add(BuildingType.Pole, 12, 47, N);
                 Add(BuildingType.Pole, 19, 46, N);
                 Add(BuildingType.Pole, 26, 46, N);
             }
