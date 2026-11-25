@@ -10,12 +10,22 @@ namespace Kilnwood.Game
         static readonly Color TractorOrange = new Color(0.86f, 0.46f, 0.16f);
         static readonly Color Graphite = new Color(0.16f, 0.16f, 0.17f);
 
+        /// <summary>A child of the body scaled to tile size (T): the Tier 7 models are built in tile units.</summary>
+        static Transform Scaled(Transform body)
+        {
+            var t = new GameObject("Model").transform;
+            t.SetParent(body, false);
+            t.localScale = Vector3.one * T;
+            return t;
+        }
+
         // ------------------------------------------------------------------ steam turbine
 
         /// <summary>A brick boiler house with a tall chimney at the back, the turbine casing and generator on a stone bed in
         /// front of it, a wood pile by the firebox and a terminal mast like the dynamo's for the wires.</summary>
-        void MakeTurbine(Transform B, float s, BView v)
+        void MakeTurbine(Transform R, float s, BView v)
         {
+            var B = Scaled(R); s /= T;   // modelled in tile units, shown at full tile size
             Color brick = Look.Brickwork, stone = Look.StoneWall, iron = Look.Iron, dark = Look.MineDark;
             float h = s / 2f;
             Art.Cube("Plinth", B, new Vector3(0f, 0.15f, 0f), new Vector3(s - 0.3f, 0.3f, s - 0.3f), stone * 0.85f);
@@ -28,7 +38,7 @@ namespace Kilnwood.Game
             Art.Cube("Chimney", B, new Vector3(0.6f, 3.0f, -0.65f), new Vector3(0.5f, 4.2f, 0.5f), brick * 0.92f);
             Art.Cube("Chimney band", B, new Vector3(0.6f, 4.6f, -0.65f), new Vector3(0.6f, 0.12f, 0.6f), stone);
             Art.Cube("Chimney cap", B, new Vector3(0.6f, 5.15f, -0.65f), new Vector3(0.62f, 0.14f, 0.62f), dark);
-            v.Smoke = Art.Smoke(B, new Vector3(0.6f, 5.35f, -0.65f), 1.2f);
+            v.Smoke = Art.Smoke(R, new Vector3(0.6f, 5.35f, -0.65f) * T, 1.4f);
             // Turbine and generator on a bed along the front: steam pipe from the boiler drops into the casing.
             Art.Cube("Turbine bed", B, new Vector3(0.1f, 0.42f, 0.45f), new Vector3(1.6f, 0.24f, 0.7f), stone * 0.75f);
             Art.Cyl("Turbine casing", B, new Vector3(-0.65f, 0.86f, 0.45f), 0.62f, 0.8f, TurbineGreen, new Vector3(0f, 0f, -90f));
@@ -50,19 +60,20 @@ namespace Kilnwood.Game
                 for (int c = 0; c < 2 - r; c++)
                     Art.Cyl("Log", B, new Vector3(-0.9f + c * 0.15f + r * 0.075f, 0.37f + r * 0.13f, 0.15f), 0.14f, 0.6f, Look.Bark * (0.95f + 0.05f * c), new Vector3(90f, 0f, 0f));
             // Terminal mast for the line (same place as on the dynamo, so wires land the same way).
-            Art.Cyl("Terminal mast", B, new Vector3(-1.4f + 0.55f, 0.3f, -1.4f + 0.55f), 0.2f, 4.1f, Look.Bark);
-            Art.Cube("Terminal arm", B, new Vector3(-0.85f, 4.32f, -0.85f), new Vector3(1.3f, 0.14f, 0.14f), Look.Timber * 0.8f);
+            Art.Cyl("Terminal mast", B, new Vector3(-0.85f, 0.3f, -0.85f), 0.14f, 2.3f, Look.Bark);
+            Art.Cube("Terminal arm", B, new Vector3(-0.85f, 2.52f, -0.85f), new Vector3(1.3f, 0.08f, 0.08f), Look.Timber * 0.8f);
             for (int k = -1; k <= 1; k += 2)
-                Art.Cyl("Insulator", B, new Vector3(-0.85f + k * ArmHalf, 4.39f, -0.85f), 0.14f, 0.2f, Insulator);
-            Front(B, h);
+                Art.Cyl("Insulator", B, new Vector3(-0.85f + k * ArmHalf, 2.56f, -0.85f), 0.08f, 0.12f, Insulator);
+            Front(R, h * T);
         }
 
         // ------------------------------------------------------------------ electric furnace
 
         /// <summary>A squat round furnace shell on a brick hearth with a domed roof; three graphite electrodes rise through
         /// the roof from a gantry, a transformer box sits at the side and the tap spout at the front glows while it melts.</summary>
-        void MakeArcFurnace(Transform B, float s, BView v)
+        void MakeArcFurnace(Transform R, float s, BView v)
         {
+            var B = Scaled(R); s /= T;   // modelled in tile units, shown at full tile size
             Color brick = Look.Brickwork, stone = Look.StoneWall, iron = Look.Iron, dark = Look.MineDark;
             float h = s / 2f;
             Art.Cube("Floor", B, new Vector3(0f, 0.08f, 0f), new Vector3(s - 0.3f, 0.16f, s - 0.3f), stone * 0.85f);
@@ -85,20 +96,21 @@ namespace Kilnwood.Game
             for (int k = 0; k < 4; k++)
                 Art.Cube("Cooling fin", B, new Vector3(1.01f, 0.6f, -0.88f + k * 0.12f), new Vector3(0.04f, 0.7f, 0.06f), TurbineGreen * 0.8f);
             Art.Cube("Service bracket", B, new Vector3(0.75f, 2.1f, -0.7f), new Vector3(0.1f, 2.2f, 0.1f), iron);
-            Art.Cyl("Insulator", B, new Vector3(0.75f, 3.2f, -0.7f), 0.14f, 0.2f, Insulator);
+            Art.Cyl("Insulator", B, new Vector3(0.75f, 3.2f, -0.7f), 0.08f, 0.12f, Insulator);
             // Tap spout over a ladle at the front; the spout and ladle glow while it melts.
             Art.Cube("Tap spout", B, new Vector3(-0.15f, 0.85f, 0.6f), new Vector3(0.22f, 0.1f, 0.5f), dark, new Vector3(18f, 0f, 0f));
             Art.Cyl("Ladle", B, new Vector3(-0.15f, 0.16f, 0.85f), 0.5f, 0.4f, dark);
             v.Fire = Art.Cyl("Melt", B, new Vector3(-0.15f, 0.56f, 0.85f), 0.42f, 0.02f, Look.Fire);
-            Front(B, h);
+            Front(R, h * T);
         }
 
         // ------------------------------------------------------------------ assembly plant
 
         /// <summary>A long brick hall (3x3) with a gabled roof and a glazed roof monitor along the ridge, tall windows down
         /// both sides, a big door at the front with a finished tractor parked beside it, and an overhead crane rail.</summary>
-        void MakeAssembly(Transform B, float s, BView v)
+        void MakeAssembly(Transform R, float s, BView v)
         {
+            var B = Scaled(R); s /= T;   // modelled in tile units, shown at full tile size
             Color brick = Look.Brickwork, stone = Look.StoneWall, iron = Look.Iron, glass = new Color(0.3f, 0.37f, 0.42f);
             float h = s / 2f;
             const float wallW = 2.6f, wallD = 2.6f, wallZ = -0.2f, eave = 3.0f;   // 0.14.1: bigger, so it fills its 3x3 pad
@@ -147,8 +159,8 @@ namespace Kilnwood.Game
             Art.Cube("Crane hook", B, new Vector3(-1.7f, 2.25f, wallZ + 0.4f), new Vector3(0.05f, 0.6f, 0.05f), Look.MineDark);
             // Service bracket at the back corner for the drop line.
             Art.Cube("Service bracket", B, new Vector3(-1.4f, 3.6f, -1.42f), new Vector3(0.1f, 1.6f, 0.1f), iron);
-            Art.Cyl("Insulator", B, new Vector3(-1.4f, 4.4f, -1.42f), 0.14f, 0.2f, Insulator);
-            Front(B, h);
+            Art.Cyl("Insulator", B, new Vector3(-1.4f, 4.4f, -1.42f), 0.08f, 0.12f, Insulator);
+            Front(R, h * T);
         }
 
         /// <summary>A small farm tractor, nose toward +x: big rear wheels, small front wheels, bonnet, cab seat and exhaust.

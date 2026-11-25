@@ -239,9 +239,9 @@ namespace Kilnwood.Game
                 case BuildingType.Dynamo: return v.Body.TransformPoint(new Vector3(-1.4f + k * ArmHalf, 4.52f, -1.4f));
                 case BuildingType.ElectricMine: return v.Body.TransformPoint(new Vector3(-1.6f, 4.8f, -1.6f));
                 case BuildingType.MachineShop: return v.Body.TransformPoint(new Vector3(-1.95f, 3.85f, -1.2f));
-                case BuildingType.Turbine: return v.Body.TransformPoint(new Vector3(-0.85f + k * ArmHalf, 4.59f, -0.85f));
-                case BuildingType.ArcFurnace: return v.Body.TransformPoint(new Vector3(0.75f, 3.4f, -0.7f));
-                case BuildingType.Assembly: return v.Body.TransformPoint(new Vector3(-1.4f, 4.6f, -1.42f));
+                case BuildingType.Turbine: return v.Body.TransformPoint(new Vector3(-0.85f + k * ArmHalf, 2.68f, -0.85f) * T);
+                case BuildingType.ArcFurnace: return v.Body.TransformPoint(new Vector3(0.75f, 3.32f, -0.7f) * T);
+                case BuildingType.Assembly: return v.Body.TransformPoint(new Vector3(-1.4f, 4.52f, -1.42f) * T);
                 default: return v.Body.TransformPoint(new Vector3(-2.0f, 4.1f, -0.75f));
             }
         }

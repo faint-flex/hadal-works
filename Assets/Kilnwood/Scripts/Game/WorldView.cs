@@ -590,7 +590,7 @@ namespace Kilnwood.Game
                 v.Fire.GetComponent<Renderer>().sharedMaterial = Look.GlowMat(Look.Fire);
                 v.Fire.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 v.FireLight = new GameObject("Fire light").AddComponent<Light>();
-                v.FireLight.transform.SetParent(B, false);
+                v.FireLight.transform.SetParent(v.Fire.transform.parent, false);   // the Tier 7 models sit in a scaled child
                 v.FireLight.transform.localPosition = v.Fire.transform.localPosition + new Vector3(0f, 0.2f, 0.9f);
                 v.FireLight.type = LightType.Point;
                 v.FireLight.color = Look.FireLight;
@@ -608,8 +608,8 @@ namespace Kilnwood.Game
                 // One upright label per machine: name on top, status (and fuel) underneath.
                 // Neighbouring machines alternate label heights so their names don't stack on each other.
                 // Three label heights in a pattern, so any two neighbouring 2x2 machines get different heights.
-                float top = b.Type == BuildingType.Assembly ? 5.8f   // big hall: one height just over the roof lantern, so the label stays on it
-                    : (b.Type == BuildingType.SteamEngine || b.Type == BuildingType.Furnace ? 7.4f : b.Type == BuildingType.Mine || b.Type == BuildingType.ElectricMine || b.Type == BuildingType.Smelter ? 6.0f : 4.4f) + ((b.X / 2 + 2 * (b.Y / 2)) % 3) * 1.8f;
+                float top = b.Type == BuildingType.Assembly ? 9.6f   // big hall: one height just over the roof lantern, so the label stays on it
+                    : (b.Type == BuildingType.SteamEngine || b.Type == BuildingType.Furnace || b.Type == BuildingType.ArcFurnace || b.Type == BuildingType.Turbine ? 7.4f : b.Type == BuildingType.Mine || b.Type == BuildingType.ElectricMine || b.Type == BuildingType.Smelter ? 6.0f : 4.4f) + ((b.X / 2 + 2 * (b.Y / 2)) % 3) * 1.8f;
                 if (b.Type == BuildingType.Lodge)
                 {
                     // Lodge name sits in front (south side), clear of the machines behind it.
