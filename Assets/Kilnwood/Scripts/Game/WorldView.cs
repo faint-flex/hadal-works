@@ -31,7 +31,8 @@ namespace Kilnwood.Game
             public GameObject Extra;    // hopper: the heap inside
             public Transform Post;      // thin stick from the roof up to the label
             public float BaseTop;       // label height before decluttering
-            public int RailMask = -1;   // rails: which neighbours the track piece was built for
+            public int RailMask = -1;   // rails: which neighbours the track piece was built for; belts: straight / corner shape
+            public Transform Shape;     // belts: the model for the current shape (rebuilt when it turns into a corner or back)
             public float Raise;         // extra height this frame so it clears other labels
             public BuildingType Type;
             public Transform Anim, Anim2;  // water power: wheel / blade / helve / cam that move
@@ -407,14 +408,7 @@ namespace Kilnwood.Game
             switch (b.Type)
             {
                 case BuildingType.Belt:
-                    Art.Cube("Rail L", B, new Vector3(-0.72f, 0.3f, 0f), new Vector3(0.14f, 0.24f, T), Look.BeltFrame);
-                    Art.Cube("Rail R", B, new Vector3(0.72f, 0.3f, 0f), new Vector3(0.14f, 0.24f, T), Look.BeltFrame);
-                    Art.Cube("Cross back", B, new Vector3(0f, 0.12f, -0.6f), new Vector3(1.4f, 0.16f, 0.18f), dark);
-                    Art.Cube("Cross front", B, new Vector3(0f, 0.12f, 0.6f), new Vector3(1.4f, 0.16f, 0.18f), dark);
-                    BeltDeck(B, new Vector3(0f, 0.38f, 0f), new Vector3(1.32f, 1f, T));
-                    // Arrow heads on the rails: direction reads even when the belt is still (and in screenshots).
-                    Art.Arrow("Arrow L", B, new Vector3(-0.72f, 0.43f, 0.3f), 0.3f, 0.45f, Look.Accent);
-                    Art.Arrow("Arrow R", B, new Vector3(0.72f, 0.43f, 0.3f), 0.3f, 0.45f, Look.Accent);
+                    BuildBeltShape(v, BeltStraight);   // turns into a corner in RefreshBeltShapes once its neighbours are known
                     break;
                 case BuildingType.Splitter:
                     Art.Cube("Frame", B, new Vector3(0f, 0.18f, 0f), new Vector3(1.85f, 0.36f, 1.85f), Look.BeltFrame);
@@ -734,16 +728,16 @@ namespace Kilnwood.Game
 
             // Create / remove building views.
             foreach (var b in _w.Buildings.Values)
-                if (!_views.ContainsKey(b.Id)) _views[b.Id] = MakeView(b);
+                if (!_views.ContainsKey(b.Id)) { _views[b.Id] = MakeView(b); _beltShapesDirty = true; }
             List<int> gone = null;
             foreach (var kv in _views)
                 if (!_w.Buildings.ContainsKey(kv.Key)) (gone ??= new List<int>()).Add(kv.Key);
-            if (gone != null) foreach (int id in gone) { Destroy(_views[id].Root); _views.Remove(id); }
+            if (gone != null) { foreach (int id in gone) { Destroy(_views[id].Root); _views.Remove(id); } _beltShapesDirty = true; }
 
             foreach (var b in _w.Buildings.Values)
             {
                 var v = _views[b.Id];
-                if (v.Facing != b.Facing) { v.Body.localRotation = FacingRot(b.Facing); v.Facing = b.Facing; }
+                if (v.Facing != b.Facing) { v.Body.localRotation = FacingRot(b.Facing); v.Facing = b.Facing; _beltShapesDirty = true; }
                 if (v.Title != null)
                 {
                     // Calm machines show only their name (fire glow shows they're busy); problems get a "!" line.
@@ -752,6 +746,8 @@ namespace Kilnwood.Game
                     if (v.Shown != text) { Look.SetText(v.Title, text); v.Shown = text; v.Recipe = b.Recipe; }
                 }
             }
+
+            if (_beltShapesDirty) { RefreshBeltShapes(); _beltShapesDirty = false; }
 
             // Fire glow, flicker and smoke: on while burning fuel, or while a charcoal kiln smoulders.
             // Wheels and gears turn while the machine works.
@@ -1036,9 +1032,10 @@ namespace Kilnwood.Game
             {
                 if ((b.Type != BuildingType.Belt && b.Type != BuildingType.Splitter) || b.BeltItem == Item.None) continue;
                 var tr = ItemFromPool(b.BeltItem);
-                var c = TileCenter(b.X, b.Y);
-                tr.localPosition = c + DirVec(b.Facing) * ((b.BeltProgress * 2f - 1f) * 0.85f) + new Vector3(0f, 0.4f, 0f);
-                tr.localRotation = FacingRot(b.Facing);
+                int shape = b.Type == BuildingType.Belt && _views.TryGetValue(b.Id, out var bv) ? bv.RailMask : BeltStraight;
+                BeltItemPose(b, shape, out var pos, out var rot);
+                tr.localPosition = pos;
+                tr.localRotation = rot;
             }
             foreach (var kv in _pools)
             {
