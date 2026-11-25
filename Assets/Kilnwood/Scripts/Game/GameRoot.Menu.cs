@@ -6,8 +6,10 @@ using UnityEngine;
 namespace Kilnwood.Game
 {
     /// <summary>
-    /// 0.9 build menu and research panel. The build menu has a tab per tier (locked tabs say what opens them),
-    /// picture tiles of each building (its real model), and a details card on hover: cost, power, recipes.
+    /// Build menu and research panel. 0.23: the build menu has a tab per category (Extraction, Production, Logistics,
+    /// Power, Homes), a search box, and a hotbar row of 8 pinned buildings (keys 1-8; right-click a tile to pin or unpin).
+    /// B collapses it to just the hotbar. Tiles show the building's real model, name and cost (locked: "Tier N"),
+    /// and a details card on hover: cost, power, recipes.
     /// The research panel (T) shows the tier tree: each tier's goal with progress bars, and what it unlocks.
     /// Every state has words as well as colour (DONE / NOW / LOCKED, numbers on every bar).
     /// </summary>
@@ -15,18 +17,15 @@ namespace Kilnwood.Game
     {
         bool _research;
         static readonly string[] TierNames = { "", "First Fire", "Water Power", "Steam", "Rails", "Electricity", "Machine Age", "Assembly Line", "Flight", "Airwaves", "Drones", "Next era" };
-        static readonly string[] PageNames = { "", "BASICS", "WATER POWER", "STEAM", "RAILS", "ELECTRICITY", "MACHINES", "ASSEMBLY", "FLIGHT", "AIRWAVES", "DRONES" };
         List<BuildingType> _iconTypes;
-        GUIStyle _tile, _tileOn, _tileLocked, _tiny, _tinyDim, _tab, _tabOn, _tabLocked, _cardTitle;
+        GUIStyle _searchStyle, _tile, _tileOn, _tileLocked, _tiny, _tinyDim, _tab, _tabOn, _tabLocked, _cardTitle;
         Texture2D _barBack, _barFill, _barDone, _line;
 
         List<BuildingType> IconTypes()
         {
             if (_iconTypes != null) return _iconTypes;
             _iconTypes = new List<BuildingType>();
-            for (int p = 1; p <= 10; p++)
-                foreach (var t in PageTools(p)) _iconTypes.Add(TypeOf(t));
-            _iconTypes.Add(BuildingType.Splitter);
+            foreach (var t in AllBuildTools()) _iconTypes.Add(TypeOf(t));
             return _iconTypes;
         }
 
@@ -58,6 +57,7 @@ namespace Kilnwood.Game
             _tabLocked = new GUIStyle(_tab) { fontStyle = FontStyle.Normal };
             _tabLocked.normal.textColor = new Color(0.8f, 0.77f, 0.72f);
             _tabLocked.hover.textColor = new Color(0.9f, 0.87f, 0.82f);
+            _searchStyle = new GUIStyle(GUI.skin.textField) { fontSize = 15, alignment = TextAnchor.MiddleLeft };
             _cardTitle = new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, richText = true };
             _cardTitle.normal.textColor = Color.white;
             _cardTitle.clipping = TextClipping.Overflow;
@@ -84,76 +84,231 @@ namespace Kilnwood.Game
 
         // ------------------------------------------------------------------ build menu
 
+        // 0.23: the build menu groups buildings by what they do, not by tier. Later updates add Fluids and Roads here
+        // (append to BuildCat, CatNames and CatBase; a category with no buildings gets no tab).
+        enum BuildCat { Extraction, Production, Logistics, Power, Homes }
+        static readonly string[] CatNames = { "EXTRACTION", "PRODUCTION", "LOGISTICS", "POWER", "HOMES" };
+        const int HotbarSlots = 8;
+        const string PrefHotbar = "kw.hotbar", PrefMenuOpen = "kw.buildmenu.open";
+
+        BuildCat _cat = BuildCat.Extraction;
+        bool _menuOpen = true;          // false = only the hotbar row shows (B toggles)
+        string _search = "";
+        bool _typing, _dropFocus;       // the search box has the keyboard; Update skips hotkeys while it does
+        Tool[] _favs;                   // hotbar slots; Tool.Select = empty
+        Dictionary<BuildCat, List<Tool>> _catTools;
+        float _buildTop;                // top edge of the build menu (or the hotbar when collapsed), for the hint line and toasts
+
+        /// <summary>Every building tool in each category, before sorting by tier. Each tool sits in exactly one.</summary>
+        Tool[] CatBase(BuildCat c)
+        {
+            switch (c)
+            {
+                case BuildCat.Extraction:
+                    return B.PeopleEnabled
+                        ? new[] { Tool.Woodcutter, Tool.Mine, Tool.Fisher, Tool.ElectricMine }
+                        : new[] { Tool.Woodcutter, Tool.Mine, Tool.Garage, Tool.Hopper, Tool.ElectricMine };
+                case BuildCat.Production:
+                    return new[] { Tool.Kiln, Tool.Smelter, Tool.Workshop, Tool.Sawmill, Tool.TripHammer, Tool.Furnace, Tool.WireMill, Tool.MachineShop,
+                        Tool.ArcFurnace, Tool.Assembly, Tool.RollingMill, Tool.Hangar, Tool.Glassworks, Tool.RadioWorks, Tool.DroneWorks };
+                case BuildCat.Logistics:
+                    return new[] { Tool.Belt, Tool.Splitter, Tool.Rail, Tool.Station, Tool.DronePort };
+                case BuildCat.Power:
+                    return new[] { Tool.Shaft, Tool.Waterwheel, Tool.SteamEngine, Tool.Dynamo, Tool.Pole, Tool.Turbine, Tool.HydroDam };
+                case BuildCat.Homes:
+                    return B.PeopleEnabled ? new[] { Tool.Cabin } : new Tool[0];
+                default: return new Tool[0];
+            }
+        }
+
+        /// <summary>Categories with something in them, in tab order.</summary>
+        List<BuildCat> Cats()
+        {
+            var l = new List<BuildCat>();
+            foreach (BuildCat c in System.Enum.GetValues(typeof(BuildCat))) if (CatTools(c).Count > 0) l.Add(c);
+            return l;
+        }
+
+        /// <summary>A category's tools sorted by tier (stable: same-tier tools keep their listed order).</summary>
+        List<Tool> CatTools(BuildCat c)
+        {
+            if (_catTools == null) _catTools = new Dictionary<BuildCat, List<Tool>>();
+            if (_catTools.TryGetValue(c, out var l)) return l;
+            l = new List<Tool>(CatBase(c));
+            for (int i = 1; i < l.Count; i++)   // insertion sort is stable
+            {
+                var t = l[i];
+                int tier = B.Defs[TypeOf(t)].Tier, j = i - 1;
+                while (j >= 0 && B.Defs[TypeOf(l[j])].Tier > tier) { l[j + 1] = l[j]; j--; }
+                l[j + 1] = t;
+            }
+            _catTools[c] = l;
+            return l;
+        }
+
+        List<Tool> AllBuildTools()
+        {
+            var all = new List<Tool>();
+            foreach (BuildCat c in System.Enum.GetValues(typeof(BuildCat))) all.AddRange(CatTools(c));
+            return all;
+        }
+
+        /// <summary>Tools from the tier lists that no category holds, or that two categories hold (written to the shots log). Empty = fine.</summary>
+        string MenuCheck()
+        {
+            var all = AllBuildTools();
+            var sb = new StringBuilder();
+            var want = new List<Tool> { Tool.Splitter };
+            for (int p = 1; p <= 10; p++) want.AddRange(TierTools(p));
+            foreach (var t in want) if (!all.Contains(t)) sb.Append(" missing ").Append(t);
+            for (int i = 0; i < all.Count; i++) if (all.IndexOf(all[i]) != i) sb.Append(" twice ").Append(all[i]);
+            return sb.ToString();
+        }
+
+        bool Locked(Tool t) => B.Defs[TypeOf(t)].Tier > W.Tier;
+
+        /// <summary>Pick a building tool; a locked one says which tier opens it instead.</summary>
+        void PickTool(Tool t, bool toggle)
+        {
+            var d = B.Defs[TypeOf(t)];
+            if (d.Tier > W.Tier) { Toast(d.Name + " unlocks at Tier " + d.Tier + ": press T to see the goal"); return; }
+            SetTool(toggle && _tool == t ? Tool.Select : t);
+        }
+
+        void EnsureFavs()
+        {
+            if (_favs != null) return;
+            _favs = new Tool[HotbarSlots];
+            var defaults = B.PeopleEnabled
+                ? new[] { Tool.Belt, Tool.Splitter, Tool.Woodcutter, Tool.Mine, Tool.Fisher, Tool.Cabin, Tool.Kiln, Tool.Smelter }
+                : new[] { Tool.Belt, Tool.Splitter, Tool.Woodcutter, Tool.Mine, Tool.Garage, Tool.Kiln, Tool.Smelter, Tool.Workshop };
+            for (int i = 0; i < HotbarSlots; i++) _favs[i] = i < defaults.Length ? defaults[i] : Tool.Select;
+            if (_shotsDir != null) return;   // the autopilot always shows the defaults and never touches prefs
+            _menuOpen = PlayerPrefs.GetInt(PrefMenuOpen, 1) == 1;
+            string saved = PlayerPrefs.GetString(PrefHotbar, "");
+            if (string.IsNullOrEmpty(saved)) return;
+            var all = AllBuildTools();
+            var parts = saved.Split(',');
+            for (int i = 0; i < HotbarSlots; i++)
+            {
+                _favs[i] = Tool.Select;
+                if (i < parts.Length && parts[i].Length > 0 && System.Enum.TryParse(parts[i], out Tool t)
+                    && all.Contains(t) && System.Array.IndexOf(_favs, t) < 0) _favs[i] = t;
+            }
+        }
+
+        void SaveFavs()
+        {
+            if (_shotsDir != null) return;
+            var sb = new StringBuilder();
+            for (int i = 0; i < HotbarSlots; i++) sb.Append(i > 0 ? "," : "").Append(_favs[i] == Tool.Select ? "" : _favs[i].ToString());
+            PlayerPrefs.SetString(PrefHotbar, sb.ToString());
+            PlayerPrefs.SetInt(PrefMenuOpen, _menuOpen ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        void ToggleFav(Tool t)
+        {
+            EnsureFavs();
+            string name = B.Defs[TypeOf(t)].Name;
+            int at = System.Array.IndexOf(_favs, t);
+            if (at >= 0) { _favs[at] = Tool.Select; Toast(name + " unpinned from hotbar key " + (at + 1)); SaveFavs(); return; }
+            int free = System.Array.IndexOf(_favs, Tool.Select);
+            if (free < 0) { Toast("Hotbar full: right-click a hotbar slot to unpin one first"); return; }
+            _favs[free] = t;
+            Toast(name + " pinned to hotbar key " + (free + 1));
+            SaveFavs();
+        }
+
+        void ToggleBuildMenu()
+        {
+            EnsureFavs();
+            _menuOpen = !_menuOpen;
+            if (!_menuOpen) _dropFocus = true;
+            SaveFavs();
+        }
+
+        /// <summary>Tab: the next category (opens the menu if it was collapsed).</summary>
+        void NextCategory()
+        {
+            var cats = Cats();
+            int i = cats.IndexOf(_cat);
+            _cat = cats[(i + 1) % cats.Count];
+            _search = "";
+            if (!_menuOpen) ToggleBuildMenu();
+            SetTool(Tool.Select);
+        }
+
+        /// <summary>The first category holding a building of the current tier (the autopilot shows the newest buildings).</summary>
+        BuildCat NewestCat()
+        {
+            foreach (var c in Cats())
+                foreach (var t in CatTools(c))
+                    if (B.Defs[TypeOf(t)].Tier == W.Tier) return c;
+            return _cat;
+        }
+
+        /// <summary>True when a right click lands in r this event; eats it so the button under it doesn't fire.</summary>
+        static bool RightClicked(Rect r)
+        {
+            var e = Event.current;
+            if (e.type != EventType.MouseDown || e.button != 1 || !r.Contains(e.mousePosition)) return false;
+            e.Use();
+            return true;
+        }
+
         void DrawBuildMenu(float Wd, float Ht)
         {
             MenuStyles();
-            const float tileW = 104f, tileH = 112f, gap = 5f;
-            int pages = 10;
+            EnsureFavs();
+            if (_dropFocus) { GUI.FocusControl(null); GUIUtility.keyboardControl = 0; _dropFocus = false; _typing = false; }
+
+            const float gap = 5f;
             float bw = Mathf.Min(1800f, Wd - 40f);
-            var bar = Panel(new Rect(Wd / 2f - bw / 2f, Ht - 162f, bw, 152f));
-
-            // Tabs: one per tier page; locked ones say which tier opens them.
-            float tabW = Mathf.Floor((bar.width - 16f - 158f - (pages - 1) * 4f) / pages);
-            for (int p = 1; p <= pages; p++)
+            // Hotbar row: 8 pinned slots on the left; earthworks, then the build menu and research toggles, on the right.
+            float slotW = Mathf.Min(96f, Mathf.Floor((bw - 16f - 12f - 140f) / (HotbarSlots + 4)) - gap), slotH = 100f;
+            var hot = Panel(new Rect(Wd / 2f - bw / 2f, Ht - slotH - 20f, bw, slotH + 12f));
+            string hoverCard = null, hoverExtra = null; BuildingType hoverType = BuildingType.Belt; bool hoverTool = false;
+            float y = hot.y + 6f;
+            for (int i = 0; i < HotbarSlots; i++)
             {
-                bool open = W.Tier >= p;
-                var r = new Rect(bar.x + 8f + (p - 1) * (tabW + 4f), bar.y + 6f, tabW, 28f);
-                string label = open ? (_page == p ? "> " : "") + PageNames[p] : "LOCKED: " + PageNames[p] + " (T" + p + ")";
-                var tabStyle = !open ? _tabLocked : _page == p ? _tabOn : _tab;
-                if (tabStyle.CalcSize(new GUIContent(label)).x > tabW - 6f) label = "<size=12>" + label + "</size>";   // long locked names still fit
-                if (tabStyle.CalcSize(new GUIContent(label)).x > tabW - 6f) label = label.Replace("<size=12>", "<size=11>").Replace("LOCKED: ", "");
-                if (GUI.Button(r, label, tabStyle))
+                var r = new Rect(hot.x + 8f + i * (slotW + gap), y, slotW, slotH);
+                var t = _favs[i];
+                string key = (i + 1).ToString();
+                if (t == Tool.Select)
                 {
-                    if (open) { _page = p; SetTool(Tool.Select); }
-                    else Toast(PageNames[p] + " opens at Tier " + p + ": press T to see the goal");
+                    GUI.Box(r, key + "\n<size=12>empty</size>", _tileLocked);
+                    if (r.Contains(Event.current.mousePosition)) hoverCard = "<b>Hotbar key " + key + ": empty</b>\nRight-click a building in the build menu (B) to pin it here.";
+                    continue;
                 }
-            }
-            var researchR = new Rect(bar.xMax - 158f, bar.y + 6f, 150f, 28f);
-            if (GUI.Button(researchR, (_research ? "> " : "") + "RESEARCH (T)", _research ? _tabOn : _tab)) _research = !_research;
-
-            // Building tiles for this page.
-            var list = new List<Tool>(PageTools(_page));
-            if (_page == 1) list.Add(Tool.Splitter);
-            float x = bar.x + 8f, y = bar.y + 38f;
-            string hoverCard = null; BuildingType hoverType = BuildingType.Belt; bool hoverTool = false;
-            for (int i = 0; i < list.Count; i++)
-            {
-                var t = list[i];
+                if (RightClicked(r)) { ToggleFav(t); continue; }
                 var bt = TypeOf(t);
                 var d = B.Defs[bt];
                 bool locked = d.Tier > W.Tier;
-                string key = t == Tool.Splitter ? "9" : (i + 1).ToString();
-                string label = (locked ? "LOCKED" : key + "  " + d.Name) + "\n<size=12>" + CostText(d) + "</size>";
-                var icon = View != null ? View.IconIfReady(bt) : null;
-                var r = new Rect(x, y, tileW, tileH);
-                if (GUI.Button(r, label, locked ? _tileLocked : _tool == t ? _tileOn : _tile))
-                {
-                    if (locked) Toast(d.Name + " unlocks at Tier " + d.Tier);
-                    else SetTool(_tool == t ? Tool.Select : t);
-                }
-                if (icon != null)
-                {
-                    var prevC = GUI.color;
-                    if (locked) GUI.color = new Color(0.45f, 0.45f, 0.45f, 0.8f);
-                    GUI.DrawTexture(new Rect(r.x + (r.width - 66f) / 2f, r.y + 3f, 66f, 66f), icon, ScaleMode.ScaleToFit, true);
-                    GUI.color = prevC;
-                }
+                string label = "<size=12>" + key + "  " + d.Name + (locked ? "\nTier " + d.Tier : "") + "</size>";
+                if (GUI.Button(r, label, locked ? _tileLocked : _tool == t ? _tileOn : _tile)) PickTool(t, true);
+                DrawTileIcon(r, bt, locked, 52f);
                 if (_tool == t) GUI.Box(new Rect(r.x, r.yMax - 3f, r.width, 3f), GUIContent.none, Underline());
-                if (r.Contains(Event.current.mousePosition)) { hoverType = bt; hoverTool = true; }
-                x += tileW + gap;
+                if (r.Contains(Event.current.mousePosition)) { hoverType = bt; hoverTool = true; hoverExtra = "Hotbar key " + key + ". Right-click to unpin."; }
             }
 
-            // Earthworks and demolish, always on the right.
             var tools = new[] { (Tool.Dig, "G  Dig", "mark ground"), (Tool.Dump, "V  Dump", "dirt goes here"), (Tool.Level, "L  Level", "flatten, clear trees"), (Tool.Demolish, "X  Demolish", "full refund") };
-            float rx = bar.xMax - 8f - tools.Length * (tileW + gap) + gap;
+            float bx = hot.xMax - 8f - 140f;
+            var menuR = new Rect(bx, y, 140f, slotH / 2f - 3f);
+            if (GUI.Button(menuR, (_menuOpen ? "> " : "") + "BUILD (B)", _menuOpen ? _tabOn : _tab)) ToggleBuildMenu();
+            if (menuR.Contains(Event.current.mousePosition))
+                hoverCard = _menuOpen ? "<b>Build menu (B)</b>\nHide the menu and keep just the hotbar." : "<b>Build menu (B)</b>\nShow every building, grouped by what it does.";
+            var researchR = new Rect(bx, y + slotH / 2f + 3f, 140f, slotH / 2f - 3f);
+            if (GUI.Button(researchR, (_research ? "> " : "") + "RESEARCH (T)", _research ? _tabOn : _tab)) _research = !_research;
+            float rx = bx - 12f - tools.Length * (slotW + gap) + gap;
             for (int i = 0; i < tools.Length; i++)
             {
                 var (t, name, sub) = tools[i];
-                var r = new Rect(rx + i * (tileW + gap), y, tileW, tileH);
-                if (GUI.Button(r, name + "\n<size=12>" + sub + "</size>", _tool == t ? _tileOn : _tile)) SetTool(_tool == t ? Tool.Select : t);
+                var r = new Rect(rx + i * (slotW + gap), y, slotW, slotH);
+                if (GUI.Button(r, "<size=12>" + name + "\n" + sub + "</size>", _tool == t ? _tileOn : _tile)) SetTool(_tool == t ? Tool.Select : t);
                 var ti = t == Tool.Demolish || View == null ? null : t == Tool.Level ? View.DozerIcon : View.ToolIcon(t == Tool.Dig);
-                if (ti != null) GUI.DrawTexture(new Rect(r.x + (r.width - 66f) / 2f, r.y + 3f, 66f, 66f), ti, ScaleMode.ScaleToFit, true);
-                else if (t == Tool.Demolish) GUI.Label(new Rect(r.x, r.y + 2f, r.width, 64f), "X", DemolishGlyph());
+                if (ti != null) GUI.DrawTexture(new Rect(r.x + (r.width - 52f) / 2f, r.y + 3f, 52f, 52f), ti, ScaleMode.ScaleToFit, true);
+                else if (t == Tool.Demolish) GUI.Label(new Rect(r.x, r.y + 2f, r.width, 52f), "X", DemolishGlyph());
                 if (_tool == t) GUI.Box(new Rect(r.x, r.yMax - 3f, r.width, 3f), GUIContent.none, Underline());
                 if (r.Contains(Event.current.mousePosition))
                     hoverCard = t == Tool.Dig ? "<b>Dig</b>\nDrag over ore, coal, stone or grass. Excavators dig it layer by layer and trucks carry it to hoppers, the lodge or a dump."
@@ -161,9 +316,95 @@ namespace Kilnwood.Game
                         : t == Tool.Level ? "<b>Level</b>\nDrag over spoil heaps, old pits or woods. A bulldozer (buy one at a garage) clears the trees, shaves heaps and pushes the dirt into holes until the ground is flat enough to build on."
                         : "<b>Demolish</b>\nClick a building to remove it and get everything back. Drag over belts.";
             }
+            _buildTop = hot.y;
 
-            if (hoverTool) DrawBuildCard(hoverType, bar);
-            else if (hoverCard != null) DrawTextCard(hoverCard, bar);
+            if (_menuOpen)
+            {
+                // Which tiles: the open category, or every building whose name matches the search.
+                string q = (_search ?? "").Trim();
+                var list = new List<Tool>();
+                if (q.Length > 0)
+                {
+                    foreach (var t in AllBuildTools())
+                        if (B.Defs[TypeOf(t)].Name.IndexOf(q, System.StringComparison.OrdinalIgnoreCase) >= 0) list.Add(t);
+                }
+                else list.AddRange(CatTools(_cat));
+
+                const float tileW = 104f, tileH = 112f;
+                const int maxRows = 4;
+                int cols = Mathf.Max(1, Mathf.FloorToInt((bw - 16f + gap) / (tileW + gap)));
+                int rows = Mathf.Clamp((list.Count + cols - 1) / cols, 1, maxRows);
+                float menuH = 40f + rows * (tileH + gap) + 3f;
+                var bar = Panel(new Rect(hot.x, hot.y - 6f - menuH, bw, menuH));
+                _buildTop = bar.y;
+
+                // Category tabs: words plus how many are unlocked; "> " marks the open one (not colour only).
+                var cats = Cats();
+                const float searchW = 330f;
+                float tabW = Mathf.Min(210f, Mathf.Floor((bar.width - 16f - searchW - 12f - (cats.Count - 1) * 4f) / cats.Count));
+                for (int i = 0; i < cats.Count; i++)
+                {
+                    var c = cats[i];
+                    var ct = CatTools(c);
+                    int open = 0;
+                    foreach (var t in ct) if (!Locked(t)) open++;
+                    bool on = q.Length == 0 && _cat == c;
+                    var r = new Rect(bar.x + 8f + i * (tabW + 4f), bar.y + 6f, tabW, 28f);
+                    string label = (on ? "> " : "") + CatNames[(int)c] + "  <size=12>" + open + "/" + ct.Count + "</size>";
+                    if (_tab.CalcSize(new GUIContent(label)).x > tabW - 6f) label = "<size=12>" + label + "</size>";
+                    if (GUI.Button(r, label, on ? _tabOn : _tab)) { _cat = c; _search = ""; _dropFocus = true; SetTool(Tool.Select); }
+                }
+
+                // Search box: filters tiles across every category by name.
+                float sx = bar.xMax - 8f - searchW;
+                GUI.Label(new Rect(sx, bar.y + 9f, 62f, 24f), "Search", _tiny);
+                GUI.SetNextControlName("kwSearch");
+                _search = GUI.TextField(new Rect(sx + 62f, bar.y + 6f, searchW - 62f - 36f, 28f), _search ?? "", 32, _searchStyle);
+                if (Event.current.type == EventType.Repaint) _typing = GUI.GetNameOfFocusedControl() == "kwSearch";
+                if (GUI.Button(new Rect(bar.xMax - 8f - 30f, bar.y + 6f, 30f, 28f), "X", _tab)) { _search = ""; _dropFocus = true; }
+
+                float y0 = bar.y + 40f;
+                if (list.Count == 0)
+                    GUI.Label(new Rect(bar.x + 14f, y0 + 10f, bar.width - 28f, 30f), "No building matches \"" + q + "\". Clear the search (X) to see the categories.", _small);
+                int shown = Mathf.Min(list.Count, rows * cols);
+                for (int i = 0; i < shown; i++)
+                {
+                    var t = list[i];
+                    var bt = TypeOf(t);
+                    var d = B.Defs[bt];
+                    bool locked = d.Tier > W.Tier;
+                    var r = new Rect(bar.x + 8f + (i % cols) * (tileW + gap), y0 + (i / cols) * (tileH + gap), tileW, tileH);
+                    if (RightClicked(r)) ToggleFav(t);
+                    int fav = System.Array.IndexOf(_favs, t);
+                    string label = d.Name + "\n<size=12>" + (locked ? "Tier " + d.Tier : CostText(d)) + "</size>";
+                    if (GUI.Button(r, label, locked ? _tileLocked : _tool == t ? _tileOn : _tile)) PickTool(t, true);
+                    DrawTileIcon(r, bt, locked, 60f);
+                    if (fav >= 0) GUI.Label(new Rect(r.x + 5f, r.y + 2f, 30f, 20f), "<b>" + (fav + 1) + "</b>", _tiny);   // its hotbar key
+                    if (_tool == t) GUI.Box(new Rect(r.x, r.yMax - 3f, r.width, 3f), GUIContent.none, Underline());
+                    if (r.Contains(Event.current.mousePosition))
+                    {
+                        hoverType = bt; hoverTool = true;
+                        hoverExtra = fav >= 0 ? "On hotbar key " + (fav + 1) + ". Right-click to unpin." : "Right-click to pin it to the hotbar.";
+                    }
+                }
+                if (shown < list.Count)
+                    GUI.Label(new Rect(bar.xMax - 230f, bar.yMax - 22f, 222f, 20f), "+" + (list.Count - shown) + " more: type to narrow", _tinyDim);
+            }
+            else if (_typing) _dropFocus = true;
+
+            var top = new Rect(hot.x, _buildTop, bw, 10f);
+            if (hoverTool) DrawBuildCard(hoverType, top, hoverExtra);
+            else if (hoverCard != null) DrawTextCard(hoverCard, top);
+        }
+
+        void DrawTileIcon(Rect r, BuildingType bt, bool locked, float size)
+        {
+            var icon = View != null ? View.IconIfReady(bt) : null;
+            if (icon == null) return;
+            var prevC = GUI.color;
+            if (locked) GUI.color = new Color(0.45f, 0.45f, 0.45f, 0.8f);
+            GUI.DrawTexture(new Rect(r.x + (r.width - size) / 2f, r.y + 3f, size, size), icon, ScaleMode.ScaleToFit, true);
+            GUI.color = prevC;
         }
 
         GUIStyle _glyph;
@@ -192,7 +433,7 @@ namespace Kilnwood.Game
         }
 
         /// <summary>Hover card: the building, what it costs, needs and makes.</summary>
-        void DrawBuildCard(BuildingType bt, Rect bar)
+        void DrawBuildCard(BuildingType bt, Rect bar, string extra = null)
         {
             var d = B.Defs[bt];
             var sb = new StringBuilder();
@@ -213,8 +454,9 @@ namespace Kilnwood.Game
             string blurb = Blurb(bt);
             if (blurb != null) sb.Append(blurb);
             if (d.Tier > W.Tier) sb.Append("\nLOCKED: unlocks at Tier ").Append(d.Tier).Append(" (").Append(TierNames[d.Tier]).Append(")");
+            if (extra != null) sb.Append('\n').Append(extra);
 
-            var r = new Rect(bar.x + 8f, bar.y - 176f, 620f, 168f);
+            var r = new Rect(bar.x + 8f, bar.y - 196f, 620f, 188f);
             GUI.Box(r, GUIContent.none, _panel);
             var icon = View != null ? View.IconIfReady(bt) : null;
             float tx = r.x + 12f;
@@ -342,7 +584,7 @@ namespace Kilnwood.Game
                 // Unlocks: building pictures with names, always below the blurb.
                 float uy = Mathf.Max(top + 118f, top + 62f + blurbH + 8f);
                 var unlocks = new List<BuildingType>();
-                if (n <= 9) foreach (var t in PageTools(n)) unlocks.Add(TypeOf(t));
+                if (n <= 9) foreach (var t in TierTools(n)) unlocks.Add(TypeOf(t));
                 if (n == 1) unlocks.Add(BuildingType.Splitter);
                 if (unlocks.Count > 0) GUI.Label(new Rect(nx + 12f, uy, nodeW - 24f, 22f), "Unlocks", _tinyDim);
                 uy += 22f;
