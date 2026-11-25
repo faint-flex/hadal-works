@@ -330,7 +330,7 @@ namespace Kilnwood.Sim
             {
                 Type = BuildingType.ElectricMine, Name = "Electric mine", Size = 2, Key = '1', Tier = 6, Kw = ElectricMineKw, NeedsElectric = true,
                 SitsOn = new[] { Terrain.IronOre, Terrain.Stone },
-                Cost = new[] { (Item.Plate, 10), (Item.Steel, 6), (Item.Wire, 10) },
+                Cost = new[] { (Item.Plate, 10), (Item.Brick, 10), (Item.Wire, 10) },   // 0.17.1: brick, not steel: after Tier 7 the lodge gets almost no steel, so the Tier 9 demo stalled
             });
             Add(new BuildingDef
             {

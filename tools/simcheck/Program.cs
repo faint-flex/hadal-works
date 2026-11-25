@@ -94,11 +94,13 @@ public static class Program
         }
     }
 
+    static bool _t9seen;
     static int Jitter(int seeds)
     {
         int fails = 0;
         for (int seed = 1; seed <= seeds; seed++)
         {
+            _t9seen = false;
             var rng = new Random(seed);
             var b = new Balance();
             var w = MapGen.NewTier1(b);
@@ -113,6 +115,7 @@ public static class Program
                 if (!gift && w.Time >= 200f) { w.Storage[Item.Iron] += 60; gift = true; }
                 if (!gift3 && w.Tier >= 3) { w.Storage[Item.Iron] += 80; gift3 = true; }
                 w.Tick((float)(0.02 + rng.NextDouble() * 0.5));
+                if (w.Tier == 9 && !_t9seen && w.Time > w.Tier8GoalAt + 20f) { _t9seen = true; Console.WriteLine($"seed {seed}: 20 s into Tier 9: waiting {demo.Waiting(w)}; lodge steel {w.Storage[Item.Steel]} wire {w.Storage[Item.Wire]} plate {w.Storage[Item.Plate]} plank {w.Storage[Item.Plank]} brick {w.Storage[Item.Brick]} motor {w.Storage[Item.Motor]}"); }
                 if (w.Time >= nextCrowd) { nextCrowd = w.Time + 5f; samples++; if (Crowded(w)) crowded++; if (StoppedOnBelt(w)) onBelt++; }
                 if (seeds == 1 && w.Tier >= 3 && w.Time >= _trace) { _trace = w.Time + 60f; Trace(w); }
             }
