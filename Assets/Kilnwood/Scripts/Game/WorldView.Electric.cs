@@ -87,9 +87,9 @@ namespace Kilnwood.Game
             v.FireLight.transform.SetParent(B, false);
             v.FireLight.transform.localPosition = new Vector3(0f, PoleTop - 1.7f, 0.72f);
             v.FireLight.type = LightType.Point;
-            v.FireLight.color = LampGlow;
-            v.FireLight.intensity = 2.2f;
-            v.FireLight.range = 9f;
+            v.FireLight.color = new Color(1f, 0.68f, 0.38f);   // warm sodium-ish, not lemon on the grass
+            v.FireLight.intensity = 3f;
+            v.FireLight.range = 12f;
             v.FireLight.shadows = LightShadows.None;
             v.FireLight.enabled = false;
             Art.Cube("Footing", B, new Vector3(0f, 0.08f, 0f), new Vector3(0.6f, 0.16f, 0.6f), Look.StoneWall * 0.8f);

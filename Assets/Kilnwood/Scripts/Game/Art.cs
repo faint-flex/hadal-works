@@ -811,6 +811,15 @@ namespace Kilnwood.Game
             return ps;
         }
 
+        /// <summary>Multiplies the smoke tint by the light level (unlit particles would glow white at night).</summary>
+        public static void ShadeSmoke(Color light)
+        {
+            var m = SmokeMat;
+            if (m == null || !m.HasProperty("_TintColor")) return;
+            var c = new Color(0.73f * light.r, 0.73f * light.g, 0.73f * light.b, 0.5f);
+            if (m.GetColor("_TintColor") != c) m.SetColor("_TintColor", c);
+        }
+
         static Material SmokeMat
         {
             get

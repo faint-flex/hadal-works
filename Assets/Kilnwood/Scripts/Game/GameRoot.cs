@@ -573,7 +573,7 @@ namespace Kilnwood.Game
             _research = false;
             // The same yard at dusk and at night: gold light, then pole lamps and lit windows.
             Rig.Frame(WorldView.FootCenter(37, 27, 2), 200f, 34f, 42f);
-            foreach (var (hour, name) in new[] { (18.7f, "32-dusk"), (22f, "33-night") })
+            foreach (var (hour, name) in new[] { (18.1f, "32-dusk"), (22f, "33-night") })
             {
                 WorldView.FixedHour = hour;
                 for (int k = 0; k < 4; k++) yield return null;     // light, sky probe and lamps settle
