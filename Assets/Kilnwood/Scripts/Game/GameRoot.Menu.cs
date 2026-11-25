@@ -263,6 +263,20 @@ namespace Kilnwood.Game
             }
         }
 
+        GUIStyle _cardTitleOneLine;
+
+        /// <summary>"Tier n  Name" on one line: the name steps down a font size at a time until it fits the column.</summary>
+        string FitTitle(int n, float width)
+        {
+            if (_cardTitleOneLine == null) _cardTitleOneLine = new GUIStyle(_cardTitle) { wordWrap = false, clipping = TextClipping.Clip };
+            foreach (int size in new[] { 20, 17, 15, 13, 12 })
+            {
+                string t = "<b>Tier " + n + "</b>  " + (size == 20 ? TierNames[n] : "<size=" + size + ">" + TierNames[n] + "</size>");
+                if (_cardTitleOneLine.CalcSize(new GUIContent(t)).x <= width) return t;
+            }
+            return "<b>Tier " + n + "</b>  <size=12>" + TierNames[n] + "</size>";
+        }
+
         static readonly string[] TierBlurb =
         {
             "",
@@ -300,7 +314,7 @@ namespace Kilnwood.Game
                     GUI.Label(new Rect(node.xMax + gapX - 18f, top + 26f, 24f, 28f), ">", _cardTitle);
                 }
                 string state = done ? "DONE" : now ? "NOW" : "LOCKED";
-                GUI.Label(new Rect(nx + 12f, top + 8f, nodeW - 24f, 30f), "<b>Tier " + n + "</b>  " + (_cardTitle.CalcSize(new GUIContent("Tier " + n + "  " + TierNames[n])).x > nodeW - 24f ? "<size=15>" + TierNames[n] + "</size>" : TierNames[n]), _cardTitle);
+                GUI.Label(new Rect(nx + 12f, top + 8f, nodeW - 24f, 30f), FitTitle(n, nodeW - 24f), _cardTitleOneLine);
                 GUI.Label(new Rect(nx + 12f, top + 38f, nodeW - 24f, 22f), state, now ? _btnSmallOn : _tiny);
                 GUI.Label(new Rect(nx + 12f, top + 60f, nodeW - 24f, 54f), TierBlurb[n], locked ? _tinyDim : _tiny);
 
@@ -318,7 +332,7 @@ namespace Kilnwood.Game
                     float cw = Mathf.Min(66f, Mathf.Floor((nodeW - 14f) / 3f)), isz = cw - 16f;
                     var cell = new Rect(ux + col * cw, uy, cw - 2f, 62f);
                     if (icon != null) GUI.DrawTexture(new Rect(cell.x + (cw - isz) / 2f, cell.y, isz, isz), icon, ScaleMode.ScaleToFit, true);
-                    GUI.Label(new Rect(cell.x - 1f, cell.y + 46f, cw, 34f), "<size=11>" + B.Defs[bt].Name + "</size>", locked ? _tinyDim : _tiny);
+                    GUI.Label(new Rect(cell.x + 1f, cell.y + 46f, cw - 4f, 34f), "<size=" + (cw < 64f ? 10 : 11) + ">" + B.Defs[bt].Name + "</size>", locked ? _tinyDim : _tiny);
                     col++;
                     if (col == 3) { col = 0; uy += 80f; }
                 }

@@ -552,7 +552,7 @@ namespace Kilnwood.Game
                 // Tier 7 shots: the assembly plant with its furnace and hopper, then the wood-fired turbine.
                 string[] names = { "assembly-plant", "turbine" };
                 if (_asmShot == 0) Rig.Frame(WorldView.FootCenter(DemoFactory.AssemblyX, DemoFactory.AssemblyY + 1, 3), 140f, 42f, 24f);
-                else Rig.Frame(WorldView.FootCenter(DemoFactory.TurbineX, DemoFactory.TurbineY, 2), 150f, 38f, 20f);
+                else Rig.Frame(WorldView.FootCenter(DemoFactory.TurbineX, DemoFactory.TurbineY + 1, 2), 160f, 66f, 22f);   // high above the woods, like the dynamo shot
                 StartCoroutine(ShotNextFrame((36 + _asmShot) + "-tier7-" + names[_asmShot] + "-t" + Mathf.RoundToInt(W.Time) + "s"));
                 _asmShot++;
                 _asmAt = W.Time + 40f;
@@ -742,7 +742,7 @@ namespace Kilnwood.Game
             var top = Panel(new Rect(10f, 10f, Wd - 20f, 58f));
             GUI.Label(new Rect(top.x + 14f, top.y + 6f, 660f, 26f),
                 "<b>Lodge</b>   W wood " + W.Storage[Item.Wood] + "   S stone " + W.Storage[Item.Stone] + "   I iron " + W.Storage[Item.Iron], _body);
-            GUI.Label(new Rect(top.x + 14f, top.y + 32f, 860f, 24f),
+            GUI.Label(new Rect(top.x + 14f, top.y + 32f, top.width - 370f, 24f),
                 "C charcoal " + W.Storage[Item.Charcoal] + "   O ore " + W.Storage[Item.Ore] +
                 (W.Tier >= 2 ? "   B brick " + W.Storage[Item.Brick] + "   G gear " + W.Storage[Item.Gear] + "   P plank " + W.Storage[Item.Plank] + "   L plate " + W.Storage[Item.Plate] : "") +
                 (W.Tier >= 3 ? "   K coal " + W.Storage[Item.Coal] + "   T steel " + W.Storage[Item.Steel] : "") +

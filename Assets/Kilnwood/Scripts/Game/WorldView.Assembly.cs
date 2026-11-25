@@ -101,7 +101,7 @@ namespace Kilnwood.Game
         {
             Color brick = Look.Brickwork, stone = Look.StoneWall, iron = Look.Iron, glass = new Color(0.3f, 0.37f, 0.42f);
             float h = s / 2f;
-            const float wallW = 2.4f, wallD = 2.5f, wallZ = -0.2f, eave = 2.7f;
+            const float wallW = 2.6f, wallD = 2.6f, wallZ = -0.2f, eave = 3.0f;   // 0.14.1: bigger, so it fills its 3x3 pad
             Art.Cube("Floor", B, new Vector3(0f, 0.08f, 0f), new Vector3(s - 0.3f, 0.16f, s - 0.3f), stone * 0.85f);
             Art.Cube("Walls", B, new Vector3(0f, eave / 2f + 0.1f, wallZ), new Vector3(wallW, eave, wallD), brick);
             Art.Cube("Plinth course", B, new Vector3(0f, 0.3f, wallZ), new Vector3(wallW + 0.1f, 0.3f, wallD + 0.1f), stone * 0.8f);
@@ -129,8 +129,8 @@ namespace Kilnwood.Game
                 for (int j = 0; j < 3; j++)
                 {
                     float z = wallZ - 0.8f + j * 0.8f;
-                    Art.Cube("Window", B, new Vector3(k * (wallW / 2f + 0.01f), 1.6f, z), new Vector3(0.04f, 1.2f, 0.5f), glass);
-                    Art.Cube("Glazing bar", B, new Vector3(k * (wallW / 2f + 0.03f), 1.6f, z), new Vector3(0.03f, 1.2f, 0.04f), iron);
+                    Art.Cube("Window", B, new Vector3(k * (wallW / 2f + 0.01f), 1.75f, z), new Vector3(0.04f, 1.4f, 0.5f), glass);
+                    Art.Cube("Glazing bar", B, new Vector3(k * (wallW / 2f + 0.03f), 1.75f, z), new Vector3(0.03f, 1.4f, 0.04f), iron);
                     Art.Cube("Sill", B, new Vector3(k * (wallW / 2f + 0.05f), 0.97f, z), new Vector3(0.1f, 0.06f, 0.6f), stone);
                 }
             // Big doors at the front and a finished tractor waiting beside them.
@@ -139,15 +139,15 @@ namespace Kilnwood.Game
             Art.Cube("Door line", B, new Vector3(0f, 1.05f, wallZ + wallD / 2f + 0.08f), new Vector3(0.04f, 1.8f, 0.02f), Look.Roof * 0.6f);
             var t = new GameObject("Tractor on show").transform;
             t.SetParent(B, false);
-            t.localPosition = new Vector3(1.0f, 0.16f, h - 0.23f);
+            t.localPosition = new Vector3(1.0f, 0.16f, h - 0.17f);
             t.localScale = Vector3.one * 1.1f;
             BuildTractor(t, TractorOrange);
             // Overhead crane rail out of the side wall for loading.
-            Art.Cube("Crane rail", B, new Vector3(-1.45f, 2.4f, wallZ + 0.4f), new Vector3(0.6f, 0.12f, 0.12f), iron);
-            Art.Cube("Crane hook", B, new Vector3(-1.65f, 2.05f, wallZ + 0.4f), new Vector3(0.05f, 0.6f, 0.05f), Look.MineDark);
+            Art.Cube("Crane rail", B, new Vector3(-1.5f, 2.6f, wallZ + 0.4f), new Vector3(0.6f, 0.12f, 0.12f), iron);
+            Art.Cube("Crane hook", B, new Vector3(-1.7f, 2.25f, wallZ + 0.4f), new Vector3(0.05f, 0.6f, 0.05f), Look.MineDark);
             // Service bracket at the back corner for the drop line.
-            Art.Cube("Service bracket", B, new Vector3(-1.3f, 3.2f, -1.35f), new Vector3(0.1f, 1.4f, 0.1f), iron);
-            Art.Cyl("Insulator", B, new Vector3(-1.3f, 3.9f, -1.35f), 0.14f, 0.2f, Insulator);
+            Art.Cube("Service bracket", B, new Vector3(-1.4f, 3.6f, -1.42f), new Vector3(0.1f, 1.6f, 0.1f), iron);
+            Art.Cyl("Insulator", B, new Vector3(-1.4f, 4.4f, -1.42f), 0.14f, 0.2f, Insulator);
             Front(B, h);
         }
 
