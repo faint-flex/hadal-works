@@ -149,6 +149,14 @@ namespace Kilnwood.Game
             m.color = c * 1.2f;   // patterns average about 0.83, so lift the tint to keep the same overall colour
             m.enableInstancing = true;
             if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", s == Surface.Shingle ? 0.15f : 0.08f);
+            // Plain grey-blue parts are iron: metallic, a bit of shine, rust in the streaks.
+            float mx = Mathf.Max(c.r, Mathf.Max(c.g, c.b)), mn = Mathf.Min(c.r, Mathf.Min(c.g, c.b));
+            if (s == Surface.Weathered && m.HasProperty("_Metallic") && mx - mn < 0.07f && c.b >= c.r && mx < 0.6f && mx > 0.12f)
+            {
+                m.SetFloat("_Metallic", 0.75f);
+                m.SetFloat("_Rust", 0.55f);
+                m.SetFloat("_Glossiness", 0.42f);
+            }
             _surf[(c, s)] = m;
             return m;
         }

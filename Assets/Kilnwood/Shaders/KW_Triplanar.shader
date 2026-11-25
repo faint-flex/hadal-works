@@ -11,6 +11,8 @@ Shader "Kilnwood/Triplanar"
         _Grime ("Weathering noise", 2D) = "gray" {}
         _GrimeAmount ("Weathering", Range(0,1)) = 0.7
         _GroundDirt ("Dirt splashed up from the ground", Range(0,1)) = 0.75
+        _Metallic ("Metal", Range(0,1)) = 0
+        _Rust ("Rust in the streaks (metal)", Range(0,1)) = 0
     }
     SubShader
     {
@@ -23,7 +25,7 @@ Shader "Kilnwood/Triplanar"
 
         sampler2D _MainTex, _Grime;
         fixed4 _Color;
-        float _Scale, _GrimeAmount, _GroundDirt;
+        float _Scale, _GrimeAmount, _GroundDirt, _Metallic, _Rust;
         half _Glossiness;
 
         struct Input
@@ -55,8 +57,11 @@ Shader "Kilnwood/Triplanar"
             dirt = dirt * dirt * (3.0 - 2.0 * dirt) * _GroundDirt;
             c = lerp(c, c * fixed3(0.42, 0.34, 0.24), dirt);
             c *= lerp(1.0, 0.7, saturate(1.0 - wp.y / 0.35) * _GroundDirt);   // dark damp line right at the ground
+            // Metal: rusty brown creeping down from the streaks and blotches.
+            float rust = saturate(st * wall * 0.8 + (blot - 0.55) * 1.5) * _Rust;
+            c = lerp(c, fixed3(0.32, 0.17, 0.09), rust);
             o.Albedo = c;
-            o.Metallic = 0;
+            o.Metallic = _Metallic * (1.0 - dirt) * (1.0 - rust);
             o.Smoothness = _Glossiness * lerp(1.0, 0.45, dirt) * (0.7 + 0.6 * blot);
             o.Alpha = 1;
         }
