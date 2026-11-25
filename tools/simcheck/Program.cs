@@ -37,7 +37,7 @@ public static class Program
     static void Trace(World w)
     {
         int dig = 0; foreach (var m in w.DigMark) if (m) dig++;
-        Console.Write($"{w.Time,5:0} steel {w.Delivered[Item.Steel]} digMarks {dig} |");
+        Console.Write($"{w.Time,5:0} T{w.Tier} iron {w.Storage[Item.Iron]} ex {w.CountVehicles(VehicleType.Excavator)} dz {w.CountVehicles(VehicleType.Dozer)} steel {w.Delivered[Item.Steel]} digMarks {dig} |");
         foreach (var bd in w.Buildings.Values) if (bd.Type == BuildingType.Furnace || (bd.Type == BuildingType.Hopper && bd.X == 39)) Console.Write($" {bd.Type}: {bd.Status} [{string.Join(",", System.Linq.Enumerable.Select(bd.Input, kv => kv.Key + "=" + kv.Value))}]");
         foreach (var v in w.Vehicles) Console.Write($" | {v.Type} '{v.Status}' {v.Load}x{v.LoadCount} b{v.BucketCount} d{v.DigTile} @{v.TileX},{v.TileY} tank{v.Tank:0} st{v.State}");
         Console.WriteLine();
@@ -125,7 +125,7 @@ public static class Program
                 for (int y = w.H - 1; y >= 0; y--) { var line = y.ToString("00") + " "; for (int x = 0; x < w.W; x++) { var bb = w.AtOrShaft(x, y); var gt = w.Ground[y * w.W + x]; line += bb != null ? MapChar(bb.Type) : gt == Terrain.Water ? "~" : gt == Terrain.IronOre ? "o" : gt == Terrain.Stone ? "s" : w.CoalSeam[y * w.W + x] ? "k" : w.Units[y * w.W + x] < 0 ? "_" : w.Logs[y * w.W + x] > 0 ? "t" : "."; } Console.WriteLine(line); }
             if (w.Tier < 11) { fails++; Console.WriteLine($"seed {seed}: demo stuck on {demo.Waiting(w)}"); }
             Console.WriteLine($"seed {seed}: pit vehicles crowded (two parked on one tile / excavators touching) in {crowded} of {samples} samples, truck stopped on a belt in {onBelt}");
-            Console.Write($"seed {seed}: T1 {w.GoalReachedAt:0}  T2 {w.Tier2GoalAt:0}  T3 {w.Tier3GoalAt:0}  T4 {w.Tier4GoalAt:0}  T5 {w.Tier5GoalAt:0} wire {w.Delivered[Item.Wire]}  T6 {w.Tier6GoalAt:0} motor {w.Delivered[Item.Motor]}  T7 {w.Tier7GoalAt:0} tractor {w.Delivered[Item.Tractor]}  T8 {w.Tier8GoalAt:0} plane {w.Delivered[Item.Plane]}  T9 {w.Tier9GoalAt:0} radio {w.Delivered[Item.Radio]}  T10 {w.Tier10GoalAt:0} drone {w.Delivered[Item.Drone]} flown {w.DroneFlown} rail {w.RailHauled}  steel {w.Delivered[Item.Steel]} coal {w.Delivered[Item.Coal]} ore {w.Delivered[Item.Ore]} |");
+            Console.Write($"seed {seed}: T1 {w.GoalReachedAt:0}  T2 {w.Tier2GoalAt:0}  T3 {w.Tier3GoalAt:0}  T4 {w.Tier4GoalAt:0}  T5 {w.Tier5GoalAt:0} wire {w.Delivered[Item.Wire]}  T6 {w.Tier6GoalAt:0} motor {w.Delivered[Item.Motor]}  T7 {w.Tier7GoalAt:0} tractor {w.Delivered[Item.Tractor]}  T8 {w.Tier8GoalAt:0} plane {w.Delivered[Item.Plane]}  T9 {w.Tier9GoalAt:0} radio {w.Delivered[Item.Radio]}  T10 {w.Tier10GoalAt:0} drone {w.Delivered[Item.Drone]} flown {w.DroneFlown} dozer trees {w.TreesCleared} left {w.CountLevelMarks()} rail {w.RailHauled}  steel {w.Delivered[Item.Steel]} coal {w.Delivered[Item.Coal]} ore {w.Delivered[Item.Ore]} |");
             foreach (var v in w.Vehicles) Console.Write($" {v.Type} '{v.Status}';");
             Console.WriteLine();
             foreach (var bd in w.Buildings.Values)

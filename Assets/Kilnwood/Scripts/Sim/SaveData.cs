@@ -21,6 +21,8 @@ namespace Kilnwood.Sim
         public List<SavedVehicle> Vehicles = new List<SavedVehicle>();
         public int RailHauled;
         public int DroneFlown;
+        public List<int> Cleared = new List<int>();        // 0.22: forest tiles a bulldozer pushed down
+        public int TreesCleared, DozerMoved;
 
         [Serializable]
         public class SavedVehicle
@@ -37,7 +39,8 @@ namespace Kilnwood.Sim
 
         public static SaveData From(World w)
         {
-            var s = new SaveData { Time = w.Time, RailHauled = w.RailHauled, DroneFlown = w.DroneFlown };
+            var s = new SaveData { Time = w.Time, RailHauled = w.RailHauled, DroneFlown = w.DroneFlown, TreesCleared = w.TreesCleared, DozerMoved = w.DozerMoved };
+            s.Cleared.AddRange(w.ClearedForest);
             foreach (var b in w.Buildings.Values)
             {
                 if (b.Type == BuildingType.Lodge) continue;
@@ -52,7 +55,7 @@ namespace Kilnwood.Sim
             }
             s.Logs.AddRange(w.Logs);
             s.Units.AddRange(w.Units);
-            for (int i = 0; i < w.DigMark.Length; i++) s.Marks.Add(w.DigMark[i] ? 1 : w.DumpMark[i] ? 2 : 0);
+            for (int i = 0; i < w.DigMark.Length; i++) s.Marks.Add(w.DigMark[i] ? 1 : w.DumpMark[i] ? 2 : w.LevelMark[i] ? 3 : 0);
             foreach (var v in w.Vehicles)
             {
                 if (!w.Buildings.TryGetValue(v.GarageId, out var g)) continue;
@@ -66,11 +69,13 @@ namespace Kilnwood.Sim
             var w = MapGen.NewTier1(b);
             // Ground first (buildings only sit on level ground, so this can't block them), marks after buildings.
             if (Units.Count == w.Units.Length) for (int i = 0; i < Units.Count; i++) w.Units[i] = Units[i];
+            foreach (int i in Cleared) w.RestoreCleared(i);
+            w.TreesCleared = TreesCleared; w.DozerMoved = DozerMoved;
             foreach (var sb in Buildings)
                 w.Place((BuildingType)sb.Type, sb.X, sb.Y, sb.Facing, sb.Recipe, free: true);
             if (Marks.Count == w.DigMark.Length)
-                for (int i = 0; i < Marks.Count; i++) { w.DigMark[i] = Marks[i] == 1; w.DumpMark[i] = Marks[i] == 2; }
-            for (int i = 0; i < w.Units.Length; i++) if (w.Units[i] != 0 || w.DigMark[i] || w.DumpMark[i]) w.ChangedGround.Add(i);
+                for (int i = 0; i < Marks.Count; i++) { w.DigMark[i] = Marks[i] == 1; w.DumpMark[i] = Marks[i] == 2; w.LevelMark[i] = Marks[i] == 3; }
+            for (int i = 0; i < w.Units.Length; i++) if (w.Units[i] != 0 || w.DigMark[i] || w.DumpMark[i] || w.LevelMark[i]) w.ChangedGround.Add(i);
             foreach (var sv in Vehicles)
             {
                 var g = w.At(sv.GarageX, sv.GarageY);

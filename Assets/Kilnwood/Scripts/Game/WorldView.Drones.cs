@@ -28,6 +28,8 @@ namespace Kilnwood.Game
         public bool DroneInFlight => _worksFlights.Count > 0;
         /// <summary>True while a drone port has a drone out (the screenshot run waits for one).</summary>
         public bool PortDroneOut => _tripDrones.Count > 0;
+        /// <summary>True while a port drone is lifting off its pad with a crate (the drone port shot waits for one).</summary>
+        public bool PortDroneNear { get; private set; }
 
         // ------------------------------------------------------------------ the drone
 
@@ -216,6 +218,7 @@ namespace Kilnwood.Game
             var lodge = _w.Lodge != null ? FootCenter(_w.Lodge.X, _w.Lodge.Y, _w.Lodge.Size) : Vector3.zero;
             lodge.y = GroundHeight(lodge.x, lodge.z) + 3.2f;   // over the lodge roof
             HashSet<DroneTrip> live = null;
+            PortDroneNear = false;
             foreach (var b in _w.Buildings.Values)
             {
                 if (b.Type != BuildingType.DroneWorks && b.Type != BuildingType.DronePort) continue;
@@ -247,6 +250,7 @@ namespace Kilnwood.Game
                         (live ??= new HashSet<DroneTrip>()).Add(trip);
                         if (!_tripDrones.TryGetValue(trip, out var d)) { d = TakeDrone(); _tripDrones[trip] = d; }
                         float u = trip.T / Mathf.Max(0.01f, trip.Duration);
+                        if (u > 0.02f && u < 0.06f) PortDroneNear = true;
                         if (u < 0.5f) { SetDroneCargo(d, trip.Item); PlaceDrone(d, pad, lodge, u * 2f, dt); }
                         else { SetDroneCargo(d, Item.None); PlaceDrone(d, lodge, pad, u * 2f - 1f, dt); }
                     }

@@ -747,7 +747,7 @@ namespace Kilnwood.Game
                 if (v.Title != null)
                 {
                     // Calm machines show only their name (fire glow shows they're busy); problems get a "!" line.
-                    string status = b.Type == BuildingType.Lodge || b.Type == BuildingType.Cabin || string.IsNullOrEmpty(b.Status) || b.Status == "Working" || b.Status.StartsWith("Full") || b.Status.StartsWith("Empty") || b.Status.StartsWith("Turning") || b.Status == "Running" || b.Status.StartsWith("Splitting") || b.Status.StartsWith("Making") || b.Status.StartsWith("Live") || b.Status.StartsWith("Lodge yard") || b.Status.EndsWith("waiting to load") ? "" : b.Status;
+                    string status = b.Type == BuildingType.Lodge || b.Type == BuildingType.Cabin || string.IsNullOrEmpty(b.Status) || b.Status == "Working" || b.Status.StartsWith("Full") || b.Status.StartsWith("Empty") || b.Status.StartsWith("Turning") || b.Status == "Running" || b.Status.StartsWith("Splitting") || b.Status.StartsWith("Making") || b.Status.StartsWith("Flying") || b.Status.StartsWith("Live") || b.Status.StartsWith("Lodge yard") || b.Status.EndsWith("waiting to load") ? "" : b.Status;
                     string text = TitleFor(b) + (status.Length > 0 ? "\n<size=56><color=#FFB070>! " + status + "</color></size>" : "");
                     if (v.Shown != text) { Look.SetText(v.Title, text); v.Shown = text; v.Recipe = b.Recipe; }
                 }
@@ -854,6 +854,9 @@ namespace Kilnwood.Game
         /// Problems and the lodge keep their place first; nearer labels win over far ones.</summary>
         readonly List<(BView v, Rect r)> _fixedLabels = new List<(BView v, Rect r)>();
 
+        /// <summary>Screenshot run: when set, only labels of this kind of building show (neighbours' names hid the subject).</summary>
+        public BuildingType? OnlyTitle;
+
         void DeclutterLabels(Camera cam)
         {
             _lab.Clear();
@@ -867,6 +870,7 @@ namespace Kilnwood.Game
                 if (v.Title == null) continue;
                 if (v.Post != null) SetLabelOffset(v, Vector3.zero);
                 ShowLabel(v, true);
+                if (OnlyTitle.HasValue && v.Type != OnlyTitle.Value) { ShowLabel(v, false); continue; }   // close-up shots: just the subject's name
                 if (string.IsNullOrEmpty(v.Shown)) continue;
                 var pos = v.Title.transform.position;
                 var a = cam.WorldToScreenPoint(pos);

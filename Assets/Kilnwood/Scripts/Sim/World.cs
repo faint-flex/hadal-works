@@ -106,6 +106,7 @@ namespace Kilnwood.Sim
             {
                 case VehicleType.Excavator: return era == 0 ? "Steam shovel" : era == 1 ? "Diesel shovel" : "Hydraulic excavator";
                 case VehicleType.Truck: return era == 0 ? "Chain-drive lorry" : era == 1 ? "Tipper truck" : "Dump truck";
+                case VehicleType.Dozer: return era == 0 ? "Steam crawler dozer" : era == 1 ? "Diesel bulldozer" : "Hydraulic bulldozer";
                 default: return era >= 2 ? "Diesel locomotive" : "Steam locomotive";
             }
         }
@@ -139,6 +140,7 @@ namespace Kilnwood.Sim
             Units = new int[W * H];
             DigMark = new bool[W * H];
             DumpMark = new bool[W * H];
+            LevelMark = new bool[W * H];
             CoalSeam = new bool[W * H];
         }
 
@@ -242,7 +244,7 @@ namespace Kilnwood.Sim
                     if (GroundAt(x + dx, y + dy) == Terrain.Water) return "Can't build on the river";
                     int ti = (y + dy) * W + x + dx;
                     if (Units[ti] != 0) return "Ground isn't level (dug or filled)";
-                    if (DigMark[ti] || DumpMark[ti]) return "Marked for digging or dumping";
+                    if (DigMark[ti] || DumpMark[ti] || LevelMark[ti]) return "Marked for digging, dumping or levelling";
                     if (VehicleOn(x + dx, y + dy)) return "A vehicle is in the way";
                 }
             if (!ignoreCost && def.Tier > Tier) return "Unlocks at Tier " + def.Tier;

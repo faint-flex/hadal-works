@@ -600,13 +600,15 @@ namespace Kilnwood.Game
                 _airAt = W.Time + 40f;
             }
             if (W.Tier >= 10 && _droneAt <= 0f) _droneAt = W.Time + 120f;
-            if (_droneAt > 0f && _droneShot < 2 && W.Time >= _droneAt && (W.Time >= _droneAt + 120f || (_droneShot == 0 ? View.DroneInFlight : View.PortDroneOut)))
+            if (_droneAt > 0f && _droneShot < 2 && W.Time >= _droneAt && (W.Time >= _droneAt + 120f || (_droneShot == 0 ? View.DroneInFlight : View.PortDroneNear)))
             {
                 // Tier 10 shots: a drone lifting off the drone works, then the forest camp's port with drones flying timber home.
                 string[] names = { "drone-works", "drone-port" };
-                if (_droneShot == 0) Rig.Frame(WorldView.FootCenter(DemoFactory.DroneWorksX, DemoFactory.DroneWorksY, 2), 140f, 34f, 26f);
-                else Rig.Frame(WorldView.FootCenter(DemoFactory.PortX, DemoFactory.PortY, 2), 160f, 30f, 30f);
-                StartCoroutine(ShotNextFrame((47 + _droneShot) + "-tier10-" + names[_droneShot] + "-t" + Mathf.RoundToInt(W.Time) + "s"));
+                // 0.22: from the south-east (the glassworks and its smoke stood between the camera and the works), and
+                // steeper over the port so the forest doesn't hide the deck; only the subject's label shows.
+                if (_droneShot == 0) Rig.Frame(WorldView.FootCenter(DemoFactory.DroneWorksX, DemoFactory.DroneWorksY, 2), 300f, 36f, 24f);
+                else Rig.Frame(WorldView.FootCenter(DemoFactory.PortX, DemoFactory.PortY, 2), 160f, 52f, 26f);
+                StartCoroutine(ShotOnly(_droneShot == 0 ? BuildingType.DroneWorks : BuildingType.DronePort, (47 + _droneShot) + "-tier10-" + names[_droneShot] + "-t" + Mathf.RoundToInt(W.Time) + "s"));
                 _droneShot++;
                 _droneAt = W.Time + 40f;
             }
@@ -664,6 +666,16 @@ namespace Kilnwood.Game
             yield return new WaitForEndOfFrame();
             ScreenCapture.CaptureScreenshot(Path.Combine(_shotsDir, name + ".png"));
             _lastShotFrame = _frames;
+        }
+
+        /// <summary>A close-up with only the subject's label showing; the other labels come back once it is taken.</summary>
+        System.Collections.IEnumerator ShotOnly(BuildingType t, string name)
+        {
+            View.OnlyTitle = t;
+            yield return ShotNextFrame(name);
+            yield return null;
+            yield return null;
+            View.OnlyTitle = null;
         }
 
         bool _dieselShot;

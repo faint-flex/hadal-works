@@ -39,6 +39,9 @@ namespace Kilnwood.Sim
         readonly bool _tier5, _tier6, _tier7, _tier8, _tier9, _tier10;
         readonly int _railsEnd;
         public const int FieldStationX = 54, FieldStationY = 7, YardStationX = 35, YardStationY = 26, DynamoX = 42, DynamoY = 20, ShopX = 36, ShopY = 32, TurbineX = 48, TurbineY = 20, AssemblyX = 31, AssemblyY = 35, HangarX = 37, HangarY = 39, DamX = 6, DamY = 46, GlassX = 10, GlassY = 46, RadioX = 10, RadioY = 44, DroneWorksX = 13, DroneWorksY = 44, PortX = 24, PortY = 54;
+        /// <summary>0.22: the strip of woods north of the pit that a bulldozer clears (no woodcutter reaches it).</summary>
+        public const int ClearX0 = 47, ClearY0 = 43, ClearX1 = 52, ClearY1 = 46;
+        bool _levelMarked;
 
         public DemoFactory(bool people = false, bool pit = false, bool tier2 = false, bool tier3 = false, bool tier4 = false, bool tier5 = false, bool tier6 = false, bool tier7 = false, bool tier8 = false, bool tier9 = false, bool tier10 = false)
         {
@@ -307,6 +310,12 @@ namespace Kilnwood.Sim
                 int dumpLeft = 0;
                 for (int i = 0; i < w.DumpMark.Length; i++) if (w.DumpMark[i]) dumpLeft++;
                 if (dumpLeft < 4) w.MarkDump(56, 14, 62, 25);                                           // more room for the dirt
+            }
+            // 0.22: from Tier 6 a bulldozer clears the woods north of the pit (spare iron only, after the pit fleet).
+            if (_tier3 && w.Tier >= 6 && !_levelMarked && w.CountVehicles(VehicleType.Excavator) >= 3)
+            {
+                if (w.CountVehicles(VehicleType.Dozer) == 0 && w.Storage[Item.Steel] >= 36) w.Buy(g.Id, VehicleType.Dozer);
+                if (w.CountVehicles(VehicleType.Dozer) > 0) { w.MarkLevel(ClearX0, ClearY0, ClearX1, ClearY1); _levelMarked = true; }
             }
             int wantEx = _tier3 && w.Tier >= 3 ? 3 : 1, wantTr = _tier3 && w.Tier >= 3 ? 4 : 2;
             if (w.CountVehicles(VehicleType.Excavator) < wantEx) w.Buy(g.Id, VehicleType.Excavator);

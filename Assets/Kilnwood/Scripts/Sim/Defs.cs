@@ -8,7 +8,7 @@ namespace Kilnwood.Sim
 
     public enum BuildingType { Belt, Woodcutter, Mine, Kiln, Smelter, Workshop, Lodge, Fisher, Cabin, Splitter, Garage, Hopper, Shaft, Waterwheel, Sawmill, TripHammer, SteamEngine, Furnace, Rail, Station, Dynamo, Pole, WireMill, ElectricMine, MachineShop, Turbine, ArcFurnace, Assembly, RollingMill, Hangar, HydroDam, Glassworks, RadioWorks, DroneWorks, DronePort }
 
-    public enum VehicleType { Excavator, Truck, Train }
+    public enum VehicleType { Excavator, Truck, Train, Dozer }
 
     /// <summary>0 = north (+y), 1 = east (+x), 2 = south (-y), 3 = west (-x).</summary>
     public static class Dir
@@ -177,6 +177,12 @@ namespace Kilnwood.Sim
         public float[] EraWork = { 1f, 1.15f, 1.3f };      // dig rate and driving speed of excavators and trucks
         public int[] EraTruckCap = { 8, 10, 12 };
         public float[] EraTrainSpeed = { 1f, 1f, 1.3f };  // the diesel locomotive (era 2) runs faster than steam
+        // 0.22 Bulldozers (LyFe 11-25): level marked ground back to the surface, push spoil into holes, clear trees.
+        public float DozerSpeed = 1.8f;          // tiles per second (times the era's EraWork)
+        public int DozerBlade = 8;               // dirt units on the blade (one level of one tile)
+        public float DozerPushSeconds = 0.5f;    // per unit shaved off a heap or pushed into a hole
+        public float DozerClearSeconds = 6f;     // pushing down one forest tile
+        public float DozerLogShare = 0.5f;       // share of a cleared tile's logs that reach the lodge
         public float TipSeconds = 2f;            // truck tipping its load
         public float TankSeconds = 90f;          // vehicle fuel tank, used while driving or digging
         public float RefuelBelow = 15f;
@@ -185,6 +191,7 @@ namespace Kilnwood.Sim
         public float HopperOutPerSecond = 2f;
         public (Item item, int count)[] ExcavatorCost = { (Item.Iron, 20), (Item.Wood, 10) };
         public (Item item, int count)[] TruckCost = { (Item.Iron, 12), (Item.Wood, 8) };
+        public (Item item, int count)[] DozerCost = { (Item.Steel, 12), (Item.Wood, 12) };
 
         // 0.6 Tier 2 "Water Power".
         public int WheelHp = 10;
@@ -250,7 +257,7 @@ namespace Kilnwood.Sim
         public int DronePortBuffer = 12;         // items waiting at a port
         public int DroneRange = 40;              // tiles from port to lodge
 
-        public (Item item, int count)[] VehicleCost(VehicleType t) => t == VehicleType.Excavator ? ExcavatorCost : t == VehicleType.Train ? TrainCost : TruckCost;
+        public (Item item, int count)[] VehicleCost(VehicleType t) => t == VehicleType.Excavator ? ExcavatorCost : t == VehicleType.Train ? TrainCost : t == VehicleType.Dozer ? DozerCost : TruckCost;
 
         public readonly Dictionary<BuildingType, BuildingDef> Defs = new Dictionary<BuildingType, BuildingDef>();
 

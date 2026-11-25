@@ -73,7 +73,7 @@ namespace Kilnwood.Game
         {
             if (!_w.InBounds(x, y) || _w.GroundAt(x, y) != Terrain.Grass) return false;
             int i = y * _w.W + x;
-            if (_w.Units[i] != 0 || _w.DigMark[i] || _w.DumpMark[i]) return false;
+            if (_w.Units[i] != 0 || _w.DigMark[i] || _w.DumpMark[i] || _w.LevelMark[i]) return false;
             return _w.At(x, y) == null && _w.ShaftAt(x, y) == null;
         }
 

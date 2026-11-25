@@ -115,7 +115,7 @@ namespace Kilnwood.Sim
             {
                 if (CanMarkDig(x, y) != null) return;
                 int i = y * W + x;
-                DumpMark[i] = false;
+                DumpMark[i] = LevelMark[i] = false;
                 if (!DigMark[i]) { DigMark[i] = true; ChangedGround.Add(i); n++; }
             });
             return n;
@@ -128,7 +128,7 @@ namespace Kilnwood.Sim
             {
                 if (CanMarkDump(x, y) != null) return;
                 int i = y * W + x;
-                DigMark[i] = false;
+                DigMark[i] = LevelMark[i] = false;
                 if (!DumpMark[i]) { DumpMark[i] = true; ChangedGround.Add(i); n++; }
             });
             return n;
@@ -141,7 +141,7 @@ namespace Kilnwood.Sim
             {
                 if (!InBounds(x, y)) return;
                 int i = y * W + x;
-                if (DigMark[i] || DumpMark[i]) { DigMark[i] = DumpMark[i] = false; ChangedGround.Add(i); n++; }
+                if (DigMark[i] || DumpMark[i] || LevelMark[i]) { DigMark[i] = DumpMark[i] = LevelMark[i] = false; ChangedGround.Add(i); n++; }
             });
             return n;
         }
@@ -349,6 +349,7 @@ namespace Kilnwood.Sim
             {
                 if (v.Type == VehicleType.Excavator) StepExcavator(v, dt);
                 else if (v.Type == VehicleType.Train) StepTrain(v, dt);
+                else if (v.Type == VehicleType.Dozer) StepDozer(v, dt);
                 else StepTruck(v, dt);
             }
         }
@@ -356,7 +357,7 @@ namespace Kilnwood.Sim
         bool Drive(Vehicle v, float dt)
         {
             if (v.PathStep >= v.Path.Count) return true;
-            float speed = (v.Type == VehicleType.Excavator ? B.ExcavatorSpeed : B.TruckSpeed) * B.EraWork[Era] * (v.Tank > 0f ? 1f : 0.25f);
+            float speed = (v.Type == VehicleType.Excavator ? B.ExcavatorSpeed : v.Type == VehicleType.Dozer ? B.DozerSpeed : B.TruckSpeed) * B.EraWork[Era] * (v.Tank > 0f ? 1f : 0.25f);
             UseFuel(v, dt);
             float move = speed * dt;
             while (move > 0f && v.PathStep < v.Path.Count)
@@ -546,7 +547,7 @@ namespace Kilnwood.Sim
             {
                 if (!DigMark[i] || MaterialAt(i) == Item.None) continue;
                 // Keep clear of other excavators' spots (2 tiles), so machines and their trucks don't pile up.
-                bool taken = Taken(v, i, pass == 0 ? 2 : 0);
+                bool taken = Taken(v, i, pass == 0 ? 2 : 0);   // 0.22: never right beside another shovel (houses overlapped)
                 if (taken) continue;
                 int d = Math.Abs(i % W - me % W) + Math.Abs(i / W - me / W);
                 int layer = Layer(i) - ShallowestOf(i, shallow);
