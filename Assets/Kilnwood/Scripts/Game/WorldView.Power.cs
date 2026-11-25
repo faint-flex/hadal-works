@@ -17,8 +17,15 @@ namespace Kilnwood.Game
         void MakeShaft(BView v)
         {
             var r = v.Root.transform;
-            Art.Cube("Post", r, new Vector3(0f, ShaftHeight / 2f, 0f), new Vector3(0.2f, ShaftHeight, 0.2f), Look.Timber * 0.85f);
-            Art.Cube("Foot", r, new Vector3(0f, 0.08f, 0f), new Vector3(0.5f, 0.16f, 0.5f), Look.StoneWall);
+            // Portal frame: two posts on opposite corners of the tile and a beam across the top carrying the bearing,
+            // so trucks and belt items pass underneath instead of through a post in the middle.
+            const float c = 0.8f;   // post offset from the centre along x and z (tile half-width is 1)
+            for (int k = -1; k <= 1; k += 2)
+            {
+                Art.Cube("Post", r, new Vector3(c * k, ShaftHeight / 2f, c * k), new Vector3(0.18f, ShaftHeight, 0.18f), Look.Timber * 0.85f);
+                Art.Cube("Foot", r, new Vector3(c * k, 0.08f, c * k), new Vector3(0.36f, 0.16f, 0.36f), Look.StoneWall);
+            }
+            Art.Cube("Beam", r, new Vector3(0f, ShaftHeight - 0.2f, 0f), new Vector3(0.16f, 0.16f, c * 2f * 1.4142f + 0.18f), Look.Timber * 0.8f, new Vector3(0f, 45f, 0f));
             Art.Cube("Bearing", r, new Vector3(0f, ShaftHeight, 0f), new Vector3(0.36f, 0.3f, 0.36f), Look.Iron);
             v.Anim = new GameObject("Spin").transform;   // rotating parts live under per-arm spinners
             v.Anim.SetParent(r, false);
