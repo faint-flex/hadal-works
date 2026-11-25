@@ -102,10 +102,17 @@ namespace Kilnwood.Game
                 _windowsLit = !_windowsLit;   // force a refresh below
             }
             bool lit = Night > 0.45f;
+            UpdateHomeLights(lit);
             if (lit != _windowsLit)
             {
                 _windowsLit = lit;
-                var glow = Look.GlowMat(new Color(1f, 0.72f, 0.4f));
+                if (_windowGlow == null)
+                {
+                    _windowGlow = new Material(Look.GlowMat(new Color(1f, 0.7f, 0.35f))) { name = "Window glow" };
+                    _windowGlow.EnableKeyword("_EMISSION");
+                    if (_windowGlow.HasProperty("_EmissionColor")) _windowGlow.SetColor("_EmissionColor", new Color(1f, 0.7f, 0.35f) * 4f);
+                }
+                var glow = _windowGlow;
                 foreach (var r in _windows)
                 {
                     if (r == null) continue;
@@ -116,6 +123,30 @@ namespace Kilnwood.Game
         }
 
         bool _windowsLit;
+        Material _windowGlow;
+        readonly Dictionary<GameObject, Light> _homeLights = new Dictionary<GameObject, Light>();
+
+        /// <summary>A warm light inside the lodge (and any cabin) after dark, so lit windows spill onto the porch.</summary>
+        void UpdateHomeLights(bool lit)
+        {
+            foreach (var v in _views.Values)
+            {
+                if (v.Type != Kilnwood.Sim.BuildingType.Lodge && v.Type != Kilnwood.Sim.BuildingType.Cabin) continue;
+                if (!_homeLights.TryGetValue(v.Root, out var l) || l == null)
+                {
+                    l = new GameObject("Home light").AddComponent<Light>();
+                    l.transform.SetParent(v.Root.transform, false);
+                    l.transform.localPosition = new Vector3(0f, 2.2f, 0f);
+                    l.type = LightType.Point;
+                    l.color = new Color(1f, 0.62f, 0.3f);
+                    l.intensity = v.Type == Kilnwood.Sim.BuildingType.Lodge ? 2.4f : 1.4f;
+                    l.range = v.Type == Kilnwood.Sim.BuildingType.Lodge ? 11f : 6f;
+                    l.shadows = LightShadows.None;
+                    _homeLights[v.Root] = l;
+                }
+                if (l.enabled != lit) l.enabled = lit;
+            }
+        }
         readonly Dictionary<Renderer, Material> _windowDay = new Dictionary<Renderer, Material>();
 
         static Color Mul(Color a, Color b) => new Color(a.r * b.r, a.g * b.g, a.b * b.b, a.a);
