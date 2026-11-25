@@ -364,7 +364,7 @@ namespace Kilnwood.Game
             _skyProbe.transform.position = new Vector3(_w.W * 0.5f * T, 20f, _w.H * 0.5f * T);
             _skyProbe.mode = UnityEngine.Rendering.ReflectionProbeMode.Realtime;
             _skyProbe.refreshMode = UnityEngine.Rendering.ReflectionProbeRefreshMode.ViaScripting;
-            _skyProbe.timeSlicingMode = UnityEngine.Rendering.ReflectionProbeTimeSlicingMode.NoTimeSlicing;
+            _skyProbe.timeSlicingMode = UnityEngine.Rendering.ReflectionProbeTimeSlicingMode.IndividualFaces;   // spread re-renders over frames (no hitch)
             _skyProbe.cullingMask = 0;
             _skyProbe.resolution = 128;
             _skyProbe.size = new Vector3(4000f, 600f, 4000f);
@@ -556,6 +556,14 @@ namespace Kilnwood.Game
                     Art.Cube("Porch roof", B, new Vector3(0f, 2.95f, fz + 0.6f), new Vector3(3.4f, 0.12f, 1.3f), Look.Roof, new Vector3(-14f, 0f, 0f));
                     for (int i = 0; i < 2; i++)
                         Art.Cube("Window", B, new Vector3(i == 0 ? -2.0f : 2.0f, 2.1f, fz + 0.03f), new Vector3(0.8f, 0.7f, 0.05f), new Color(0.95f, 0.82f, 0.5f));
+                    // Windows on the other three walls too, so the lodge glows from any side at night.
+                    for (int i = 0; i < 2; i++)
+                    {
+                        float wx = (s - 1.8f) / 2f + 0.03f, wz = i == 0 ? -1.2f : 1.2f;
+                        Art.Cube("Window", B, new Vector3(-wx, 2.1f, wz), new Vector3(0.05f, 0.7f, 0.8f), new Color(0.95f, 0.82f, 0.5f));
+                        Art.Cube("Window", B, new Vector3(wx, 2.1f, wz), new Vector3(0.05f, 0.7f, 0.8f), new Color(0.95f, 0.82f, 0.5f));
+                        Art.Cube("Window", B, new Vector3(i == 0 ? -1.6f : 1.6f, 2.1f, -fz - 0.03f), new Vector3(0.8f, 0.7f, 0.05f), new Color(0.95f, 0.82f, 0.5f));
+                    }
                     // Lodge pennant: short pole, kiln-red cloth with a cream band and a slight wave, so it reads as a flag.
                     Art.Cyl("Flag pole", B, new Vector3(-3.4f, 0.7f, -3.4f), 0.12f, 4.4f, Look.Bark);
                     Art.Ball("Flag finial", B, new Vector3(-3.4f, 5.15f, -3.4f), Vector3.one * 0.2f, Look.Iron);

@@ -87,7 +87,7 @@ namespace Kilnwood.Game
             v.FireLight.transform.SetParent(B, false);
             v.FireLight.transform.localPosition = new Vector3(0f, PoleTop - 1.7f, 0.72f);
             v.FireLight.type = LightType.Point;
-            v.FireLight.color = new Color(1f, 0.68f, 0.38f);   // warm sodium-ish, not lemon on the grass
+            v.FireLight.color = new Color(1f, 0.56f, 0.26f);   // warm sodium-ish, not lemon on the grass
             v.FireLight.intensity = 3f;
             v.FireLight.range = 12f;
             v.FireLight.shadows = LightShadows.None;

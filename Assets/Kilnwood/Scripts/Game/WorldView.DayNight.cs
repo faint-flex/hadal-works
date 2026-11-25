@@ -81,7 +81,7 @@ namespace Kilnwood.Game
             if (_waterMat != null && _waterMat.HasProperty("_SkyGlow")) _waterMat.SetFloat("_SkyGlow", Mathf.Lerp(0.11f, 0.02f, Night));
 
             // The sky reflection follows the light every few seconds.
-            if (_skyProbe != null && (DayNightOn || FixedHour >= 0f) && (Time.unscaledTime >= _probeAt || Mathf.Abs(Mathf.DeltaAngle(h * 15f, _probeHour * 15f)) > 10f))
+            if (_skyProbe != null && (DayNightOn || FixedHour >= 0f) && (Time.unscaledTime >= _probeAt && Mathf.Abs(Mathf.DeltaAngle(h * 15f, _probeHour * 15f)) > 4f || Mathf.Abs(Mathf.DeltaAngle(h * 15f, _probeHour * 15f)) > 10f))
             {
                 _probeAt = Time.unscaledTime + 3f;
                 _probeHour = h;
@@ -105,7 +105,7 @@ namespace Kilnwood.Game
             if (lit != _windowsLit)
             {
                 _windowsLit = lit;
-                var glow = Look.GlowMat(LampGlow * 0.75f);
+                var glow = Look.GlowMat(new Color(1f, 0.72f, 0.4f));
                 foreach (var r in _windows)
                 {
                     if (r == null) continue;
