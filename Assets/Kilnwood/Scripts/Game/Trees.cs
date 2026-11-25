@@ -34,6 +34,24 @@ namespace Kilnwood.Game
         // Broadleaf greens: deeper and less yellow than the old toy palette, so sunlit crowns stay natural.
         static readonly Color[] Leaf = { new Color(0.19f, 0.34f, 0.13f), new Color(0.22f, 0.37f, 0.14f), new Color(0.17f, 0.31f, 0.13f), new Color(0.24f, 0.36f, 0.15f) };
 
+        static Texture2D _leafDetail;
+        static bool _leafDetailChecked;
+        static readonly Dictionary<Color, Material> _leafMats = new Dictionary<Color, Material>();
+
+        /// <summary>0.19.1: near broadleaf crowns get the leaf canopy pattern (Resources/PBR/leaves_detail, made for Kilnwood).</summary>
+        static Material LeafMat(Color c)
+        {
+            if (!_leafDetailChecked) { _leafDetailChecked = true; _leafDetail = Resources.Load<Texture2D>("PBR/leaves_detail"); }
+            if (_leafDetail == null || !_src.HasProperty("_LeafAmount")) return Mat(c);
+            if (_leafMats.TryGetValue(c, out var m)) return m;
+            m = new Material(Mat(c)) { enableInstancing = true };
+            m.SetTexture("_LeafTex", _leafDetail);
+            m.SetFloat("_LeafScale", 0.6f);
+            m.SetFloat("_LeafAmount", 0.85f);
+            _leafMats[c] = m;
+            return m;
+        }
+
         static Material Mat(Color c)
         {
             if (_mats.TryGetValue(c, out var m)) return m;
@@ -79,7 +97,7 @@ namespace Kilnwood.Game
                 _leafyFar ??= MakeAll(i => Broadleaf(i, 1));     // far hills: same shapes, fewer triangles
                 var g = Leaf[(int)(r2 * 3.99f)];
                 if (!far) Art.Part("Trunk", parent, Art.Frustum, Vector3.zero, new Vector3(0.38f * s, 2.6f * s, 0.38f * s), Look.Bark);
-                Add("Crown", parent, far ? _leafyFar[v] : _leafy[v], Mat(g), Vector3.zero, Vector3.one * s * (far ? 1.35f : 1f), !far);
+                Add("Crown", parent, far ? _leafyFar[v] : _leafy[v], far ? Mat(g) : LeafMat(g), Vector3.zero, Vector3.one * s * (far ? 1.35f : 1f), !far);
                 // Leaf cards (0.18.0, 0.18.2) read as stickers on a smooth blob and cost frame time, so they stay off;
                 // broadleaf crowns need a real rebuild (ragged outline) in a later pass.
             }
