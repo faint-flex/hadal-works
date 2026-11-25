@@ -84,6 +84,7 @@ namespace Kilnwood.Game
 
         Material _beltMat, _waterMat;
         ReflectionProbe _skyProbe;
+        Light _sun;
         bool _skyProbeDone;
         GrassView _grass;
         HillHeight _hills;
@@ -333,6 +334,10 @@ namespace Kilnwood.Game
             sun.shadowNormalBias = 0.3f;
             sun.transform.rotation = Quaternion.Euler(42f, -40f, 0f);
             RenderSettings.sun = sun;
+            // Cloud shadows: a soft blotchy cookie on the sun, drifting slowly across the valley.
+            sun.cookie = Art.CloudCookie;
+            sun.cookieSize = 150f;
+            _sun = sun;
 
             QualitySettings.shadows = ShadowQuality.All;
             QualitySettings.shadowResolution = ShadowResolution.VeryHigh;
@@ -727,6 +732,7 @@ namespace Kilnwood.Game
             // Belts move with the game clock (they stop when paused); the river drifts south.
             if (_beltMat != null) _beltMat.mainTextureOffset = new Vector2(0f, -((_w.Time * _w.B.BeltSpeed) % 1f));
             if (!_skyProbeDone && _skyProbe != null) { _skyProbe.RenderProbe(); _skyProbeDone = true; }
+            if (_sun != null && _sun.cookie != null) _sun.transform.position = new Vector3(now * 1.6f, 0f, now * 0.9f);   // clouds drift with the wind
             if (_waterMat != null) _waterMat.mainTextureOffset = new Vector2(Mathf.Sin(now * 0.3f) * 0.02f, (now * 0.05f) % 1f);
 
             bool groundChanged = _w.ChangedGround.Count > 0;

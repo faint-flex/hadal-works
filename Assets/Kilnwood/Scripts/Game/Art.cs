@@ -334,6 +334,31 @@ namespace Kilnwood.Game
 
         static Texture2D _grain, _grainNormal, _ripples;
 
+        static Texture2D _cloud;
+
+        /// <summary>Sun cookie for drifting cloud shadows: mostly clear (1), soft patches down to about 0.6. Tiles.</summary>
+        public static Texture2D CloudCookie
+        {
+            get
+            {
+                if (_cloud != null) return _cloud;
+                const int n = 256;
+                _cloud = new Texture2D(n, n, TextureFormat.Alpha8, true) { name = "Clouds", wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Trilinear };
+                var px = new Color32[n * n];
+                for (int y = 0; y < n; y++)
+                    for (int x = 0; x < n; x++)
+                    {
+                        float f = Fbm(x / (float)n, y / (float)n, 4);
+                        float shade = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((f - 0.52f) * 5f));   // clouds cover roughly a third
+                        byte a = (byte)(255f * (1f - 0.42f * shade));
+                        px[y * n + x] = new Color32(a, a, a, a);
+                    }
+                _cloud.SetPixels32(px);
+                _cloud.Apply(true);
+                return _cloud;
+            }
+        }
+
         /// <summary>Soft grey noise (also used to weather building surfaces).</summary>
         public static Texture2D Grain { get { if (_grain == null) MakeGrain(); return _grain; } }
 
