@@ -145,13 +145,26 @@ namespace Kilnwood.Game
                 m = new Material(Mat(c));
                 m.mainTextureScale = new Vector2(2f, 2f);
             }
-            m.mainTexture = Art.PatternTexture(s);
-            m.color = c * 1.2f;   // patterns average about 0.83, so lift the tint to keep the same overall colour
-            m.enableInstancing = true;
-            if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", s == Surface.Shingle ? 0.15f : 0.08f);
             // Plain grey-blue parts are iron: metallic, a bit of shine, rust in the streaks.
             float mx = Mathf.Max(c.r, Mathf.Max(c.g, c.b)), mn = Mathf.Min(c.r, Mathf.Min(c.g, c.b));
-            if (s == Surface.Weathered && m.HasProperty("_Metallic") && mx - mn < 0.07f && c.b >= c.r && mx < 0.6f && mx > 0.12f)
+            bool iron = s == Surface.Weathered && mx - mn < 0.07f && c.b >= c.r && mx < 0.6f && mx > 0.12f;
+            // 0.17 photoreal pass: scanned surfaces (Poly Haven, CC0) when they are in Resources/PBR, else the drawn patterns.
+            string scan = ScanName(s, iron);
+            var detail = scan != null && m.HasProperty("_HasPBR") ? Resources.Load<Texture2D>("PBR/" + scan + "_detail") : null;
+            if (detail != null)
+            {
+                m.mainTexture = detail;
+                m.SetTexture("_BumpMap", Resources.Load<Texture2D>("PBR/" + scan + "_nor"));
+                m.SetTexture("_RoughMap", Resources.Load<Texture2D>("PBR/" + scan + "_rough"));
+                m.SetFloat("_HasPBR", 1f);
+                m.SetFloat("_Scale", ScanRepeats(scan));
+                m.SetFloat("_GrimeAmount", 0.45f);   // the scans carry their own weathering
+            }
+            else m.mainTexture = Art.PatternTexture(s);
+            m.color = c * 1.2f;   // patterns and scans average about 0.83, so lift the tint to keep the same overall colour
+            m.enableInstancing = true;
+            if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", s == Surface.Shingle ? 0.15f : 0.08f);
+            if (iron && m.HasProperty("_Metallic"))
             {
                 m.SetFloat("_Metallic", 0.75f);
                 m.SetFloat("_Rust", 0.55f);
@@ -159,6 +172,34 @@ namespace Kilnwood.Game
             }
             _surf[(c, s)] = m;
             return m;
+        }
+
+        /// <summary>Which scanned surface stands in for each pattern (files in Resources/PBR: name_detail, name_nor, name_rough).</summary>
+        static string ScanName(Surface s, bool iron)
+        {
+            switch (s)
+            {
+                case Surface.Wood: return "wood";
+                case Surface.Brick: return "brick";
+                case Surface.Stone: return "stone";
+                case Surface.Shingle: return "shingle";
+                case Surface.Weathered: return iron ? "metal" : "concrete";
+                default: return null;
+            }
+        }
+
+        /// <summary>Repeats per world unit (a tile is 2): one scan covers about 2-3 m of real wall, roof or plate.</summary>
+        static float ScanRepeats(string scan)
+        {
+            switch (scan)
+            {
+                case "brick": return 1f / 2.2f;
+                case "stone": return 1f / 2.6f;
+                case "wood": return 1f / 2.4f;
+                case "shingle": return 1f / 2.2f;
+                case "metal": return 1f / 2.0f;
+                default: return 1f / 3.0f;
+            }
         }
 
         static Material _glass;

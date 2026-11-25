@@ -74,8 +74,19 @@ namespace Kilnwood.Game
             RenderSettings.fogColor = fog;
             var cam = Camera.main;
             if (cam != null) cam.backgroundColor = fog;
-            if (RenderSettings.skybox != null && RenderSettings.skybox.HasProperty("_Exposure"))
-                RenderSettings.skybox.SetFloat("_Exposure", Mathf.Lerp(1.15f, 0.28f, Night));
+            var skyMat = RenderSettings.skybox;
+            if (skyMat != null && skyMat.HasProperty("_SunDir"))
+            {
+                // Photographed sky: our sun (or none at night), dusk glow and the night fade.
+                skyMat.SetFloat("_Exposure", Mathf.Lerp(1.0f, 0.3f, Night));
+                skyMat.SetVector("_SunDir", elev > -2f ? -_sun.transform.forward : Vector3.down);
+                skyMat.SetColor("_SunColor", Color.Lerp(SunNoon, SunLow, low));
+                skyMat.SetFloat("_Dusk", low * dayW);
+                skyMat.SetFloat("_Night", Night);
+                skyMat.SetColor("_Haze", Color.Lerp(CameraRig.Horizon, DuskFog, low * dayW));
+            }
+            else if (skyMat != null && skyMat.HasProperty("_Exposure"))
+                skyMat.SetFloat("_Exposure", Mathf.Lerp(1.15f, 0.28f, Night));
             // Smoke is unlit: shade it with the light so it doesn't glow white at dusk and night.
             Art.ShadeSmoke(Color.Lerp(Mul(Color.white, dusk) * Mathf.Lerp(1f, 0.85f, low * dayW), new Color(0.24f, 0.27f, 0.36f), Night));
             if (_waterMat != null && _waterMat.HasProperty("_SkyGlow")) _waterMat.SetFloat("_SkyGlow", Mathf.Lerp(0.11f, 0.02f, Night));

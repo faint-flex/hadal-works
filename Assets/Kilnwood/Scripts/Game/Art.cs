@@ -161,6 +161,17 @@ namespace Kilnwood.Game
             }
             m.triangles = tris;
             m.RecalculateNormals();
+            // 0.17: box-projected UVs so the mesh gets proper tangents (the triplanar shader's scanned normal maps need them).
+            var nrm = m.normals;
+            var uv = new Vector2[verts.Length];
+            for (int i = 0; i < verts.Length; i++)
+            {
+                var an = new Vector3(Mathf.Abs(nrm[i].x), Mathf.Abs(nrm[i].y), Mathf.Abs(nrm[i].z));
+                var p = verts[i];
+                uv[i] = an.x >= an.y && an.x >= an.z ? new Vector2(p.z, p.y) : an.y >= an.z ? new Vector2(p.x, p.z) : new Vector2(p.x, p.y);
+            }
+            m.uv = uv;
+            m.RecalculateTangents();
             m.RecalculateBounds();
             return m;
         }
@@ -452,6 +463,21 @@ namespace Kilnwood.Game
             m.SetTexture("_MainTex", painted);
             m.SetTexture("_Detail", _grain);
             m.SetTexture("_DetailNormal", _grainNormal);
+            // 0.17 photoreal pass: scanned ground layers (Poly Haven, CC0) when they are in Resources/PBR.
+            if (m.HasProperty("_HasScans") && Resources.Load<Texture2D>("PBR/grass_detail") != null)
+            {
+                foreach (var (prop, file) in new[] { ("_Grass", "grass"), ("_Forest", "forest"), ("_Rock", "rock"), ("_Ore", "ore"), ("_Mud", "mud") })
+                {
+                    m.SetTexture(prop + "D", Resources.Load<Texture2D>("PBR/" + file + "_detail"));
+                    m.SetTexture(prop + "N", Resources.Load<Texture2D>("PBR/" + file + "_nor"));
+                }
+                m.SetColor("_RefGrass", Look.Grass.linear);
+                m.SetColor("_RefForest", Look.ForestFloor.linear);
+                m.SetColor("_RefRock", Look.StoneGround.linear);
+                m.SetColor("_RefOre", Look.OreGround.linear);
+                m.SetColor("_RefMud", new Color(0.45f, 0.33f, 0.22f).linear);
+                m.SetFloat("_HasScans", 1f);
+            }
             return m;
         }
 

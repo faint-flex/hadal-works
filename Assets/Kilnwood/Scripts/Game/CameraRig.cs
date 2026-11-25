@@ -31,6 +31,15 @@ namespace Kilnwood.Game
             rig.Cam.backgroundColor = Horizon;
             // Procedural sky (made by Setup so its shader ships in the build); plain colour if it's missing.
             var sky = Resources.Load<Material>("KW_Sky");
+            // 0.17 photoreal pass: the photographed sky (Resources/Sky, CC0) with our own sun, dusk and night on top.
+            var skyShader = Shader.Find("Kilnwood/SkyHDRI");
+            var skyTex = Resources.Load<Texture2D>("Sky/sky_day");
+            if (skyShader != null && skyShader.isSupported && skyTex != null)
+            {
+                sky = new Material(skyShader) { name = "Photographed sky" };
+                sky.SetTexture("_Tex", skyTex);
+                sky.SetColor("_Haze", Horizon);
+            }
             if (sky != null)
             {
                 RenderSettings.skybox = sky;
