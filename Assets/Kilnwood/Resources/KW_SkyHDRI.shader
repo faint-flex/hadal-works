@@ -72,9 +72,16 @@ Shader "Kilnwood/SkyHDRI"
                 sky += _SunColor.rgb * (disc * 30.0 + glow) * (1.0 - _Night);
                 // Night: deep blue, lighter at the horizon, with stars.
                 float3 night = lerp(float3(0.012, 0.018, 0.04), float3(0.05, 0.065, 0.1), hz);
-                float2 cell = floor(float2(atan2(d.z, d.x) * 180.0, asin(clamp(d.y, -1.0, 1.0)) * 180.0));
-                float star = step(0.9965, Hash(cell)) * up * (0.6 + 0.4 * Hash(cell + 7.0));
-                night += star * 0.9;
+                // 0.18.1: small round stars (a soft dot at a random spot in each sky cell), many faint, a few bright.
+                float2 sc = float2(atan2(d.z, d.x) * 320.0, asin(clamp(d.y, -1.0, 1.0)) * 320.0);
+                float2 cell = floor(sc);
+                float h = Hash(cell);
+                float2 off = float2(Hash(cell + 3.1), Hash(cell + 5.7)) * 0.5 + 0.25;
+                float dist = length(frac(sc) - off);
+                float bright = Hash(cell + 7.0);
+                float star = step(0.975, h) * smoothstep(0.22, 0.0, dist) * (0.25 + 0.75 * bright * bright);
+                star *= 0.75 + 0.25 * sin(_Time.y * (1.5 + 3.0 * bright) + h * 40.0);   // a slow twinkle
+                night += star * saturate(up * 4.0) * float3(0.95, 0.97, 1.0) * 1.4;
                 sky = lerp(sky, night, _Night);
                 return fixed4(sky, 1);
             }

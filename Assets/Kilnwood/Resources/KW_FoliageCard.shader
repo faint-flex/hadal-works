@@ -36,7 +36,7 @@ Shader "Kilnwood/FoliageCard"
             float3 rootW = mul(unity_ObjectToWorld, float4(0, 0, 0, 1)).xyz;
             float3 wp = mul(unity_ObjectToWorld, v.vertex).xyz;
             float h = max(0, wp.y - rootW.y);
-            float ph = rootW.x * 0.37 + rootW.z * 0.23;
+            float ph = rootW.x * 0.37 + rootW.z * 0.23 + (wp.x * 0.7 + wp.z) * 0.05;   // a wave rolls across big meshes (grass chunks)
             float s = sin(_Time.y * 1.1 + ph) + 0.35 * sin(_Time.y * 2.7 + ph * 1.7 + wp.y);
             float flutter = sin(_Time.y * 6.0 + wp.x * 3.1 + wp.z * 2.3) * 0.015 * v.color.a;
             float3 push = float3(1.0, 0.0, 0.45) * (s * _Wind * h * 0.25 + flutter);

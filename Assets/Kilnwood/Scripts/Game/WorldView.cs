@@ -102,7 +102,7 @@ namespace Kilnwood.Game
             float size = w.W * T;
 
             _ground = new GroundView(root, w);
-            _grass = new GrassView(w);
+            _grass = new GrassView(w, root);
             _grass.Rebuild();
             float riverX = (MapGen.RiverX0 + MapGen.RiverX1) / 2f * T + T / 2f;
             _hills = Art.Hills(root, size, riverX).GetComponent<HillHeight>();

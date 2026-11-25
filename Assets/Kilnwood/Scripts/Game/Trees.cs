@@ -12,7 +12,7 @@ namespace Kilnwood.Game
     public static class Trees
     {
         const int Variants = 4;
-        static Mesh[] _pines, _leafy, _leafyFar, _pineCards, _leafCards;
+        static Mesh[] _pines, _leafy, _leafyFar, _pineCards;
         static Material _src;
         static bool _checked;
         static readonly Dictionary<Color, Material> _mats = new Dictionary<Color, Material>();
@@ -80,11 +80,7 @@ namespace Kilnwood.Game
                 var g = Leaf[(int)(r2 * 3.99f)];
                 if (!far) Art.Part("Trunk", parent, Art.Frustum, Vector3.zero, new Vector3(0.38f * s, 2.6f * s, 0.38f * s), Look.Bark);
                 Add("Crown", parent, far ? _leafyFar[v] : _leafy[v], Mat(g), Vector3.zero, Vector3.one * s * (far ? 1.35f : 1f), !far);
-                if (!far && CardsAvailable)
-                {
-                    _leafCards ??= MakeAll(LeafCards);
-                    Add("Leaves", parent, _leafCards[v], CardMat(_leafTex, g), Vector3.zero, Vector3.one * s, true);
-                }
+                // 0.18.1: the scanned leaf cards read as smeared shards (QA), so broadleaf crowns keep their own leafy mesh.
             }
         }
 
