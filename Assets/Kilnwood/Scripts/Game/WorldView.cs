@@ -738,6 +738,7 @@ namespace Kilnwood.Game
             // Belts move with the game clock (they stop when paused); the river drifts south.
             if (_beltMat != null) _beltMat.mainTextureOffset = new Vector2(0f, -((_w.Time * _w.B.BeltSpeed) % 1f));
             if (!_skyProbeDone && _skyProbe != null) { _skyProbe.RenderProbe(); _skyProbeDone = true; }
+            UpdateDayNight(now);
             if (_sun != null && _sun.cookie != null) _sun.transform.position = new Vector3(now * 1.6f, 0f, now * 0.9f);   // clouds drift with the wind
             if (_waterMat != null) _waterMat.mainTextureOffset = new Vector2(Mathf.Sin(now * 0.3f) * 0.02f, (now * 0.05f) % 1f);
 

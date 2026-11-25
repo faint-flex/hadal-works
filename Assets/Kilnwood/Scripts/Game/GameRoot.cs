@@ -75,7 +75,7 @@ namespace Kilnwood.Game
 
             var args = System.Environment.GetCommandLineArgs();
             for (int i = 0; i < args.Length - 1; i++)
-                if (args[i] == "-kwshots") _shotsDir = Path.GetFullPath(args[i + 1]);   // screenshots resolve relative paths elsewhere
+                if (args[i] == "-kwshots") { _shotsDir = Path.GetFullPath(args[i + 1]); WorldView.FixedHour = 10.5f; }   // screenshots resolve relative paths elsewhere
 
             if (_shotsDir != null)
             {
@@ -571,6 +571,16 @@ namespace Kilnwood.Game
             ScreenCapture.CaptureScreenshot(Path.Combine(_shotsDir, "28-research.png"));
             yield return null;
             _research = false;
+            // The same yard at dusk and at night: gold light, then pole lamps and lit windows.
+            Rig.Frame(WorldView.FootCenter(37, 27, 2), 200f, 34f, 42f);
+            foreach (var (hour, name) in new[] { (18.7f, "32-dusk"), (22f, "33-night") })
+            {
+                WorldView.FixedHour = hour;
+                for (int k = 0; k < 4; k++) yield return null;     // light, sky probe and lamps settle
+                yield return new WaitForEndOfFrame();
+                ScreenCapture.CaptureScreenshot(Path.Combine(_shotsDir, name + ".png"));
+            }
+            WorldView.FixedHour = 10.5f;
             var sb = new StringBuilder();
             sb.AppendLine("goal reached: " + W.GoalReached + " at " + W.GoalReachedAt.ToString("0") + " s game time");
             sb.AppendLine("tier " + W.Tier + (W.Tier >= 3 ? ", tier 2 goal at " + W.Tier2GoalAt.ToString("0") + " s" : ", tier 2 goal NOT reached") +
@@ -884,7 +894,7 @@ namespace Kilnwood.Game
 
         void DrawMenu(float Wd, float Ht)
         {
-            var r = Panel(new Rect(Wd / 2f - 220f, Ht / 2f - 245f, 440f, 490f));
+            var r = Panel(new Rect(Wd / 2f - 220f, Ht / 2f - 270f, 440f, 540f));
             GUILayout.BeginArea(new Rect(r.x + 24f, r.y + 18f, r.width - 48f, r.height - 36f));
             GUILayout.Label("Menu", _h2);
             if (GUILayout.Button("Resume", _btn, GUILayout.Height(46f))) _menu = false;
@@ -894,6 +904,7 @@ namespace Kilnwood.Game
             int q = QualitySettings.GetQualityLevel();
             if (names.Length > 0 && GUILayout.Button("Graphics: " + names[q], _btn, GUILayout.Height(40f))) QualitySettings.SetQualityLevel((q + 1) % names.Length, true);
             if (GUILayout.Button("Film look (shading, glow): " + (PostFX.Enabled ? "on" : "off"), _btn, GUILayout.Height(40f))) PostFX.Enabled = !PostFX.Enabled;
+            if (GUILayout.Button("Day and night: " + (WorldView.DayNightOn ? "on" : "off (always day)"), _btn, GUILayout.Height(40f))) WorldView.DayNightOn = !WorldView.DayNightOn;
             GUILayout.Label("The game also saves every 2 minutes and when you quit.", _small);
             if (GUILayout.Button("Save and quit", _btn, GUILayout.Height(40f))) { SaveSystem.Save(W); Application.Quit(); }
             GUILayout.EndArea();

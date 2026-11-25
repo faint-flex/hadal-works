@@ -82,6 +82,16 @@ namespace Kilnwood.Game
             v.Extra = Art.Ball("Lamp", B, new Vector3(0f, PoleTop - 1.45f, 0.72f), Vector3.one * 0.28f, LampGlow);
             v.Extra.GetComponent<Renderer>().sharedMaterial = Look.GlowMat(LampGlow);
             v.Extra.SetActive(false);
+            // A real light for the night, switched on in UpdateElectricViews.
+            v.FireLight = new GameObject("Lamp light").AddComponent<Light>();
+            v.FireLight.transform.SetParent(B, false);
+            v.FireLight.transform.localPosition = new Vector3(0f, PoleTop - 1.7f, 0.72f);
+            v.FireLight.type = LightType.Point;
+            v.FireLight.color = LampGlow;
+            v.FireLight.intensity = 2.2f;
+            v.FireLight.range = 9f;
+            v.FireLight.shadows = LightShadows.None;
+            v.FireLight.enabled = false;
             Art.Cube("Footing", B, new Vector3(0f, 0.08f, 0f), new Vector3(0.6f, 0.16f, 0.6f), Look.StoneWall * 0.8f);
         }
 
@@ -254,6 +264,8 @@ namespace Kilnwood.Game
                     {
                         bool live = b.Elec > 0f;
                         if (v.Extra != null && v.Extra.activeSelf != live) v.Extra.SetActive(live);
+                        bool shine = live && Night > 0.3f;
+                        if (v.FireLight != null && v.FireLight.enabled != shine) v.FireLight.enabled = shine;
                         break;
                     }
                     case BuildingType.WireMill:
