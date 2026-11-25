@@ -537,12 +537,12 @@ namespace Kilnwood.Game
             }
             if (W.Tier >= 3 && W.Tier2GoalAt > 0f && !_tier2Shot) { _tier2Shot = true; StartCoroutine(TierShot("19-tier2-goal-t" + Mathf.RoundToInt(W.Time) + "s")); }
             // 0.22: the bulldozer pushing down the woods north of the pit (from Tier 6 in the demo).
-            if (!_dozerShot && W.TreesCleared >= 12)   // 0.22.1: half the strip is bare by then, so the dozer stands in the open
+            if (!_dozerShot && W.TreesCleared >= 45)   // 0.22.1: half the strip is bare by then, so the dozer stands in the open
                 foreach (var dz in W.Vehicles)
                     if (dz.Type == VehicleType.Dozer && dz.State == VehicleState.Digging)
                     {
                         _dozerShot = true;
-                        Rig.Frame(WorldView.FootCenter(dz.TileX, dz.TileY, 1), 0f, 48f, 18f);   // from the open south side (it clears from the south edge)
+                        Rig.Frame(WorldView.FootCenter(dz.TileX, dz.TileY, 1), 0f, 55f, 24f);   // from the open south side (it clears from the south edge)
                         StartCoroutine(ShotNextFrame("49-dozer-clearing-t" + Mathf.RoundToInt(W.Time) + "s"));
                         break;
                     }

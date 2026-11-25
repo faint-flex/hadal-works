@@ -271,7 +271,7 @@ namespace Kilnwood.Game
             // Trees and rocks clear on built tiles and one tile around them, so belts stay visible in forests.
             foreach (var kv in _deco)
             {
-                bool show = !NeedsClearing(kv.Key % _w.W, kv.Key / _w.W);
+                bool show = !NeedsClearing(kv.Key % _w.W, kv.Key / _w.W) && !_w.ClearedForest.Contains(kv.Key);   // bushes go with the trees
                 foreach (var go in kv.Value) if (go.activeSelf != show) go.SetActive(show);
             }
             foreach (var key in _trees.Keys) UpdateTree(key);

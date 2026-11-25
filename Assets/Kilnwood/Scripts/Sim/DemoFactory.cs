@@ -40,7 +40,7 @@ namespace Kilnwood.Sim
         readonly int _railsEnd;
         public const int FieldStationX = 54, FieldStationY = 7, YardStationX = 35, YardStationY = 26, DynamoX = 42, DynamoY = 20, ShopX = 36, ShopY = 32, TurbineX = 48, TurbineY = 20, AssemblyX = 31, AssemblyY = 35, HangarX = 37, HangarY = 39, DamX = 6, DamY = 46, GlassX = 10, GlassY = 46, RadioX = 10, RadioY = 44, DroneWorksX = 13, DroneWorksY = 44, PortX = 24, PortY = 54;
         /// <summary>0.22: the strip of woods north of the pit that a bulldozer clears (no woodcutter reaches it).</summary>
-        public const int ClearX0 = 47, ClearY0 = 43, ClearX1 = 52, ClearY1 = 46;
+        public const int ClearX0 = 43, ClearY0 = 43, ClearX1 = 56, ClearY1 = 47;   // 0.22.3: the whole patch (a 6x4 strip hid under the neighbours' crowns)
         bool _levelMarked;
 
         public DemoFactory(bool people = false, bool pit = false, bool tier2 = false, bool tier3 = false, bool tier4 = false, bool tier5 = false, bool tier6 = false, bool tier7 = false, bool tier8 = false, bool tier9 = false, bool tier10 = false)
