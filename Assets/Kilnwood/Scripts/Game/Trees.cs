@@ -292,6 +292,7 @@ namespace Kilnwood.Game
         /// <summary>Broadleaf crown: 6-8 lumpy leaf masses around a centre about 3.4 m up.</summary>
         static Mesh Broadleaf(int seed, int detail)
         {
+            if (detail >= 2) return BroadleafClumps(seed);
             var vs = new List<Vector3>(); var ns = new List<Vector3>(); var cs = new List<Color>(); var ts = new List<int>();
             var centre = new Vector3(0f, 3.5f, 0f);
             int blobs = 6 + (int)(N(seed, 1) * 3f);
@@ -307,11 +308,45 @@ namespace Kilnwood.Game
             return Build("Broadleaf", vs, ns, cs, ts);
         }
 
+        /// <summary>
+        /// 0.19 photoreal pass 3: a near broadleaf crown as a few inner masses wrapped in about 26 small leaf clumps, so the
+        /// outline is ragged and the light breaks up into clusters (real crowns read as clumps, not one smooth ball).
+        /// Same triangle budget as the old eight smooth blobs; no alpha cards, so no overdraw.
+        /// </summary>
+        static Mesh BroadleafClumps(int seed)
+        {
+            var vs = new List<Vector3>(); var ns = new List<Vector3>(); var cs = new List<Color>(); var ts = new List<int>();
+            var centre = new Vector3(0f, 3.6f, 0f);
+            var env = new Vector3(1.75f + N(seed, 2) * 0.35f, 1.35f + N(seed, 3) * 0.3f, 1.75f + N(seed, 4) * 0.35f);
+            // Inner masses fill the crown so no sky shows through the middle.
+            for (int b = 0; b < 4; b++)
+            {
+                float a = b * 1.57f + N(seed, b + 50);
+                var c = centre + new Vector3(Mathf.Cos(a) * 0.45f, (b == 0 ? 0.35f : -0.1f), Mathf.Sin(a) * 0.45f);
+                Blob(vs, ns, cs, ts, c, Vector3.Scale(env, new Vector3(0.62f, 0.66f, 0.62f)), centre, seed * 31 + b, 1, 0.35f, 0.9f);
+            }
+            // Outer clumps on the envelope: more on top and the sunny sides, fewer underneath.
+            const int clumps = 26;
+            for (int k = 0; k < clumps; k++)
+            {
+                float z = 1f - 1.75f * (k + 0.5f) / clumps;                       // stop short of the very bottom
+                float rr = Mathf.Sqrt(Mathf.Max(0f, 1f - z * z)), ph = k * 2.39996f + seed * 1.3f;
+                var d = new Vector3(Mathf.Cos(ph) * rr, z, Mathf.Sin(ph) * rr);
+                float jitter = 0.82f + N(seed * 3 + 1, k) * 0.3f;
+                var c = centre + Vector3.Scale(d, env) * jitter;
+                float r = 0.42f + N(seed * 5 + 2, k) * 0.28f;
+                float shade = 0.84f + N(seed * 7 + 3, k) * 0.26f;              // clump-to-clump tone variation
+                Blob(vs, ns, cs, ts, c, new Vector3(r * 1.15f, r * 0.85f, r * 1.15f), centre, seed * 17 + k, 1, 0.5f, shade);
+            }
+            return Build("Broadleaf clumps", vs, ns, cs, ts);
+        }
+
         static readonly Vector3[][] _ico = new Vector3[3][];
         static readonly int[][] _icoTris = new int[3][];
 
         /// <summary>A bumpy ellipsoid; normals and shading measured from the crown centre so the masses read as one crown.</summary>
-        static void Blob(List<Vector3> vs, List<Vector3> ns, List<Color> cs, List<int> ts, Vector3 c, Vector3 r, Vector3 crown, int seed, int detail)
+        static void Blob(List<Vector3> vs, List<Vector3> ns, List<Color> cs, List<int> ts, Vector3 c, Vector3 r, Vector3 crown, int seed, int detail,
+                         float own = 0.3f, float shade = 1f)
         {
             if (_ico[detail] == null) Icosphere(detail, out _ico[detail], out _icoTris[detail]);
             int o = vs.Count;
@@ -321,12 +356,12 @@ namespace Kilnwood.Game
                 var p = c + Vector3.Scale(d, r) * bump;
                 vs.Add(p);
                 var fromCrown = (p - crown);
-                ns.Add((fromCrown.normalized * 0.7f + d * 0.3f).normalized);
+                ns.Add((fromCrown.normalized * (1f - own) + d * own).normalized);
                 // Exposure: top and outside are bright, underneath and deep inside are dark.
                 float outside = Mathf.Clamp01(fromCrown.magnitude / 2.2f);
                 float top = d.y * 0.5f + 0.5f;
                 float ex = Mathf.Clamp01(0.25f + 0.45f * outside + 0.4f * top);
-                cs.Add(new Color(0.92f, 1f, 0.9f, ex));
+                cs.Add(new Color(0.92f * shade, 1f * shade, 0.9f * shade, ex));
             }
             foreach (int t in _icoTris[detail]) ts.Add(o + t);
         }
